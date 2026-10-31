@@ -49,7 +49,10 @@ CORTO=$(git rev-parse --short HEAD)
 PR=$(gh pr list --head "$RAMA" --state open --json number 2>/dev/null | jq -r '.[0].number // empty' 2>/dev/null)
 if [ -z "$PR" ]; then
   case "$RIESGO" in
-    rojo) QUIEN="Es **rojo**: lo integras tú, en GitHub, después de revisar el diff." ;;
+    rojo) case ",${COORD_MERGE_AUTO:-verde,ambar}," in
+        *,rojo,*) QUIEN="Es **rojo**, pero \`COORD_MERGE_AUTO\` incluye \`rojo\`: el coordinador lo integra solo cuando el CI esté en verde." ;;
+        *) QUIEN="Es **rojo**: lo integras tú, en GitHub, después de revisar el diff." ;;
+      esac ;;
     *) QUIEN="Es **$RIESGO**: el coordinador lo integra solo cuando el CI esté en verde (COORD_MERGE_AUTO)." ;;
   esac
   gh pr create --base main --head "$RAMA" --title "$PASO · $TITULO" --body "Paso $PASO del plan (carril \`$CARRIL\`), publicado por el piloto ($CORTO).

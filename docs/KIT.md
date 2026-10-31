@@ -10,7 +10,7 @@ allá avanza de a un paso se rediseña para que **varios carriles trabajen a la 
 | Carriles             | Dos escritos a mano (A con piloto, B a mano con Sonnet)    | Los de `plan.yaml`, todos con piloto, hasta `CARRILES_MAX`                                                                            |
 | Qué hace cada carril | El ruteo (Sonnet) lee `PLAN.md` y elige                    | El coordinador entrega el paso cuyas dependencias ya están en `main`; el ruteo ya viene escrito en `plan.yaml` (sin llamada a Sonnet) |
 | PR                   | Uno largo por carril; lo integras tú                       | Uno por paso (rama `<carril>/<paso>`): lo que depende de él se desbloquea apenas entra                                                |
-| Integrar             | Siempre tú                                                 | El coordinador integra los verdes y ámbar con el CI en verde; **los rojos siempre tú**                                                |
+| Integrar             | Siempre tú                                                 | El coordinador integra los verdes y ámbar con el CI en verde; **los rojos tú** (salvo `rojo` en `COORD_MERGE_AUTO`)                   |
 | Docs compartidos     | Sólo el carril A edita ESTADO, PLAN, DECISIONES y BITACORA | Nadie los edita: cada paso escribe `docs/pasos/<PASO>/`; el tablero lo genera el coordinador                                          |
 | Puertos              | 546xx; carriles +100 y +200                                | Un **bloque** por proyecto (`PILOTO_BLOQUE`) y +100 por carril: varios proyectos a la vez sin chocar                                  |
 | Cuota                | Tope de USD por paso                                       | Además, la ventana de 5 h compartida entre **todos** los proyectos, con un tope por proyecto                                          |
@@ -38,7 +38,8 @@ allá avanza de a un paso se rediseña para que **varios carriles trabajen a la 
    - Si el PR ya se integró, lo marca integrado.
    - Si el paso es verde o ámbar y el CI está en verde, lo integra (squash) y borra la rama.
    - Si el CI está en rojo o hay conflicto con `main`, se lo devuelve a su carril, y eso va antes que un paso nuevo.
-5. Un paso rojo con el CI en verde queda esperando que lo integres tú en GitHub. Lo que depende de él espera.
+5. Un paso rojo con el CI en verde queda esperando que lo integres tú en GitHub. Lo que depende de él espera. Si sumas `rojo` a
+   `COORD_MERGE_AUTO` (`piloto.config`), el coordinador también los integra solo.
 
 ## Calibrar la cuota
 

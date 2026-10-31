@@ -168,8 +168,10 @@ test('transiciones inválidas fallan', () => {
   assert.throws(() => marcar(e, 'P99', 'asignado'), /no está en el plan/)
 })
 
-test('un paso rojo nunca se integra solo', () => {
-  assert.equal(integraSolo(PLAN.pasos[0], ['rojo', 'ambar', 'verde']), false)
+test('un paso rojo sólo se integra solo si el dueño lo pidió en COORD_MERGE_AUTO', () => {
+  assert.equal(integraSolo(PLAN.pasos[0]), false)
+  assert.equal(integraSolo(PLAN.pasos[0], ['ambar', 'verde']), false)
+  assert.equal(integraSolo(PLAN.pasos[0], ['rojo', 'ambar', 'verde']), true)
   assert.equal(integraSolo(PLAN.pasos[1]), true)
   assert.equal(integraSolo(PLAN.pasos[1], ['verde']), false)
 })

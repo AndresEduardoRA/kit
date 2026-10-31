@@ -264,9 +264,10 @@ export function siguiente(plan, estado, carril, { cuota = null, umbral = 0.8 } =
 
 export const rama = (carril, paso) => `${carril}/${paso.toLowerCase()}`
 
-/** Si el coordinador puede integrar el PR de este paso sin la persona. Un paso rojo nunca. */
+/** Si el coordinador puede integrar el PR de este paso sin la persona: sólo los riesgos de `COORD_MERGE_AUTO`. Por defecto, un rojo
+ * nunca; el dueño lo suma a propósito en piloto.config. */
 export function integraSolo(paso, mergeAuto = ['verde', 'ambar']) {
-  return paso.riesgo !== 'rojo' && mergeAuto.includes(paso.riesgo)
+  return mergeAuto.includes(paso.riesgo)
 }
 
 /** El desfase de puertos de cada carril (la principal es 0): 100, 200, … en el orden de plan.yaml. */
