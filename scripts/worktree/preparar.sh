@@ -5,7 +5,7 @@
 #
 #   bash scripts/worktree/preparar.sh [<carril>]     (sin carril: lo saca de la rama, `<carril>/…`)
 #
-# 1) `.env.carril`: project_id `<proyecto>-<carril>` y sus puertos (scripts/lib/stack-local.mjs). 2) `pnpm install` si falta.
+# 1) `pnpm install` si falta. 2) `.env.carril`: project_id `<proyecto>-<carril>` y sus puertos (scripts/lib/stack-local.mjs).
 # 3) `supabase start` del carril, sin Studio, imgproxy ni logs. 4) `.env.local`: lo de Supabase sale de `supabase status`; lo demás, de la
 # `.env.local` de la principal. Nada se imprime. 5) La base: datos de demo si hay `scripts/demo/restaurar.sh` y credenciales; si no,
 # `pnpm db:reset`. 6) El mapa. Quitarlo: scripts/worktree/quitar.sh.
@@ -26,7 +26,11 @@ CARRIL="${1:-}"
 [ -n "$CARRIL" ] || CARRIL=$(git symbolic-ref --quiet --short HEAD | sed -n 's#^\([a-z][a-z0-9-]*\)/.*#\1#p')
 [ -n "$CARRIL" ] || falta "no sé el carril: pásalo o usa una rama <carril>/…"
 
-# 1) .env.carril (falla con la lista de carriles si éste no está en plan.yaml).
+# 1) Dependencias, antes que nada: lo de abajo corre node con paquetes del repo (pnpm las enlaza desde el store: no se bajan de nuevo).
+[ -d node_modules ] || pnpm install --frozen-lockfile --prefer-offline >/dev/null
+echo "✓ dependencias"
+
+# 2) .env.carril (falla con la lista de carriles si éste no está en plan.yaml).
 node --input-type=module -e "
 import { writeFileSync } from 'node:fs'
 import { variablesDelCarril, desfasesDelRepo } from './scripts/lib/stack-local.mjs'
@@ -38,10 +42,6 @@ writeFileSync('.env.carril', '# Carril ' + carril + ': lo escribe scripts/worktr
 # shellcheck source=../lib/carril.sh
 source scripts/lib/carril.sh
 echo "✓ carril $CARRIL: stack $SUPABASE_PROJECT_ID, API $SUPABASE_API_PORT, base $SUPABASE_DB_PORT, app $PUERTO_APP, e2e $E2E_PORT"
-
-# 2) Dependencias (pnpm las enlaza desde el store: no se bajan de nuevo).
-[ -d node_modules ] || pnpm install --frozen-lockfile --prefer-offline >/dev/null
-echo "✓ dependencias"
 
 # 3) El stack del carril.
 sb() { pnpm exec supabase "$@" 2> >(grep -v -i -E 'new version|recommend updating|^We recommend' >&2); }
