@@ -74,6 +74,11 @@ create table if not exists net.pedidos (id bigint generated always as identity p
 create or replace function net.http_post(url text, body jsonb default '{}'::jsonb, params jsonb default '{}'::jsonb, headers jsonb default '{}'::jsonb, timeout_milliseconds int default 5000)
   returns bigint language sql as $$ insert into net.pedidos (url, body, headers, timeout_milliseconds) values (url, body, headers, timeout_milliseconds) returning id $$;
 grant usage on schema public to anon, authenticated, service_role;
+-- Los privilegios por defecto que la imagen de Supabase da sobre lo que postgres crea en public: sin esto, PGlite aprueba lo que la
+-- base real (el job base de CI) rechaza.
+alter default privileges for role postgres in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges for role postgres in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges for role postgres in schema public grant all on functions to anon, authenticated, service_role;
 `
 
 function* archivos(dir) {
