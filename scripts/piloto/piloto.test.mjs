@@ -196,6 +196,8 @@ function montar({ plan = planYaml() } = {}) {
     PILOTO_DORMIR: 'true',
     PILOTO_POLL: '0.1',
     PILOTO_ESPERA_S: '0',
+    // El disco real de la máquina no decide estas pruebas.
+    PILOTO_DISCO_MAX: '100',
     COORD_USD_VENTANA: '',
     COORD_PROYECTOS: '/dev/null',
   }
