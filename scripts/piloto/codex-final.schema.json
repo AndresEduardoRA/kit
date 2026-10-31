@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "description": "El último mensaje de un paso de Codex (codex exec --output-schema). El bucle hace el commit y arma .piloto/ultimo.json.",
+  "additionalProperties": false,
+  "required": ["resultado", "resumen", "tipo_commit", "e2e_dirigidos", "compuerta"],
+  "properties": {
+    "resultado": { "type": "string", "enum": ["listo", "compuerta", "falla"] },
+    "resumen": { "type": "string" },
+    "tipo_commit": {
+      "type": "string",
+      "enum": ["feat", "fix", "refactor", "test", "docs", "chore", "style", "perf"]
+    },
+    "e2e_dirigidos": { "type": "array", "items": { "type": "string" } },
+    "compuerta": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["tipo", "motivo", "pregunta", "opciones", "contexto"],
+      "properties": {
+        "tipo": { "type": "string", "enum": ["dependencia", "producto", "atasco", "afuera"] },
+        "motivo": { "type": "string" },
+        "pregunta": { "type": "string" },
+        "opciones": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["etiqueta", "descripcion"],
+            "properties": { "etiqueta": { "type": "string" }, "descripcion": { "type": "string" } }
+          }
+        },
+        "contexto": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

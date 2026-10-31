@@ -1,0 +1,35 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: lint
+      glob: '*.{js,jsx,ts,tsx,mts}'
+      # --no-warn-ignored: en stage hay archivos ignorados a propósito (sw.js, tipos generados)
+      run: npx eslint --fix --max-warnings 0 --no-warn-ignored {staged_files}
+      stage_fixed: true
+    - name: format
+      glob: '*.{ts,tsx,css,json,md,yml,mjs}'
+      run: npx prettier --write {staged_files}
+      stage_fixed: true
+    - name: typecheck
+      glob: '*.{ts,tsx,mts}'
+      run: pnpm typecheck
+    - name: mapa
+      run: bash scripts/mapa.sh --check # docs/MAPA.md no se versiona y va en .prettierignore
+    - name: schema
+      glob: 'supabase/**/*.sql'
+      run: '[ ! -f scripts/probar-schema.mjs ] || node scripts/probar-schema.mjs supabase'
+
+# docs/MAPA.md no se versiona: se regenera al cambiar de rama y al integrar (scripts/mapa.sh).
+post-checkout:
+  jobs:
+    - name: mapa
+      run: bash scripts/mapa.sh >/dev/null
+
+post-merge:
+  jobs:
+    - name: mapa
+      run: bash scripts/mapa.sh >/dev/null
+
+commit-msg:
+  jobs:
+    - run: npx commitlint --edit {1}

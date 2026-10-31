@@ -1,0 +1,96 @@
+// Los errores cruzan las capas como valores, no como excepciones: `{ ok: false, error }`.
+
+export type CodigoError =
+  | 'no_autenticado'
+  | 'sin_permiso'
+  | 'no_encontrado'
+  | 'conflicto' // otro cambió lo mismo: la UI ofrece «Recargar»
+  | 'duplicado'
+  | 'regla' // una regla del negocio lo impide; el mensaje dice cuál
+  | 'validacion'
+  | 'inesperado'
+
+export type ErrorApp = { codigo: CodigoError; mensaje: string }
+
+export type Resultado<T> = { ok: true; data: T } | { ok: false; error: ErrorApp }
+
+export const MENSAJE_INESPERADO = 'Algo falló de nuestro lado. Vuelve a intentar en un momento.'
+
+export const MENSAJE_SESION_VENCIDA = 'Tu sesión venció. Vuelve a ingresar.'
+
+export function ok<T>(data: T): Resultado<T> {
+  return { ok: true, data }
+}
+
+export function fallo(codigo: CodigoError, mensaje: string): Resultado<never> {
+  return { ok: false, error: { codigo, mensaje } }
+}
+
+// Para un Server Component que lee: el error de una lectura sube al `error.tsx` de la ruta, que
+// es quien puede ofrecer «Reintentar». En una action nunca: ahí el error se devuelve como valor.
+export function datosO<T>(resultado: Resultado<T>): T {
+  if (!resultado.ok) {
+    throw new Error(resultado.error.mensaje)
+  }
+  return resultado.data
+}
+
+export const MENSAJE_CONFLICTO = 'Otra persona cambió esto mientras lo editabas.'
+
+// Un `PT409` nunca es un error genérico: la pantalla lo muestra con «Recargar». El mensaje de la
+// RPC suele decir quién lo cambió y cuándo; si no vino, queda el genérico.
+export function conflicto(mensaje: string = MENSAJE_CONFLICTO): Resultado<never> {
+  return fallo('conflicto', mensaje)
+}
+
+// Lo mínimo que traen los errores de PostgREST y de las RPC.
+export type ErrorPostgrest = { code?: string | null; message: string }
+
+// Las RPC levantan errores con el mensaje ya escrito para la persona; una violación de constraint
+// sin RPC de por medio trae el texto técnico de Postgres, que no se muestra.
+const MENSAJE_TECNICO = /violates|constraint|relation|column|syntax/i
+
+const POR_CODIGO: Record<string, { codigo: CodigoError; generico: string }> = {
+  PT409: { codigo: 'conflicto', generico: MENSAJE_CONFLICTO },
+  '42501': { codigo: 'sin_permiso', generico: 'No tienes permiso para hacer esto.' },
+  '23505': { codigo: 'duplicado', generico: 'Ya existe un registro con esos datos.' },
+  '23503': { codigo: 'regla', generico: 'No se puede: hay otros datos que dependen de este.' },
+  '23514': { codigo: 'regla', generico: 'El dato no cumple una regla del sistema.' },
+  // Lo que levantan las RPC y los triggers cuando un dato no es válido o falta uno requerido.
+  '22023': { codigo: 'regla', generico: 'Hay un dato que no es válido.' },
+  '23502': { codigo: 'regla', generico: 'Falta un dato requerido.' },
+  P0001: { codigo: 'regla', generico: 'No se puede completar la operación.' },
+  PGRST116: { codigo: 'no_encontrado', generico: 'No se encontró lo que buscabas.' },
+  PGRST301: { codigo: 'no_autenticado', generico: MENSAJE_SESION_VENCIDA },
+}
+
+// Un pedido que no llegó (sin red, o el servidor no responde): supabase-js no lanza, devuelve un error
+// sin código con el texto del `fetch` que falló («TypeError: Failed to fetch» en Chrome, «NetworkError…»
+// en Firefox, «Load failed» en Safari, «fetch failed» en Node). No es «de nuestro lado»: es la conexión.
+const SIN_TRANSPORTE =
+  /failed to fetch|networkerror|load failed|fetch failed|network request failed/i
+
+export const MENSAJE_SIN_CONEXION = 'No hay conexión. Vuelve a intentar cuando vuelva.'
+export const MENSAJE_SIN_RESPUESTA =
+  'No pudimos llegar al servidor. Revisa tu conexión y vuelve a intentar.'
+
+function errorDeTransporte(): ErrorApp {
+  // En el navegador se sabe si hay red; en el servidor (Node también tiene `navigator`) no se dice.
+  const sinConexion = typeof window !== 'undefined' && !window.navigator.onLine
+  return {
+    codigo: 'inesperado',
+    mensaje: sinConexion ? MENSAJE_SIN_CONEXION : MENSAJE_SIN_RESPUESTA,
+  }
+}
+
+export function errorDePostgrest(error: ErrorPostgrest): ErrorApp {
+  const conocido = error.code ? POR_CODIGO[error.code] : undefined
+  if (!conocido) {
+    if (!error.code && SIN_TRANSPORTE.test(error.message)) {
+      return errorDeTransporte()
+    }
+    return { codigo: 'inesperado', mensaje: MENSAJE_INESPERADO }
+  }
+  const legible = error.message.trim() !== '' && !MENSAJE_TECNICO.test(error.message)
+  return { codigo: conocido.codigo, mensaje: legible ? error.message : conocido.generico }
+}

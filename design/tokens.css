@@ -1,0 +1,145 @@
+/*
+ * Tokens de diseño — fuente de verdad. `src/app/globals.css` los importa sin capa (así pisan el tema por defecto de Tailwind)
+ * y los usa con la sintaxis de variable: `bg-(--color-surface)`, `text-(--color-ink)`, `shadow-(--shadow-md)`. Nunca un color
+ * suelto en un componente.
+ *
+ * Reglas:
+ *  - `-ink` es para texto e íconos (≥ 4.5:1 sobre su superficie); el tono base es para rellenos.
+ *  - Los tonos semánticos (positivo, aviso, peligro, info) NO conmutan con el tema; sus `-soft` e `-ink` sí.
+ *  - Los nombres de los tokens son el contrato: los usan `globals.css`, `src/shared/ui/` y las reglas (`.claude/rules/ui.md`).
+ *    Los valores, no: los pone la semilla.
+ *  - Lo que tiene copia en `src/shared/config/app.ts` (el manifest no lee variables CSS) lo vigila `app.test.ts`.
+ */
+
+/* ==================================================================================================================================
+ * semilla:inicio — semilla-a-repo reemplaza este bloque con el sistema de diseño de la semilla (docs/semilla/semilla.md › Sistema
+ * de diseño). Lo de abajo es un neutro genérico en OKLCH para que el esqueleto se vea bien antes de eso. Conserva los NOMBRES.
+ * ================================================================================================================================ */
+
+:root {
+  /* --- Tipografía ------------------------------------------------------ */
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', monospace;
+  --text-xs: 0.75rem; /* 12px — metadatos, chips */
+  --text-sm: 0.8125rem; /* 13px — tablas densas */
+  --text-base: 0.9375rem; /* 15px — cuerpo */
+  --text-lg: 1.125rem; /* 18px — títulos de bloque */
+  --text-xl: 1.375rem; /* 22px — título de página */
+  --text-2xl: 1.75rem; /* 28px — cifras destacadas */
+
+  /* --- Geometría -------------------------------------------------------- */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-card: 12px;
+  --radius-pill: 999px;
+  --fila-compacta: 38px; /* densidad escritorio */
+  --fila-comoda: 48px; /* densidad táctil */
+  --sidebar: 15.5rem;
+  --topbar: 3.25rem;
+
+  /* --- Marca ------------------------------------------------------------ */
+  --color-primario: oklch(0.55 0.19 265);
+  --color-primario-oscuro: oklch(0.48 0.19 265);
+  --color-primario-soft: oklch(0.55 0.19 265 / 0.12);
+  --color-primario-ink: oklch(0.48 0.19 265);
+  --color-sobre-primario: oklch(1 0 0);
+
+  /* --- Superficies y texto (claro) -------------------------------------- */
+  --color-paper: oklch(0.975 0.004 265); /* fondo de la app */
+  --color-paper-soft: oklch(0.985 0.003 265); /* secciones */
+  --color-paper-dim: oklch(0.955 0.006 265); /* zonas hundidas */
+  --color-surface: oklch(1 0 0); /* tarjetas */
+  --color-surface-2: oklch(0.982 0.003 265); /* filas alternas, inputs */
+  --color-surface-3: oklch(0.962 0.005 265); /* hover */
+  --color-ink: oklch(0.25 0.02 265);
+  --color-ink-soft: oklch(0.44 0.025 265);
+  --color-ink-faint: oklch(0.6 0.025 265);
+  --color-line: oklch(0.92 0.008 265);
+  --color-line-strong: oklch(0.86 0.012 265);
+  --color-overlay: oklch(0.18 0.02 265 / 0.45);
+
+  /* --- Semánticos ------------------------------------------------------- */
+  --color-positivo: oklch(0.56 0.12 160);
+  --color-positivo-soft: oklch(0.96 0.03 160);
+  --color-positivo-ink: oklch(0.46 0.1 160);
+  --color-aviso: oklch(0.7 0.16 70);
+  --color-aviso-soft: oklch(0.97 0.04 80);
+  --color-aviso-ink: oklch(0.48 0.11 65);
+  --color-peligro: oklch(0.58 0.2 25);
+  --color-peligro-soft: oklch(0.96 0.02 20);
+  --color-peligro-ink: oklch(0.5 0.18 25);
+  --color-info: oklch(0.58 0.15 250);
+  --color-info-soft: oklch(0.96 0.02 250);
+  --color-info-ink: oklch(0.48 0.13 250);
+
+  /* --- Sombras y foco --------------------------------------------------- */
+  --shadow-sm: 0 1px 2px oklch(0.18 0.02 265 / 0.06);
+  --shadow-md: 0 4px 12px oklch(0.18 0.02 265 / 0.08);
+  --shadow-lg: 0 12px 32px oklch(0.18 0.02 265 / 0.12);
+  --shadow-focus: 0 0 0 3px var(--color-primario-soft);
+
+  /* --- Movimiento ------------------------------------------------------- */
+  --dur-rapida: 120ms;
+  --dur-normal: 200ms;
+  --dur-pagina: 280ms;
+  --ease-salida: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.dark {
+  --color-primario-soft: oklch(0.55 0.19 265 / 0.22);
+  --color-primario-ink: oklch(0.8 0.1 265);
+
+  --color-paper: oklch(0.18 0.015 265);
+  --color-paper-soft: oklch(0.2 0.016 265);
+  --color-paper-dim: oklch(0.16 0.014 265);
+  --color-surface: oklch(0.23 0.018 265);
+  --color-surface-2: oklch(0.26 0.02 265);
+  --color-surface-3: oklch(0.3 0.022 265);
+  --color-ink: oklch(0.97 0.004 265);
+  --color-ink-soft: oklch(0.85 0.015 265);
+  --color-ink-faint: oklch(0.68 0.02 265);
+  --color-line: oklch(0.3 0.02 265);
+  --color-line-strong: oklch(0.37 0.022 265);
+  --color-overlay: oklch(0 0 0 / 0.6);
+
+  --color-positivo-soft: oklch(0.56 0.12 160 / 0.18);
+  --color-positivo-ink: oklch(0.8 0.13 160);
+  --color-aviso-soft: oklch(0.7 0.16 70 / 0.18);
+  --color-aviso-ink: oklch(0.85 0.13 80);
+  --color-peligro-soft: oklch(0.58 0.2 25 / 0.18);
+  --color-peligro-ink: oklch(0.78 0.13 20);
+  --color-info-soft: oklch(0.58 0.15 250 / 0.18);
+  --color-info-ink: oklch(0.78 0.1 250);
+
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.4);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.45);
+  --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.55);
+}
+
+/* ==================================================================================================================================
+ * semilla:fin
+ * ================================================================================================================================ */
+
+/* Dataviz (fuera de @theme para que Tailwind no los purgue): las series salen de los tokens de arriba. */
+:root {
+  --viz-series-1: var(--color-primario);
+  --viz-series-2: var(--color-aviso);
+  --viz-series-3: var(--color-positivo);
+  --viz-series-4: var(--color-info);
+  --viz-bueno: var(--color-positivo);
+  --viz-aviso: var(--color-aviso);
+  --viz-critico: var(--color-peligro);
+  --viz-enfasis: var(--color-ink);
+  --viz-apagado: var(--color-ink-faint);
+  --viz-grilla: var(--color-line);
+  --viz-pista: var(--color-surface-3);
+  --viz-referencia: var(--color-ink-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-rapida: 0ms;
+    --dur-normal: 0ms;
+    --dur-pagina: 0ms;
+  }
+}

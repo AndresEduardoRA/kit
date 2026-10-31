@@ -1,0 +1,77 @@
+# Supabase CLI — la principal del proyecto. semilla-a-repo reescribe project_id y los puertos desde piloto.config (PROYECTO y
+# PILOTO_BLOQUE; los puertos salen de baseDelBloque() de scripts/lib/stack-local.mjs). Aquí, los del bloque 5 de piloto.config.
+# Un carril no edita este archivo: cambia el project_id y los puertos por entorno (.env.carril, scripts/worktree/preparar.sh).
+project_id = "cambiar-slug"
+
+[api]
+enabled = true
+port = 55321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+# El tope de una lectura por PostgREST (.claude/rules/escala.md).
+max_rows = 1000
+
+[db]
+port = 55322
+shadow_port = 55320
+major_version = 17
+
+[db.seed]
+enabled = true
+# En orden. `scripts/probar-schema.mjs` lee esta lista.
+sql_paths = ["./seed.sql"]
+
+[studio]
+enabled = true
+port = 55323
+
+# Correo local (Mailpit): los mails de auth y los de la app (EMAIL_PROVEEDOR=mailpit) se leen acá, no se envían.
+[local_smtp]
+enabled = true
+port = 55324
+
+[analytics]
+enabled = true
+port = 55327
+
+[auth]
+enabled = true
+site_url = "http://localhost:8000"
+# Destinos permitidos para `redirectTo`: la app (8000) y los e2e (8210) de la principal. Cada carril pone su site_url con
+# SUPABASE_AUTH_SITE_URL (scripts/lib/stack-local.mjs: +100 por carril).
+additional_redirect_urls = [
+  "http://localhost:8000/**",
+  "http://127.0.0.1:8000/**",
+  "http://localhost:8210/**",
+]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = true
+enable_anonymous_sign_ins = false
+minimum_password_length = 8
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+otp_expiry = 3600
+
+# Un proveedor externo (Google, por ejemplo) se enciende sólo si la semilla lo pide, con sus credenciales en env():
+# [auth.external.google]
+# enabled = false
+# client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+# secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+# redirect_uri = ""
+# skip_nonce_check = false
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[realtime]
+enabled = true
+
+[edge_runtime]
+enabled = true
+policy = "oneshot"
+inspector_port = 55329

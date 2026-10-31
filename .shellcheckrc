@@ -1,0 +1,3 @@
+# Las piezas del piloto se cargan unas a otras con `source`: una variable que define una la lee otra (SC2034 no lo ve).
+external-sources=true
+disable=SC2034
