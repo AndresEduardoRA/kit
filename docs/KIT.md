@@ -40,6 +40,9 @@ allá avanza de a un paso se rediseña para que **varios carriles trabajen a la 
    - Si el CI está en rojo o hay conflicto con `main`, se lo devuelve a su carril, y eso va antes que un paso nuevo.
 5. Un paso rojo con el CI en verde queda esperando que lo integres tú en GitHub. Lo que depende de él espera. Si sumas `rojo` a
    `COORD_MERGE_AUTO` (`piloto.config`), el coordinador también los integra solo.
+6. Las compuertas esperan a la persona salvo la ámbar y los tipos de `PILOTO_AUTO` (`producto`, `datos`, `guardas`), que se contestan
+   solos con la recomendada y quedan en `docs/pasos/<PASO>/decisiones.md`. Con `rojo` en `COORD_MERGE_AUTO` y `datos` en `PILOTO_AUTO`,
+   un paso rojo corre de punta a punta sin nadie: es lo que hace importadora.
 
 ## Calibrar la cuota
 

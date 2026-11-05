@@ -67,7 +67,7 @@ La semilla es la fuente de verdad: lee en `docs/semilla/semilla.md` las seccione
 7. **Notas y commits.**
    - Tus notas van en `docs/pasos/<PASO>/`:
      - `bitacora.md`: qué se hizo, lo medido y `e2e completo: sí|no`.
-     - `decisiones.md`: cada decisión no obvia, con la fecha de `TZ=America/La_Paz date +%F`. Si `hechos.json` › `autoelecciones` trae una autoelección ámbar de tu paso, también va aquí, tal cual.
+     - `decisiones.md`: cada decisión no obvia, con la fecha de `TZ=America/La_Paz date +%F`. Si `hechos.json` › `autoelecciones` trae una autoelección de tu paso (ámbar o de `PILOTO_AUTO`), también va aquí, tal cual.
    - Corre `bash scripts/mapa.sh` si existe.
    - **Commits por intención**: hasta 3 de código y el de notas. Asunto en español, en minúscula, de 72 caracteres como máximo, con el formato `tipo(<carril>): …`.
    - **Sin push.**

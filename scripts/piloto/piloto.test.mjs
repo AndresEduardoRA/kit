@@ -417,6 +417,74 @@ test('una compuerta de producto en un paso ROJO no se elige sola', () => {
   assert.doesNotMatch(readFileSync(join(m.fake, 'compuerta-1.md'), 'utf8'), /^ambar:/m)
 })
 
+test('PILOTO_AUTO: la compuerta de datos de un paso rojo se aprueba sola y el paso sigue sin --hasta-plan', () => {
+  const m = montar()
+  writeFileSync(
+    join(m.fake, 'claude-1.sh'),
+    `jq -n '{paso: "P01", resultado: "compuerta", resumen: "plan listo", commits: [], e2e_dirigidos: [],
+    compuerta: {tipo: "datos", motivo: "toca RLS", pregunta: "¿Apruebas el plan?", opciones: [{etiqueta: "aprobar", descripcion: "(recomendado)"}, {etiqueta: "parar", descripcion: "no"}], contexto: [".piloto/planes/P01.md"]}}' > .piloto/ultimo.json`,
+  )
+  const auto = { PILOTO_AUTO: 'producto,datos,guardas', PILOTO_ESPERA_MAX: '2' }
+  const r = m.carriles.datos.vuelta(auto)
+  assert.equal(r.status, 0, salida(r))
+  assert.ok(!existsSync(join(m.fake, 'compuerta-1.md')), 'no se abrió la sesión de decidir')
+  assert.ok(
+    existsSync(join(m.carriles.datos.comun, 'aprobado-P01')),
+    'el bucle escribió la aprobación',
+  )
+  assert.match(
+    readFileSync(join(m.carriles.datos.dir, '.piloto/autoelecciones.md'), 'utf8'),
+    /P01 · compuerta datos contestada sola \(PILOTO_AUTO\): aprobar/,
+  )
+
+  const r2 = m.carriles.datos.vuelta(auto)
+  assert.equal(r2.status, 0, salida(r2))
+  assert.match(m.llamadas(), /claude n=2 carril=datos args: -p \/piloto P01 continuar --model opus/)
+  assert.deepEqual([m.estado().P01.estado, m.estado().P01.pr], ['publicado', 41])
+})
+
+test('PILOTO_AUTO: una compuerta de producto de un paso rojo se contesta al instante con las recomendadas', () => {
+  const m = montar()
+  writeFileSync(
+    join(m.fake, 'claude-1.sh'),
+    `jq -n '{paso: "P01", resultado: "compuerta", resumen: "duda", commits: [], e2e_dirigidos: [],
+    compuerta: {tipo: "producto", motivo: "dinero", contexto: [], preguntas: [
+      {id: "P0", pregunta: "¿Redondeo?", opciones: [{etiqueta: "Al centavo", descripcion: "(recomendado)"}, {etiqueta: "Al entero", descripcion: "x"}]}]}}' > .piloto/ultimo.json`,
+  )
+  const r = m.carriles.datos.vuelta({ PILOTO_AUTO: 'producto', PILOTO_ESPERA_MAX: '2' })
+  assert.equal(r.status, 0, salida(r))
+  assert.ok(!existsSync(join(m.fake, 'compuerta-1.md')), 'no se abrió la sesión de decidir')
+  const decision = readFileSync(join(m.carriles.datos.comun, 'decision.md'), 'utf8')
+  assert.match(decision, /^- P0: Al centavo$/m)
+  assert.match(decision, /me respondió: «autoelección por PILOTO_AUTO: P0: Al centavo»/)
+})
+
+test('PILOTO_AUTO: las guardas se aprueban solas y su diff queda guardado; sin PILOTO_AUTO esperan', () => {
+  const tocarGuardas = `mkdir -p .github/workflows && echo 'name: x' > .github/workflows/x.yml && git add -A && git commit -qm "ci: x"
+desde=$(jq -r .head_arranque .piloto/en-curso.json)
+jq -n --argjson c "$(git rev-list --first-parent --reverse "$desde..HEAD" | jq -Rnc '[inputs]')" \\
+  '{paso: "P02", resultado: "listo", resumen: "hecho", commits: $c, e2e_dirigidos: [], compuerta: null}' > .piloto/ultimo.json`
+  const m = montar()
+  writeFileSync(join(m.fake, 'claude-1.sh'), tocarGuardas)
+  const r = m.carriles.ui.vuelta({ PILOTO_AUTO: 'producto,datos,guardas', PILOTO_ESPERA_MAX: '2' })
+  assert.equal(r.status, 0, salida(r))
+  assert.match(
+    readFileSync(join(m.carriles.ui.dir, '.piloto/guardas/P02.diff'), 'utf8'),
+    /\+name: x/,
+  )
+  assert.match(
+    readFileSync(join(m.carriles.ui.dir, '.piloto/autoelecciones.md'), 'utf8'),
+    /P02 · compuerta guardas contestada sola \(PILOTO_AUTO\), diff en .*P02\.diff: aprobar/,
+  )
+  assert.deepEqual([m.estado().P02.estado, m.estado().P02.pr], ['publicado', 41])
+
+  const sin = montar()
+  writeFileSync(join(sin.fake, 'claude-1.sh'), tocarGuardas)
+  const r2 = sin.carriles.ui.vuelta({ PILOTO_ESPERA_MAX: '2' })
+  assert.equal(r2.status, 3, salida(r2))
+  assert.match(readFileSync(join(sin.fake, 'compuerta-1.md'), 'utf8'), /^tipo: guardas$/m)
+})
+
 test('verificar.sh sólo corre typecheck y mapa, y con la huella verde no repite nada', () => {
   const base = mkdtempSync(join(tmpdir(), 'verificar-'))
   const repo = join(base, 'repo')

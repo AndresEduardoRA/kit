@@ -20,7 +20,12 @@ primero**, y te retoman con `continuar`.
   opción recomendada (la primera de cada pregunta) y lo dice en `hechos.json` › `autoelecciones`; tú la copias tal cual a
   `docs/pasos/<PASO>/decisiones.md`. Por eso **la recomendada tiene que ser segura de aceptar sin más**: reversible, sin datos ni permisos
   en juego. Si ninguna lo es, la recomendada es `parar — espera a la persona (recomendado)`, y el `motivo` dice por qué.
-- Todas las demás, y cualquiera de un paso `rojo`, esperan a la persona. Nada sigue sin respuesta.
+- **Solas (`PILOTO_AUTO` de `piloto.config`):** los tipos que liste se contestan al instante, sin la persona: `producto` con la
+  recomendada de cada pregunta, `datos` y `guardas` con «aprobar» (el diff de guardas queda en `.piloto/guardas/<paso>.diff`). Llegan
+  igual en `hechos.json` › `autoelecciones` y las copias igual. Por eso la recomendada va **siempre primero** y tiene que ser la que
+  defenderías sin la persona, y el plan que llevas a una `datos` tiene que estar listo para ejecutarse tal cual.
+- Todas las demás (y `parada`, `dependencia`, `afuera` y `atasco` siempre), y cualquiera de un paso `rojo` que no esté en `PILOTO_AUTO`,
+  esperan a la persona. Nada más sigue sin respuesta.
 
 ## Cómo escribir la tuya
 

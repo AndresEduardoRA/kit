@@ -3,11 +3,17 @@
 # persona: escribe `<común>/piloto/compuerta.md` (con un id nuevo), abre la sesión corta de decidir (`decidir.sh abrir`, que deja la copia
 # de lectura en `.piloto/`) y espera. Sólo acepta `decision.md` si: su id es el de la compuerta vigente, es posterior a `compuerta.md` y
 # ningún paso vivía cuando apareció (`en-curso.json` y `pgrep`); si no, la borra y sigue esperando. Con la decisión aceptada cierra la
-# sesión de decidir y, con `datos` aprobada, escribe `aprobado-<paso>`. Nada sigue sin respuesta. Se prueba en `bucle.test.ts`.
+# sesión de decidir y, con `datos` aprobada, escribe `aprobado-<paso>`. Nada sigue sin respuesta, salvo la ámbar y PILOTO_AUTO (abajo).
+# Se prueba en `piloto.test.mjs`.
 #
 # Ámbar (kit): una compuerta «producto» de un paso que no es rojo (RIESGO_PASO) es ámbar. Si nadie responde en PILOTO_AUTO_MIN minutos,
 # el bucle elige la opción recomendada (la primera, de cada pregunta) y lo dice en la decisión («autoelección»); el paso la copia a
 # docs/pasos/<PASO>/decisiones.md. Todas las demás compuertas, y cualquiera de un paso rojo, esperan a la persona.
+#
+# Solas (kit, como importadora): los tipos de PILOTO_AUTO (piloto.config; por omisión ninguno) se contestan al instante, sin abrir la
+# sesión de decidir: `producto` con la recomendada de cada pregunta, `datos` y `guardas` con «aprobar» (en `guardas` queda el diff en
+# `.piloto/guardas/<paso>.diff`). Cada una queda en `autoelecciones.md` igual que una ámbar. Nunca `parada`, `dependencia`, `afuera` ni
+# `atasco`: son avisos de algo que el piloto no puede juzgar.
 #
 # Variables que espera: COMUN, ESTADO, BIN, POLL (segundos entre lecturas), EN_SECO y la función `registro`. PREGUNTAS (JSON, opcional):
 # las de una compuerta «producto», una por decisión; compuerta.md las lleva con cuántas tandas de 4 son (CAL-1).
@@ -95,11 +101,18 @@ decision_valida() {
   return 0
 }
 
-# La decisión de una compuerta ámbar sin respuesta: la primera opción (la recomendada) de la compuerta o de cada pregunta.
+# anotar_autoeleccion <cómo>: el registro para el paso, que lo copia a docs/pasos/<PASO>/decisiones.md (el bucle no escribe en el árbol
+# a mitad de un paso).
+anotar_autoeleccion() {
+  echo "- $(ahora_lapaz) · $(sed -n 's/^paso: *//p' "$COMUN/compuerta.md" | head -n 1) · $1: $(sed -n 's/^opcion: *//p' "$COMUN/decision.md" | head -n 1)" >>"$ESTADO/autoelecciones.md"
+}
+
+# autoelegir <nota> <dicho> <anotado>: la decisión sin la persona, con la primera opción (la recomendada) de la compuerta o de cada
+# pregunta. <nota> va en `notas:`, <dicho> encabeza «me respondió» y <anotado> el renglón de autoelecciones.md.
 autoelegir() {
-  local minutos="$1" tmp
+  local nota="$1" dicho="$2" anotado="$3" tmp
   tmp=$(mktemp "$COMUN/decision.XXXXXX") || return 1
-  awk -v id="$COMPUERTA_ID" -v min="$minutos" -v creada="$(date +%s)" '
+  awk -v id="$COMPUERTA_ID" -v nota="$nota" -v dicho="$dicho" -v creada="$(date +%s)" '
     function corta(s) { sub(/ — .*/, "", s); return s }
     /^opciones:/ { seccion = "opciones"; next }
     /^preguntas:/ { seccion = "preguntas"; next }
@@ -113,14 +126,51 @@ autoelegir() {
       else linea = unica
       print "id: " id
       print "opcion: " (n > 0 ? linea : unica)
-      print "notas: autoelección: nadie respondió en " min " min (compuerta ámbar)"
+      print "notas: autoelección: " nota
       print "creada: " creada
       if (n > 0) { print "respuestas:"; for (i = 1; i <= n; i++) print "- " orden[i] ": " r[orden[i]] }
-      print "me respondió: «autoelección a los " min " min: " linea "»"
+      print "me respondió: «" dicho ": " linea "»"
     }' "$COMUN/compuerta.md" >"$tmp" || { rm -f "$tmp"; return 1; }
   mv -f "$tmp" "$COMUN/decision.md"
-  # El registro para el paso: lo copia a docs/pasos/<PASO>/decisiones.md (el bucle no escribe en el árbol a mitad de un paso).
-  { echo "- $(ahora_lapaz) · $(sed -n 's/^paso: *//p' "$COMUN/compuerta.md" | head -n 1) · autoelección ámbar a los $minutos min: $(sed -n 's/^opcion: *//p' "$COMUN/decision.md" | head -n 1)"; } >>"$ESTADO/autoelecciones.md"
+  anotar_autoeleccion "$anotado"
+}
+
+# ¿Este tipo de compuerta se contesta solo? (PILOTO_AUTO). Una `datos` o `guardas` con preguntas no: no es la aprobación de siempre.
+auto_contesta() { # <tipo>
+  [ "${EN_SECO:-0}" != 1 ] || return 1
+  [[ ",${PILOTO_AUTO:-}," == *",$1,"* ]] || return 1
+  case "$1" in
+    producto) return 0 ;;
+    datos | guardas) [ -z "${PREGUNTAS:-}" ] ;;
+    *) return 1 ;;
+  esac
+}
+
+# contestar_solo <tipo>: la decisión de PILOTO_AUTO. `datos` y `guardas` siempre «aprobar» (la opción del modelo podría no serlo, y sin
+# `aprobado-<paso>` el paso volvería a correr hasta el plan); `producto`, la recomendada de cada pregunta.
+contestar_solo() {
+  local tipo="$1" tmp diff=""
+  [ "$tipo" = guardas ] && diff="${GUARDAS_DIFF:-}"
+  case "$tipo" in
+    datos | guardas)
+      tmp=$(mktemp "$COMUN/decision.XXXXXX") || return 1
+      {
+        echo "id: $COMPUERTA_ID"
+        echo "opcion: aprobar"
+        echo "notas: autoelección: PILOTO_AUTO aprueba las compuertas $tipo${diff:+ (diff: $diff)}"
+        echo "creada: $(date +%s)"
+        echo "me respondió: «autoelección por PILOTO_AUTO: aprobar»"
+      } >"$tmp"
+      mv -f "$tmp" "$COMUN/decision.md"
+      anotar_autoeleccion "compuerta $tipo contestada sola (PILOTO_AUTO)${diff:+, diff en $diff}"
+      ;;
+    *) autoelegir "PILOTO_AUTO contesta las compuertas $tipo" "autoelección por PILOTO_AUTO" "compuerta $tipo contestada sola (PILOTO_AUTO)" ;;
+  esac
+}
+
+leer_decision() {
+  DECISION_OPCION=$(sed -n 's/^opcion: *//p' "$COMUN/decision.md" | head -n 1)
+  DECISION_TEXTO=$(sed -n 's/^me respondió: *//p' "$COMUN/decision.md" | head -n 1)
 }
 
 esperar_decision() {
@@ -128,7 +178,8 @@ esperar_decision() {
   auto_s=$(( ${PILOTO_AUTO_SEG:-$(( ${PILOTO_AUTO_MIN:-5} * 60 ))} ))
   until decision_valida; do
     if [ "${COMPUERTA_AMBAR:-0}" = 1 ] && [ $((SECONDS - inicio)) -ge "$auto_s" ] && ! paso_vivo; then
-      autoelegir "${PILOTO_AUTO_MIN:-5}" && registro "compuerta ámbar sin respuesta en ${PILOTO_AUTO_MIN:-5} min: autoelección de la recomendada."
+      autoelegir "nadie respondió en ${PILOTO_AUTO_MIN:-5} min (compuerta ámbar)" "autoelección a los ${PILOTO_AUTO_MIN:-5} min" \
+        "autoelección ámbar a los ${PILOTO_AUTO_MIN:-5} min" && registro "compuerta ámbar sin respuesta en ${PILOTO_AUTO_MIN:-5} min: autoelección de la recomendada."
       continue
     fi
     [ -f "$ESTADO/PARAR" ] && { registro "PARAR mientras se esperaba una decisión."; "$BIN/decidir.sh" cerrar 8>&-; exit 0; }
@@ -139,20 +190,26 @@ esperar_decision() {
     fi
     sleep "$POLL"
   done
-  DECISION_OPCION=$(sed -n 's/^opcion: *//p' "$COMUN/decision.md" | head -n 1)
-  DECISION_TEXTO=$(sed -n 's/^me respondió: *//p' "$COMUN/decision.md" | head -n 1)
+  leer_decision
 }
 
 # compuerta <tipo> <paso> <motivo> <pregunta> [opciones…]
 compuerta() {
   local tipo="$1" paso="$2" clave
   COMPUERTA_AMBAR=0
-  [ "$tipo" = producto ] && [ "${RIESGO_PASO:-rojo}" != rojo ] && COMPUERTA_AMBAR=1
-  escribir_compuerta "$@"
-  registro "compuerta $tipo ($paso): $3"
-  "$BIN/decidir.sh" abrir 8>&- || { registro "no se pudo abrir la sesión de decidir."; exit 3; }
-  esperar_decision
-  "$BIN/decidir.sh" cerrar 8>&-
+  if auto_contesta "$tipo"; then
+    escribir_compuerta "$@"
+    registro "compuerta $tipo ($paso): $3"
+    contestar_solo "$tipo" || { registro "no pude contestar sola la compuerta $tipo."; exit 3; }
+    leer_decision
+  else
+    [ "$tipo" = producto ] && [ "${RIESGO_PASO:-rojo}" != rojo ] && COMPUERTA_AMBAR=1
+    escribir_compuerta "$@"
+    registro "compuerta $tipo ($paso): $3"
+    "$BIN/decidir.sh" abrir 8>&- || { registro "no se pudo abrir la sesión de decidir."; exit 3; }
+    esperar_decision
+    "$BIN/decidir.sh" cerrar 8>&-
+  fi
   clave=$(clave_de "$DECISION_OPCION")
   registro "me respondió: $DECISION_TEXTO"
   case "$clave" in
