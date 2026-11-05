@@ -3,14 +3,14 @@
 #
 #   verificar.sh <HEAD de arranque> <ultimo.json>
 #
-# En orden y parando en el primer rojo: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `mapa.sh --check`, `pnpm db:probar` si el rango
-# `<HEAD de arranque>..HEAD` toca `supabase/`, y los e2e dirigidos que lista `ultimo.json` (`pnpm test:e2e <specs…>`, que toma el
-# candado de la base) en escritorio y, sólo si `nivel.mjs` dice que el rango toca interfaz, también en móvil. Kit: además corre el
-# comando de terminado del plan (`verificacion.comando`) y, si el plan o el rango piden Nivel 2, `pnpm test:e2e:completo`; los scripts
-# que el proyecto no tenga (db:probar, test:e2e:completo, mapa.sh) se saltan. Si todo pasó deja la huella verde (`huella.sh --escribir`) para que el hook Stop
-# no repita la suite. Sale con 1 y dice qué falló; sin la base libre, o sin una función que un spec llama, es un rojo, no un verde.
-# Un rojo termina con la cola de su salida y, en la última línea, «verificar: <nombre> falló: <causa>»: con esa línea arma el bucle
-# el aviso (`cierre.sh`). Cada salida queda en `.piloto/salidas/<paso>/verificar-<nombre>.log`. Se prueba en `verificar.test.ts`.
+# Lo mínimo y local (como importadora desde el 2026-11-04): `pnpm typecheck` y `mapa.sh --check`, y sale sin repetir nada si la
+# huella del árbol (HEAD + diff + no rastreados) es la de una verificación verde (`huella.sh --igual`: el hook Stop la deja al cerrar
+# el paso). Lint, la suite, `db:probar`, el `verificacion.comando` del plan y los e2e NO se repiten aquí: el modelo ya los corrió en el
+# paso y los vuelve a correr el CI del PR, que es la autoridad (el coordinador sólo integra con el CI en verde y devuelve el paso a su
+# carril si cae). Antes esto corría todo eso otra vez: ≈ 11 min por paso medidos en importadora. Si todo pasó deja la huella verde.
+# Sale con 1 y dice qué falló; un rojo termina con la cola de su salida y, en la última línea, «verificar: <nombre> falló: <causa>»
+# (con ella arma el aviso `cierre.sh`). Cada salida queda en `.piloto/salidas/<paso>/verificar-<nombre>.log`. Se prueba en
+# `piloto.test.mjs`.
 set -uo pipefail
 # shellcheck source=comun.sh
 source "$(dirname "${BASH_SOURCE[0]}")/comun.sh"
@@ -25,23 +25,10 @@ PASO=$(jq -r '.paso // "sin-paso"' "$ULTIMO")
 SALIDAS="$ESTADO/salidas/${PASO//[^A-Za-z0-9._-]/_}"
 mkdir -p "$SALIDAS"
 
-# Por qué cayó, en una línea del log. Un e2e rojo: la cabecera de la prueba que Playwright imprime antes de su error
-# («  1) [escritorio] › e2e/x.spec.ts:33:5 › título ───»), sin la numeración ni los ─, y la primera «Error:» que la sigue, cortada en
-# 300 caracteres (el aviso del 4.13-3b no decía qué prueba había caído). Si no: la primera «Error:»; si no hay, la primera con ✘, FAIL
-# o error; si tampoco, el log, cortada en 200. Sin colores ni sangría, por caracteres y no bytes (`LC_ALL` local). La cola del log
-# termina en el pie de la herramienta, no en esto.
+# Por qué cayó, en una línea del log: la primera «Error:»; si no hay, la primera con ✘, FAIL o error; si tampoco, el log. Sin colores ni
+# sangría, cortada en 200 caracteres (por caracteres y no bytes: `LC_ALL` local).
 causa() {
-  local log="$1" linea cabecera n error LC_ALL=C.UTF-8
-  cabecera=$(grep -m1 -nE '^[[:space:]]*[0-9]+\) \[[^]]+\] › ' < <(sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log"))
-  if [ -n "$cabecera" ]; then
-    n="${cabecera%%:*}"
-    linea=$(sed -E 's/^[[:space:]]*[0-9]+\) //; s/[[:space:]]*(─)+[[:space:]]*$//; s/[[:space:]]+$//' <<<"${cabecera#*:}")
-    error=$(grep -m1 -F 'Error:' < <(sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log" | tail -n +"$((n + 1))"))
-    error="${error#"${error%%[![:space:]]*}"}"
-    [ -n "$error" ] && linea="$linea — $error"
-    printf '%s' "${linea:0:300}"
-    return
-  fi
+  local log="$1" linea LC_ALL=C.UTF-8
   # grep lee por sustitución de proceso: con `pipefail`, un `sed | grep -m1` que corta temprano daría el SIGPIPE de sed como falla.
   linea=$(grep -m1 -F 'Error:' < <(sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log")) ||
     linea=$(grep -m1 -E '✘|FAIL|error' < <(sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log")) ||
@@ -63,39 +50,13 @@ correr() {
   fi
 }
 
-tiene_script() { jq -e --arg s "$1" '.scripts[$s] != null' package.json >/dev/null 2>&1; }
+if bash "$BIN/huella.sh" --igual; then
+  echo "verificar: el árbol ya está verificado (huella verde): no se repite nada." >&2
+  exit 0
+fi
 
-correr lint pnpm lint
 correr typecheck pnpm typecheck
-correr test pnpm test
 [ -f scripts/mapa.sh ] && correr mapa bash scripts/mapa.sh --check
-
-if git diff --name-only "$DESDE..HEAD" | grep -q '^supabase/' && tiene_script db:probar; then
-  correr db-probar pnpm db:probar
-fi
-
-# Kit: el criterio de terminado del plan (`verificacion.comando` del paso, de .piloto/paso.json). Lo corre el bucle, no el modelo.
-PASO_JSON="$ESTADO/paso.json"
-COMANDO=$(jq -r '.verificacion.comando // empty' "$PASO_JSON" 2>/dev/null)
-[ -n "$COMANDO" ] && correr terminado bash -c "$COMANDO"
-
-mapfile -t SPECS < <(jq -r '.e2e_dirigidos[]? // empty' "$ULTIMO")
-if [ "${#SPECS[@]}" -gt 0 ]; then
-  INTERFAZ=$(node "$BIN/nivel.mjs" --rango "$DESDE..HEAD" | jq -r '.toca_interfaz') || {
-    echo "verificar: nivel.mjs no pudo leer el rango." >&2
-    exit 1
-  }
-  PROYECTOS=(--project=escritorio)
-  [ "$INTERFAZ" = true ] && PROYECTOS+=(--project=movil)
-  correr e2e pnpm test:e2e "${SPECS[@]}" "${PROYECTOS[@]}"
-fi
-
-# El Nivel 2 que pide el plan (o el que dispara el rango: nivel.mjs): el e2e completo desde la base reseteada.
-NIVEL_PLAN=$(jq -r '.verificacion.nivel // 1' "$PASO_JSON" 2>/dev/null)
-NIVEL_RANGO=$(node "$BIN/nivel.mjs" --rango "$DESDE..HEAD" | jq -r '.nivel' 2>/dev/null || echo 1)
-if { [ "${NIVEL_PLAN:-1}" -ge 2 ] || [ "${NIVEL_RANGO:-1}" -ge 2 ]; } && tiene_script test:e2e:completo; then
-  correr e2e-completo pnpm test:e2e:completo
-fi
 
 bash "$BIN/huella.sh" --escribir
 echo "verificar: todo en verde." >&2

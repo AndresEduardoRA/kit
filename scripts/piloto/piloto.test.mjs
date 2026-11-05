@@ -416,3 +416,69 @@ test('una compuerta de producto en un paso ROJO no se elige sola', () => {
   assert.ok(!existsSync(join(m.carriles.datos.comun, 'decision.md')))
   assert.doesNotMatch(readFileSync(join(m.fake, 'compuerta-1.md'), 'utf8'), /^ambar:/m)
 })
+
+test('verificar.sh sólo corre typecheck y mapa, y con la huella verde no repite nada', () => {
+  const base = mkdtempSync(join(tmpdir(), 'verificar-'))
+  const repo = join(base, 'repo')
+  const binFalsos = join(base, 'bin-falsos')
+  const log = join(base, 'llamadas.log')
+  mkdirSync(join(repo, 'scripts'), { recursive: true })
+  mkdirSync(binFalsos)
+  // pnpm falso: anota y falla si se lo pide FALLA=<script>.
+  writeFileSync(
+    join(binFalsos, 'pnpm'),
+    `#!/usr/bin/env bash\necho "pnpm $*" >> "${log}"\n[ "$1" = "\${FALLA:-}" ] && { echo "Error: $1 roto"; exit 1; }\nexit 0\n`,
+  )
+  chmodSync(join(binFalsos, 'pnpm'), 0o755)
+  writeFileSync(join(repo, 'scripts/mapa.sh'), `echo "mapa $*" >> "${log}"\n`)
+  writeFileSync(
+    join(repo, 'package.json'),
+    '{"scripts":{"db:probar":"x","test:e2e:completo":"x"}}\n',
+  )
+  writeFileSync(join(repo, '.gitignore'), '.piloto/\n.claude/.verificado-stop\n')
+  sh(base, 'git', 'init', '-q', '-b', 'main', repo)
+  mkdirSync(join(repo, 'supabase'))
+  writeFileSync(join(repo, 'supabase/a.sql'), 'select 1;\n')
+  sh(repo, 'git', 'add', '-A')
+  sh(repo, 'git', 'commit', '-qm', 'inicio')
+  const bin = join(base, 'bin')
+  mkdirSync(bin)
+  for (const f of ['verificar.sh', 'comun.sh', 'huella.sh', 'nivel.mjs'])
+    cpSync(join(KIT, 'scripts/piloto', f), join(bin, f))
+  mkdirSync(join(repo, '.piloto'))
+  // Lo que antes se repetía: el comando del plan, un Nivel 2 y e2e dirigidos.
+  writeFileSync(
+    join(repo, '.piloto/paso.json'),
+    JSON.stringify({ verificacion: { nivel: 2, comando: `echo comando >> "${log}"` } }),
+  )
+  writeFileSync(
+    join(repo, '.piloto/ultimo.json'),
+    JSON.stringify({ paso: 'P01', e2e_dirigidos: ['e2e/a.spec.ts'] }),
+  )
+  const verificar = (extra = {}) =>
+    spawnSync('bash', [join(bin, 'verificar.sh'), 'HEAD~0', join(repo, '.piloto/ultimo.json')], {
+      cwd: repo,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${binFalsos}:${process.env.PATH}`,
+        PILOTO_RAIZ: repo,
+        ...extra,
+      },
+    })
+  const llamadas = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [])
+
+  const r = verificar()
+  assert.equal(r.status, 0, salida(r))
+  assert.deepEqual(llamadas(), ['pnpm typecheck', 'mapa --check'])
+
+  const r2 = verificar()
+  assert.equal(r2.status, 0, salida(r2))
+  assert.match(r2.stderr, /huella verde/)
+  assert.equal(llamadas().length, 2, 'con la huella verde no corre nada')
+
+  writeFileSync(join(repo, 'b.ts'), 'x\n')
+  const r3 = verificar({ FALLA: 'typecheck' })
+  assert.equal(r3.status, 1, salida(r3))
+  assert.match(r3.stderr, /verificar: typecheck falló: Error: typecheck roto/)
+})

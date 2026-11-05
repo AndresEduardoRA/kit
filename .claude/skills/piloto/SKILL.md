@@ -86,7 +86,7 @@ La semilla es la fuente de verdad: lee en `docs/semilla/semilla.md` las seccione
 }
 ```
 
-- **`listo`:** `commits` es exactamente `git rev-list --first-parent --reverse <head_arranque>..HEAD`, con el commit del merge si hubo uno, y el árbol está limpio. El bucle corre lint, typecheck, test, tu `verificacion.comando` y los `e2e_dirigidos`; no le cree a tu «listo».
+- **`listo`:** `commits` es exactamente `git rev-list --first-parent --reverse <head_arranque>..HEAD`, con el commit del merge si hubo uno, y el árbol está limpio. El bucle sólo repite typecheck y mapa (nada si la huella del hook Stop está verde); lint, la suite y los e2e los corre el CI del PR, que decide si se integra. Por eso tu `verificacion.comando` lo corres tú, al final, y `e2e_dirigidos` lista lo que corriste.
 - **`compuerta`:** el formato está en [compuertas.md](compuertas.md); la opción recomendada siempre va primero.
   - Una de `producto` en un paso que no es rojo es **ámbar**: si la persona no responde en `PILOTO_AUTO_MIN` minutos, el bucle elige la recomendada. Por eso esa opción tiene que ser una que puedas aceptar sin más.
 - **`falla`:** lo que no pudiste hacer y por qué. No inventes un `listo`.
