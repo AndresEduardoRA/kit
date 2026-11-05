@@ -59,11 +59,14 @@ verificar_copia() {
   [ "$(awk '{print $2}' "$BIN/bin.sha256" | sed 's/^\*//' | sort)" = "$(cd "$BIN" && find . -mindepth 1 ! -name bin.sha256 -printf '%P\n' | sort)" ]
 }
 
-# El texto documentado del límite de uso («You've hit your session limit · resets 3:45pm»): los segundos hasta esa hora y 5 min más.
+# El límite de uso: `api_error: usage_limit_reached`, o el texto («You've hit your session limit · resets 3:45pm», «You've hit your
+# 5-hour limit · resets 9:30pm»): los segundos hasta esa hora y 5 min más.
 segundos_de_limite() {
   local texto hora objetivo ahora
   texto="$(jq -r '(.result // "") + " " + (.error // "")' "$1" 2>/dev/null) $(cat "$2" 2>/dev/null)"
-  [[ "$texto" =~ hit\ your[A-Za-z\ ]*limit ]] || return 1
+  if ! jq -e '.api_error == "usage_limit_reached"' "$1" >/dev/null 2>&1; then
+    [[ "$texto" =~ hit\ your[A-Za-z0-9\ -]*limit ]] || return 1
+  fi
   if [[ "$texto" =~ resets\ ([0-9]{1,2}(:[0-9]{2})?\ ?[apAP][mM]) ]]; then
     hora="${BASH_REMATCH[1]}"
     ahora=$(date +%s)

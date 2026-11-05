@@ -88,7 +88,9 @@ if [ -f "$F/claude-$n.sh" ]; then PASO="$paso" bash "$F/claude-$n.sh"; else
   jq -n --arg p "$paso" --argjson c "$(git rev-list --first-parent --reverse "$desde..HEAD" | jq -Rnc '[inputs]')" \\
     '{paso: $p, resultado: "listo", resumen: "hecho", commits: $c, e2e_dirigidos: [], compuerta: null}' > .piloto/ultimo.json
 fi
+if [ -f "$F/salida-$n.json" ]; then cat "$F/salida-$n.json"; else
 echo '{"type":"result","is_error":false,"result":"ok","session_id":"s","total_cost_usd":0.5,"duration_ms":10,"modelUsage":{"claude-sonnet-5-5":{"inputTokens":1,"outputTokens":1,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"costUSD":0.5}}}'
+fi
 `
 
 const FALSO_CODEX = `#!/usr/bin/env bash
@@ -272,6 +274,34 @@ test('un paso verde de punta a punta: rama propia, modelo del plan, verificar, p
   assert.equal(r2.status, 0, salida(r2))
   assert.match(r2.stdout, /espero: P03 espera a que se integren: P01, P02/)
   assert.equal((m.llamadas().match(/claude n=/g) ?? []).length, 1)
+})
+
+test('el límite de 5 h duerme y retoma el paso con --resume, no lo cuenta como falla', () => {
+  const m = montar()
+  // La salida real de \`claude -p\` al chocar con el límite (31/10): «5-hour», con cifra y guion.
+  writeFileSync(join(m.fake, 'claude-1.sh'), 'true')
+  writeFileSync(
+    join(m.fake, 'salida-1.json'),
+    JSON.stringify({
+      type: 'result',
+      subtype: 'success',
+      is_error: true,
+      terminal_reason: 'api_error',
+      api_error_status: 429,
+      api_error: 'usage_limit_reached',
+      result: "You've hit your 5-hour limit · resets 9:30pm (America/La_Paz)",
+      session_id: 's',
+      total_cost_usd: 0,
+      duration_ms: 10,
+      modelUsage: {},
+    }),
+  )
+  const r = m.carriles.ui.vuelta()
+  assert.equal(r.status, 0, salida(r))
+  assert.match(r.stdout, /límite de uso en P02: duermo \d+ s y retomo con --resume/)
+  assert.match(m.llamadas(), /claude n=2 carril=ui args: -p \/piloto P02 continuar .*--resume/)
+  assert.doesNotMatch(r.stdout, /falló/)
+  assert.deepEqual([m.estado().P02.estado, m.estado().P02.pr], ['publicado', 41])
 })
 
 test('un paso rojo corre hasta el plan, con opus y xhigh; cada carril tiene su carpeta común', () => {
