@@ -6,11 +6,12 @@ import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm'
 import { citext } from '@electric-sql/pglite/contrib/citext'
 import { unaccent } from '@electric-sql/pglite/contrib/unaccent'
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
+import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist'
 import fs from 'node:fs'
 import path from 'node:path'
 
 const base = process.argv[2] ?? 'supabase'
-const db = new PGlite({ extensions: { pg_trgm, citext, unaccent, pgcrypto } })
+const db = new PGlite({ extensions: { pg_trgm, citext, unaccent, pgcrypto, btree_gist } })
 
 const preambulo = `
 create schema if not exists extensions;
@@ -19,6 +20,8 @@ create extension if not exists citext with schema extensions;
 create extension if not exists unaccent with schema extensions;
 -- pgcrypto, la de verdad (PGlite la trae): gen_random_bytes, hmac, crypt y gen_salt.
 create extension if not exists pgcrypto with schema extensions;
+-- btree_gist: exclusiones con = sobre uuid o enteros junto a un rango (reuniones y bloqueos de la agenda). Supabase la trae.
+create extension if not exists btree_gist with schema extensions;
 -- roles de Supabase
 do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
