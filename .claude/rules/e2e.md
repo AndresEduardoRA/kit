@@ -43,9 +43,6 @@ paths:
 - Nivel 3, antes de desplegar: el completo con los dos proyectos (Actions › ci › Run workflow,
   `proyectos: ambos`, que dispara la persona; o `pnpm test:e2e:completo` en local). Cada noche el CI corre el
   completo de escritorio sobre `main` si hubo commits. Un nivel no corrido se dice en el PR.
-- En un paso del piloto (hasta K04) manda lo suyo: el Nivel 2 lo decide `scripts/piloto/nivel.mjs` y lo corre su
-  verificación, el Nivel 3 lo pide el paso en su `verificacion` de `plan.yaml`, y `docs/pasos/<PASO>/bitacora.md` dice cuál
-  se corrió: `e2e completo: sí|no (<motivo>)`.
 - **Interfaz: cuándo los e2e dirigidos corren también en `movil`** (la regla vive aquí; la aplica
   `scripts/nivel.mjs` como `toca_interfaz` y `scripts/nivel.test.ts` falla si se separan).
   Un archivo cambiado es interfaz si no es una prueba (`*.test.*` o `*.spec.*`) y es un `.tsx` o un `.css`
@@ -111,4 +108,4 @@ inalcanzable, un monto mal dibujado, un dato que no se ve o un permiso que no se
 - Una captura para mirar se toma con `capturarEn()` (`e2e/soporte/capturas.ts`), nunca con `page.screenshot`; sólo con
   `E2E_CAPTURAS=<carpeta>`.
 - «Mirar las capturas» es abrir todas con `Read`; el PR lista las abiertas y lo visto en cada una.
-- Un defecto ajeno va a `docs/PENDIENTES.md` (en un paso del piloto, a su `bitacora.md`), no se arregla de paso.
+- Un defecto ajeno va a `docs/PENDIENTES.md`, no se arregla de paso.

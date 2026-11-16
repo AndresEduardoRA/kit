@@ -1,67 +1,49 @@
 # El kit de proyecto
 
-La plantilla de la que `semilla-a-repo` crea cada proyecto nuevo. Sale de importadora: lo que allá ya está probado se reutiliza. Lo que
-allá avanza de a un paso se rediseña para que **varios carriles trabajen a la vez**.
+La plantilla de la que se crea cada proyecto nuevo: una app Next 16 + Supabase + Tailwind 4 sin dominio, con el flujo de trabajo de
+`calesa-app` ya armado. Un proyecto nace con **una sola forma de trabajar**: una rama, un PR con auto-merge que decide el CI y, para una
+tanda de tareas que corre sola, el orquestador (`docs/FLUJO.md`, `scripts/orquestador/README.md`).
 
-## Qué cambia respecto de importadora
+**Se quitó (K04):** el piloto (`scripts/piloto/`), el coordinador (`scripts/coordinador/`), las compuertas, `piloto.config`, `docs/pasos/`
+y los agentes `planificador` y `auditor`. Un proyecto generado no trae nada de eso. El reparto del límite de Claude entre orquestadores
+es de K06.
 
-|                      | Importadora                                                | El kit                                                                                                                                             |
-| -------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Carriles             | Dos escritos a mano (A con piloto, B a mano con Sonnet)    | Los de `plan.yaml`, todos con piloto, hasta `CARRILES_MAX`                                                                                         |
-| Qué hace cada carril | El ruteo (Sonnet) lee `PLAN.md` y elige                    | El coordinador entrega el paso cuyas dependencias ya están en `main`; el ruteo ya viene escrito en `plan.yaml` (sin llamada a Sonnet)              |
-| PR                   | Uno largo por carril; lo integras tú                       | Uno por paso (rama `<carril>/<paso>`): lo que depende de él se desbloquea apenas entra                                                             |
-| Integrar             | Siempre tú                                                 | El coordinador integra los verdes y ámbar con el CI en verde; **los rojos tú** (salvo `rojo` en `COORD_MERGE_AUTO`)                                |
-| Docs compartidos     | Sólo el carril A edita ESTADO, PLAN, DECISIONES y BITACORA | Nadie los edita: cada paso escribe `docs/pasos/<PASO>/`; el tablero lo genera el coordinador                                                       |
-| Puertos              | 546xx; carriles +100 y +200                                | Un **bloque** por proyecto (`puertos.bloque` del manifiesto; `PILOTO_BLOQUE`, de respaldo) y +100 por carril: varios proyectos a la vez sin chocar |
-| Cuota                | Tope de USD por paso                                       | Además, la ventana de 5 h compartida entre **todos** los proyectos, con un tope por proyecto                                                       |
+## Qué trae
 
-## Lo que vino de calesa-app (K02)
+| Qué                                                                           | Para qué                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/flujo/` (`estado.sh`, `publicar.sh`, `limpiar-ramas.mjs`)            | Mirar el estado, publicar el PR con auto-merge y limpiar las ramas integradas                                                                                                                                               |
+| `scripts/orquestador/`                                                        | Una cola de tareas en `.orquestador/`: un carril, una sesión de `claude -p` y un PR por tarea                                                                                                                               |
+| `.github/workflows/ci.yml`, `.github/acciones/`                               | El CI por niveles; `Listo · todo en verde` es el único check que `main` exige                                                                                                                                               |
+| `.claude/` (settings, hooks, reglas, skills `entregar`, `feature`, `revisar`) | Los hooks bloquean lo peligroso, lintean cada archivo y verifican al terminar; el agente `revisor` revisa sin poder editar                                                                                                  |
+| `scripts/guardas/`, `scripts/nivel.mjs`, `scripts/e2e-dirigidos.mjs`          | Las guardas que corren con `pnpm test` y la elección de qué e2e corre un PR                                                                                                                                                 |
+| `scripts/lib/stack-local.mjs`, `scripts/worktree/`                            | Los puertos por bloque y por carril (a, b, c), y el worktree con su propio stack de Supabase                                                                                                                                |
+| `.proyecto/proyecto.yaml`, `scripts/proyecto/manifiesto.mjs`                  | Quién es el repo: el manifiesto (abajo)                                                                                                                                                                                     |
+| `src/shared`, `design/tokens.css`, `supabase/`, `e2e/`                        | La app base: entorno con Zod, clientes de Supabase, `safe-action`, paginación, fechas y formato, correo; tokens OKLCH; una migración base y las pruebas de la base (`rls-en-todo`, `privilegios-de-anon`, `escala`, `humo`) |
+| `scripts/kit/` (`nuevo-proyecto.mjs`, `flujo.txt`, fixtures)                  | El generador de proyectos y la lista de lo que es flujo; no viajan a un proyecto                                                                                                                                            |
 
-Desde K02, un proyecto del kit trabaja como calesa-app: una rama, un PR con auto-merge que decide el CI («Listo · todo en verde», la
-única regla de `main`) y un orquestador que corre una cola de tareas (`docs/FLUJO.md`, `scripts/orquestador/README.md`). El piloto
-sigue hasta K04: las dos formas conviven (`AGENTS.md`). Copiado de `calesa-app` en `origin/main` **`499b26a9`** (2026-11-16), sólo
-lectura. Lo que es flujo está en `scripts/kit/flujo.txt` (K12 lo usa).
+Lo que es flujo, y por eso se lleva entre el kit y los proyectos (K12), está en `scripts/kit/flujo.txt`.
 
-| Qué                                                                                                                                                      | Cómo llegó                                                                                                                                                                      |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/flujo/` (`estado.sh`, `publicar.sh`, `limpiar-ramas.mjs` y sus pruebas)                                                                         | Copiado. `estado.sh` y `publicar.sh` se ubican por la carpeta del propio guion (prueba nueva)                                                                                   |
-| `scripts/orquestador/` (bucle, `config.env`, prompts, plantilla, README y su prueba)                                                                     | Copiado, con el nombre en marcadores. `COMPARTIDAS` vacío                                                                                                                       |
-| `.github/workflows/ci.yml`, `.github/acciones/pila/`, `.github/pull_request_template.md`                                                                 | El de app más lo del kit: job `carriles`, salida `plantilla`, marcadores de puertos y funciones, splinter. `pila` con `{{PUERTOS_PILA}}`. Job nuevo «kit · proyecto de ejemplo» |
-| `.claude/skills/entregar`, `feature`, `revisar`; `.claude/agents/revisor.md`                                                                             | Base de app con `{{NOMBRE}}`; en un paso del piloto, `entregar` no publica                                                                                                      |
-| `.claude/hooks/` y `.claude/settings.json`                                                                                                               | Base de app más lo del piloto (`PILOTO=1`, `PILOTO_SESION`, sus hooks). La base remota sigue bloqueada                                                                          |
-| `.claude/rules/*.md`                                                                                                                                     | Lo genérico de app sobre las reglas del kit, sin lo de los módulos de calesa                                                                                                    |
-| `scripts/guardas/`: `workflows*`, `bloquear-peligrosos*`, `solo-lectura*`, `verificar-al-terminar`, `orden-de-migraciones`, `ignorados`, `ajustes`       | Base de app más los casos del piloto                                                                                                                                            |
-| `scripts/nivel.mjs`, `e2e-dirigidos.mjs`, `e2e-fallos.ts`, `salida-de-test.ts`, `reporter-de-salida.ts`, `huella.sh`, `ci-cambios.test.ts` y sus pruebas | Copiado; el disparador de auth de `nivel.mjs` vale para cualquier módulo. `scripts/piloto/nivel.mjs` y `huella.sh` siguen para el piloto                                        |
-| `e2e/soporte/reporter-de-inestables.ts`, `reporter-de-fallos.ts`, `vitest.config.mts`, `playwright.config.ts`                                            | Copiado o adaptado: la salida de cada `pnpm test` en `test-salidas/` y un reintento del e2e en CI, anotado en el PR                                                             |
-| `docs/FLUJO.md`, `docs/LECCIONES.md`                                                                                                                     | Sin lo propio de calesa (fases, demo, despliegue, «Por módulo», tablas y RPC suyas)                                                                                             |
+## De dónde sale
 
-No vino, con su motivo en el PR de K02: las guardas que nombran módulos de calesa o exigen componentes que el kit no trae
-(`listas-con-patron`, `modales-con-salida`, `drawers-con-salida`, `areas-*`, `paginas*`…), `workflows-fallo` con `ci/volcar-base.sh`
-(consulta tablas de calesa), el job `carreras`, `demo.yml`, `docs/ENTORNOS.md` y los `stack-local.mjs` y `preparar.sh` de app (546xx):
-quedan los del kit, con el bloque por proyecto. `preparar.sh` toma sin carril la primera letra libre entre a, b y c (las ramas del
-orquestador son `<tipo>/<tema>`).
+El flujo viene de `calesa-app`, copiado en K02 desde `origin/main` `499b26a9` (2026-11-16) y puesto al día en K04 con tres piezas que K02
+dejó anotadas:
 
-**El CI del kit prueba lo que sale del kit.** Los jobs de proyecto (`carriles`, `base`, `e2e`) se saltan en la plantilla (la salida
+| Pieza                                    | Qué se trajo de `calesa-app`                                                                                                                                                            |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lefthook.yml`                           | El hook `pre-push`: el esquema en PGlite corre una vez al empujar SQL y en su modo rápido (`PROBAR_RAPIDO=1`); el commit ya no lo corre                                                 |
+| `scripts/mapa.sh`                        | Un `export * from '<relativo>'` se sigue hasta los nombres del archivo (las entradas que sólo reexportan); se fue la revisión de fechas de DECISIONES y BITACORA                        |
+| `db:probar:rapido`                       | El script de `package.json` y `PROBAR_RAPIDO` en `scripts/probar-schema.mjs`: salta los bloques `-- @test [lento] …`. El kit no tiene ninguno todavía; el CI corre `db:probar` completo |
+| `scripts/nivel.mjs`, `scripts/huella.sh` | Una sola copia, la de app (el piloto tenía otra)                                                                                                                                        |
+
+`commitlint.config.mjs` no se trajo: sus scopes son los módulos del proyecto, y el generador llena los de cada uno.
+
+**El CI del kit prueba lo que sale del kit.** Los jobs de proyecto (`base`, `e2e-build`, `e2e`) se saltan en la plantilla (la salida
 `plantilla` del job `cambios`, por `.kit/plantilla`). En su lugar, «kit · proyecto de ejemplo» genera con `nuevo-proyecto.mjs` un
-proyecto desde `scripts/kit/fixtures/semilla-v1/` (un turnero mínimo sacado de `scripts/semilla/ejemplo/`, con el validador v1 de
-`scripts/kit/fixtures/`, el que el generador entiende hoy) y le corre `pnpm install`, `lint`, `typecheck`, `test` y `db:probar`. El
-paso a la semilla v2 es de K09.
+proyecto desde `scripts/kit/fixtures/semilla-v1/` (con el validador v1 de `scripts/kit/fixtures/`) y le corre `pnpm install`, `lint`,
+`typecheck`, `test` y `db:probar`.
 
-## Lo que ya está (tanda 1)
-
-| Archivo                                                                               | Qué hace                                                                                                                                                    | Probado                                                                                                    |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `scripts/coordinador/plan.mjs`                                                        | Lee y valida `plan.yaml`; decide el siguiente paso de un carril (camino crítico primero, cuota); transiciones; tablero                                      | 15 pruebas                                                                                                 |
-| `scripts/coordinador/coordinador.mjs`                                                 | La CLI: `validar`, `siguiente`, `publicado`, `liberar`, `integrado`, `sincronizar`, `cuota`, `tablero`. Estado en `<común de git>/coordinador/` con candado | 6 pruebas con un repo real y un `gh` falso, incluidos pedidos simultáneos                                  |
-| `scripts/lib/stack-local.mjs`                                                         | Puertos por bloque (o heredados) y por carril, leídos del manifiesto                                                                                        | 3 pruebas: dos proyectos con 9 carriles cada uno sin un puerto repetido, y ninguno toca los de importadora |
-| `scripts/guardas/carriles.mjs`                                                        | En CI: un PR sólo toca lo de su paso; orden de migraciones                                                                                                  | 6 pruebas                                                                                                  |
-| `scripts/worktree/preparar.sh`, `quitar.sh`, `con-carril.sh`, `scripts/lib/carril.sh` | El stack de un carril                                                                                                                                       | `bash -n` y shellcheck; **sin correr** (necesitan Docker y Supabase)                                       |
-| `scripts/coordinador/abrir-carriles.sh`                                               | Un worktree por carril, preparado                                                                                                                           | Igual: **sin correr**                                                                                      |
-| `piloto.config`                                                                       | La configuración del proyecto                                                                                                                               | —                                                                                                          |
-
-`pnpm test:kit` corre estas pruebas junto con las del piloto (abajo).
-
-## El manifiesto del proyecto (K03)
+## El manifiesto del proyecto
 
 Cada repo sabe quién es leyendo **sólo** su copia `.proyecto/proyecto.yaml` (esquema `proyecto/v1`: la copia es el manifiesto entero).
 El esquema vive fuera del repo, en `_herramientas/semillas/proyecto.plantilla.yaml`, y
@@ -69,153 +51,56 @@ El esquema vive fuera del repo, en `_herramientas/semillas/proyecto.plantilla.ya
 que el kit usa y, si algo falla, dice qué campo y ese comando. El kit lleva uno de ejemplo (`proyecto: cambiar-slug`), que el
 generador reemplaza.
 
-| Quién lo lee                                                                    | Qué toma del manifiesto                                                                                                     |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/lib/stack-local.mjs` (`baseDelRepo`) y `scripts/worktree/preparar.sh`  | `puertos.bloque` o `puertos.heredado` (calesa-app, 546xx: no se mueven); sin manifiesto, `PILOTO_BLOQUE` de `piloto.config` |
-| `scripts/flujo/publicar.sh`, `estado.sh` y `scripts/orquestador/orquestador.sh` | La cuenta de `github` para el token de `gh`; sin manifiesto, la del remoto                                                  |
-| `scripts/orquestador/orquestador.sh`                                            | `PROYECTO` (el `nombre` del repo, `<proyecto>-<rol>`) si `config.env` o `config.local.env` no lo fijan                      |
-| `scripts/kit/nuevo-proyecto.mjs`                                                | El bloque libre: el primero de `[5,6,7,8,9,1,2,3]` que no use ningún `<raíz>/z_*/proyecto.yaml` (raíz = `<kit>/../..`)      |
+| Quién lo lee                                                                    | Qué toma del manifiesto                                                                                                        |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `scripts/lib/stack-local.mjs` (`baseDelRepo`) y `scripts/worktree/preparar.sh`  | `puertos.bloque` o `puertos.heredado` (calesa-app, 546xx: no se mueven). **Sin manifiesto: el bloque 5 y un aviso por stderr** |
+| `scripts/flujo/publicar.sh`, `estado.sh` y `scripts/orquestador/orquestador.sh` | La cuenta de `github` para el token de `gh`; sin manifiesto, la del remoto                                                     |
+| `scripts/orquestador/orquestador.sh`                                            | `PROYECTO` (el `nombre` del repo, `<proyecto>-<rol>`) si `config.env` o `config.local.env` no lo fijan                         |
+| `scripts/kit/nuevo-proyecto.mjs`                                                | El bloque libre: el primero de `[5,6,7,8,9,1,2,3]` que no use ningún `<raíz>/z_*/proyecto.yaml` (raíz = `<kit>/../..`)         |
 
 - El repo propio es el que se llama como el remoto `origin` (o como su carpeta); un manifiesto de un solo repo no necesita el nombre.
 - Dos manifiestos con el mismo bloque, o un `--bloque` que otro ya usa, hacen fallar al generador nombrando los archivos.
-- `~/.config/kit/proyectos.txt` ya no se escribe ni lo lee el generador. Lo que nadie escribe todavía: el `z_<slug>/proyecto.yaml` suelto
-  de un proyecto nuevo (K09: el generador de varios repos lo escribe); hasta entonces se crea a mano o el bloque siguiente no lo ve.
-- La cuota entre proyectos (`COORD_PROYECTOS` / `proyectos.txt`) la lee todavía el coordinador del piloto, que se va en K04.
+- Sin manifiesto, el nombre del proyecto sale del `project_id` de `supabase/config.toml` (con aviso); sin ninguno de los dos, falla.
+- Lo que nadie escribe todavía: el `z_<slug>/proyecto.yaml` suelto de un proyecto nuevo (K09: el generador de varios repos lo escribe);
+  hasta entonces se crea a mano o el bloque siguiente no lo ve.
 
-## Cómo fluye un paso
+## Crear un proyecto
 
-1. El piloto del carril pide `coordinador.mjs siguiente <carril>`. Recibe `paso` con su ruteo, `esperar` con el motivo o `terminado`.
-2. Crea la rama `<carril>/<paso>` desde `origin/main` y corre el paso con el modelo, effort y modo de `plan.yaml`.
-3. El bucle verifica y publica, igual que en importadora. El PR va contra `main` y después corre `coordinador.mjs publicado <paso> <pr>`.
-4. `coordinador.mjs sincronizar`, cada pocos minutos, hace tres cosas:
-   - Si el PR ya se integró, lo marca integrado.
-   - Si el paso es verde o ámbar y el CI está en verde, lo integra (squash) y borra la rama.
-   - Si el CI está en rojo o hay conflicto con `main`, se lo devuelve a su carril, y eso va antes que un paso nuevo.
-5. Un paso rojo con el CI en verde queda esperando que lo integres tú en GitHub. Lo que depende de él espera. Si sumas `rojo` a
-   `COORD_MERGE_AUTO` (`piloto.config`), el coordinador también los integra solo.
-
-## Calibrar la cuota
-
-La app muestra un %, pero `claude -p` solo da `total_cost_usd`, que es una estimación del cliente. Por eso la cuota se mide en USD
-equivalentes y se calibra una vez por cuenta:
-
-1. Al empezar una ventana de 5 h, anota el % que muestra Claude.
-2. Corre uno o dos pasos y vuelve a anotar el %. Suma el `total_cost_usd` de esas filas en `.piloto/consumo.csv`.
-3. `COORD_USD_VENTANA = USD sumados ÷ (puntos de % que subió) × 100`.
-4. Escríbelo en `~/.config/kit/cuenta.config`:
+**`semilla-a-repo` está en reescritura (K09): no se usa hasta entonces.** Hoy la parte determinista se corre a mano:
 
 ```bash
-mkdir -p ~/.config/kit
-echo 'COORD_USD_VENTANA=<número>' > ~/.config/kit/cuenta.config
+pnpm kit:nuevo <carpeta de la semilla> <carpeta destino> [--bloque N] [--cuenta <cuenta>] [--validador <validar_semilla.py>] [--en-seco]
 ```
 
-Mientras no esté calibrado, el coordinador no frena por cuota. Solo queda el aviso de límite de `claude -p`, con el que el piloto duerme
-hasta que la ventana se reinicia, igual que en importadora.
+- Valida la semilla con el validador de idea-a-semilla y exige el contrato de tokens de `design/tokens.css`.
+- Elige un bloque de puertos libre, copia el kit sin lo que es sólo del kit, hace los reemplazos de abajo, genera `docs/UX.md`,
+  `GLOSARIO.md` y `RENDIMIENTO.md` desde la semilla y hace el primer commit.
+- Se niega si queda un marcador sin reemplazar. Con `--en-seco` aplica los reemplazos en memoria y lo dice sin escribir nada.
+- Se prueba con `pnpm test:generador`.
 
-## Tanda 2: el piloto por carril (hecho)
-
-| Archivo                                                                                                                                                       | Qué hace                                                                                                                                                                              | Probado                                                                                             |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `scripts/piloto/bucle.sh`                                                                                                                                     | Pide al coordinador, crea la rama `<carril>/<paso>` desde `origin/main`, corre el paso con el modelo y el effort de `plan.yaml` (Claude o Codex), verifica, publica y avisa           | 7 pruebas de punta a punta (`piloto.test.mjs`) con un origin real y `claude`, `codex` y `gh` falsos |
-| `scripts/piloto/compuerta.sh`                                                                                                                                 | Compuertas al celular. **Ámbar:** una de `producto` en un paso no rojo se elige sola a los `PILOTO_AUTO_MIN` min y queda anotada; las rojas esperan siempre                           | Ámbar elegida sola, roja que no se elige sola, una compuerta por carril                             |
-| `scripts/piloto/publicar.sh`                                                                                                                                  | Un PR por paso (`<PASO> · <título>`, con el riesgo y quién integra) y `coordinador.mjs publicado`                                                                                     | En la prueba de punta a punta                                                                       |
-| `scripts/piloto/cierre.sh`, `verificar.sh`                                                                                                                    | Como en importadora, más: corre el `verificacion.comando` del plan y el Nivel 2 que pida el plan o el rango; mide el diff contra `main` (un merge de arreglo no cuenta como del paso) | —                                                                                                   |
-| `scripts/piloto/comun.sh`                                                                                                                                     | Una carpeta común y sesiones de tmux **por carril** (`<proyecto>-<carril>-…`): dos pilotos nunca comparten una compuerta                                                              | En la prueba de la compuerta roja                                                                   |
-| `scripts/piloto/nivel.mjs`                                                                                                                                    | Los seis disparadores del Nivel 2, genéricos                                                                                                                                          | 3 pruebas                                                                                           |
-| `scripts/piloto/arrancar.sh`, `parar.sh`                                                                                                                      | Por carril, o `--todos` desde la principal; arranca el coordinador del proyecto                                                                                                       | `bash -n` y shellcheck; **sin correr** (tmux, Remote Control)                                       |
-| `scripts/coordinador/sincronizar.sh`                                                                                                                          | El coordinador en marcha: integra, devuelve y escribe el tablero cada 3 min                                                                                                           | **Sin correr** (necesita GitHub)                                                                    |
-| `.claude/hooks/*`, `.claude/settings.json`, `scripts/candado.sh`, `mapa.sh`, `ci-cambios.sh`, `e2e-dirigidos.mjs`, `lefthook.yml`, `.github/workflows/ci.yml` | Las guardas de importadora, sin lo propio de importadora                                                                                                                              | Las 541 pruebas de las guardas de importadora pasan contra las copias del kit (`pnpm test:guardas`) |
-| `.claude/skills/piloto/SKILL.md`, `codex.md`, `piloto-decidir`, `piloto-control`, reglas y agentes                                                            | El paso lee su ruteo, sus decisiones y su criterio de terminado del coordinador; notas en `docs/pasos/<PASO>/`                                                                        | —                                                                                                   |
-
-`pnpm test` corre todo (ver la tanda 3 para el total).
-
-### Cosas que cambian en el día a día
-
-- **Ya no hay ruteo con Sonnet** antes de cada paso. El modelo, el effort y el modo los fija la semilla. Si un paso falla dos veces, se sube el modelo en `plan.yaml` con una versión nueva de la semilla, no a mano.
-- **Rojo o modo `…→manual`:** el paso corre hasta el plan auditado y te pregunta (compuerta `datos`). Con tu «aprobar» sigue solo, y su PR lo integras tú.
-- **Fable:** con `claude -p` puede cobrar créditos sin preguntar, así que el bucle te pide permiso una vez por paso. Con `PILOTO_FABLE_OK=1` no lo pide.
-- **Codex:** su paso deja los cambios sin commit, y el commit lo hace el bucle. Su consumo se anota en tokens y no cuenta para la cuota de Claude.
-  - `-c model_reasoning_effort=…` usa `-c, --config <key=value>`, que `codex exec --help` lista (comprobado el 2026-10-30 en la máquina de Andrés). Que la clave `model_reasoning_effort` tenga efecto se ve en el primer paso real de Codex.
-
-## Tanda 3: la app base (hecho)
-
-El esqueleto de la app, sin nada del dominio de importadora:
-
-- **Configuración:** Next 16, TypeScript 6, ESLint con boundaries, Vitest, Playwright con los proyectos `escritorio` y `movil`, prettier, commitlint y lefthook.
-- **`supabase/`:** `config.toml` con el bloque 5 y una migración base (privilegios de `anon` y `_acotar_pagina`).
-- **Pruebas de la base:** `rls-en-todo`, `privilegios-de-anon`, `escala` y `humo`. Corren con `pnpm db:probar` (PGlite).
-- **`src/shared`:**
-  - `config`: el entorno validado con Zod.
-  - `lib`: los clientes de Supabase, `safe-action`, `errores`, `paginacion`, `conteo`, `fechas` y `formato`.
-  - `lib/email`: el correo, con el adaptador de Mailpit.
-  - `ui/diferido`.
-- **`design/tokens.css`:** OKLCH claro y oscuro, entre las marcas `semilla:inicio` y `semilla:fin`.
-- **`e2e/`:** los soportes y un spec de humo.
-- **Plantillas:** `AGENTS.md`, con las reglas para todos los agentes, y `CLAUDE.md`, que es `@AGENTS.md` más lo propio de Claude.
-
-Verificado en el contenedor el 2026-10-30:
-
-| Comando                                             | Resultado                                                                      |
-| --------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `pnpm lint` y `pnpm typecheck`                      | Sin errores ni warnings                                                        |
-| `pnpm build`, con las variables públicas de relleno | Compila                                                                        |
-| `pnpm db:probar`                                    | Pasa                                                                           |
-| `bash scripts/mapa.sh --check`                      | Pasa                                                                           |
-| `prettier --check .`                                | Pasa                                                                           |
-| `pnpm test`                                         | 702 pruebas de Vitest (las 541 de las guardas incluidas) y 40 de `node --test` |
-
-**No se corrió:** `db:reset` y los e2e, porque en el contenedor no hay Docker. Corren en tu máquina.
-
-### Lo que `semilla-a-repo` tiene que reemplazar
+### Lo que el generador reemplaza
 
 | Dónde                                 | Qué                                                                                                                                                                 |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `piloto.config`                       | `PROYECTO`, `PILOTO_BLOQUE` (respaldo hasta K04), `CARRILES_MAX`, `COORD_TOPE_PCT`, `PILOTO_AUTO_MIN` y `PILOTO_FUNCIONES`, desde el frontmatter de la semilla      |
-| `supabase/config.toml`                | `project_id` y los puertos, con `baseDelBloque(PILOTO_BLOQUE)` de `scripts/lib/stack-local.mjs`                                                                     |
+| `supabase/config.toml`                | `project_id` y los puertos, con `baseDelBloque(<bloque>)` de `scripts/lib/stack-local.mjs`                                                                          |
+| `e2e/funciones.txt`                   | Las funciones edge que los e2e exigen servidas, desde `funciones_edge` de la semilla (una por línea)                                                                |
 | `.github/workflows/ci.yml`            | `{{API_PORT}}`, `{{DB_PORT}}` y `{{FUNCIONES}}`                                                                                                                     |
 | `.github/acciones/pila/action.yml`    | `{{PUERTOS_PILA}}`: los puertos de la principal del bloque (del shadow al inspector; bloque 5: `55320-55329`)                                                       |
 | Los archivos del flujo (`CON_NOMBRE`) | `{{NOMBRE}}` y `cambiar-slug` en el revisor, las tres skills, el README del orquestador y sus prompts (`PROYECTO` de su `config.env` va vacío: sale del manifiesto) |
 | `.proyecto/proyecto.yaml`             | La copia del manifiesto: `proyecto`, `nombre`, el repo `<slug>-app`, su cuenta de GitHub (`--cuenta`; si no, la del ejemplo del kit) y el bloque                    |
 | `AGENTS.md`                           | `{{NOMBRE}}`, `{{DESCRIPCION}}` y `{{SCOPES}}`                                                                                                                      |
-| `commitlint.config.mjs`               | `// {{SCOPES_MODULOS}}`, por los módulos de la semilla **y los ids de los carriles**, porque los commits de un paso van con `tipo(<carril>)`                        |
+| `commitlint.config.mjs`               | `// {{SCOPES_MODULOS}}`, por los módulos (`src/modules/<x>/`) que nombra el `plan.yaml` de la semilla                                                               |
 | `design/tokens.css`                   | El bloque entre `semilla:inicio` y `semilla:fin`, por el CSS del sistema de diseño de la semilla                                                                    |
-| `docs/semilla/`                       | `semilla.md` y `plan.yaml`. También genera `docs/UX.md`, `GLOSARIO.md` y `RENDIMIENTO.md` desde sus secciones                                                       |
+| `docs/semilla/`                       | `semilla.md` y `plan.yaml`, si los hay                                                                                                                              |
 | `src/shared/types/database.types.ts`  | Hoy está escrito a mano. El primer arranque con Docker corre `pnpm db:types` y lo commitea; si no, el job `base` del CI cae                                         |
 
-## Entregable 2: `semilla-a-repo` (hecho)
-
-Una semilla validada se convierte en un repo con dos piezas:
-
-- **La skill** `.claude/skills/semilla-a-repo/SKILL.md`, que vive en el kit y no viaja a los proyectos. Abres Claude Code en la carpeta del kit, en Orca o en la terminal, con Opus 5.5 · medium, y escribes `/semilla-a-repo <slug>`.
-  - Comprueba las guardas: el modelo, el kit limpio, las herramientas y que la semilla esté auditada.
-  - Hace un ensayo y una sola ronda de preguntas: si hace falta la auditoría, si crea el repo privado en GitHub y cuántos carriles abrir.
-  - Crea el repo, lo verifica, genera los tipos con Docker, lo publica y abre los carriles.
-  - **No arranca los pilotos:** te deja el comando para que lo decidas tú.
-- **El script** `scripts/kit/nuevo-proyecto.mjs` (`pnpm kit:nuevo <semilla> <destino> [--en-seco]`) hace la parte determinista.
-  - Valida con el validador de idea-a-semilla y con el del coordinador, y exige el contrato de tokens.
-  - Elige un bloque de puertos libre, copia el kit sin lo que es solo del kit, hace todos los reemplazos de la tabla de arriba, genera los docs derivados y hace el primer commit.
-  - Se niega si queda algún marcador sin reemplazar. Con `--en-seco` aplica los reemplazos en memoria y lo dice sin escribir nada.
-
-Probado (`pnpm test:generador`: 7 pruebas, con el validador real de idea-a-semilla). Además, un proyecto generado desde una semilla de prueba pasó en el contenedor, desde cero:
-
-| Comando                                                    | Resultado                                   |
-| ---------------------------------------------------------- | ------------------------------------------- |
-| `pnpm install`, `lint`, `typecheck`, `db:probar` y `build` | En verde                                    |
-| `pnpm test`                                                | 702 pruebas de Vitest y 40 de `node --test` |
-| `prettier --check` y `mapa.sh --check`                     | En verde                                    |
-| `coordinador validar`                                      | En verde                                    |
-
-El contrato con idea-a-semilla (v2.1):
-
-- Los títulos de las secciones van exactos.
-- Un solo bloque ` ```css ` con `:root` y `.dark`, que incluye todos los nombres de token de `design/tokens.css`.
-- `slug` y los ids de carril con su formato.
-- Opcionales: `descripcion`, `funciones_edge` y `carriles_max`.
-
-Si la semilla no cumple, `semilla-a-repo` para y el arreglo vuelve a la semilla.
+El contrato con idea-a-semilla: los títulos de las secciones van exactos; un solo bloque ` ```css ` con `:root` y `.dark` que incluye
+todos los nombres de token de `design/tokens.css`; `slug` con su formato; opcional `descripcion` y `funciones_edge`. Si la semilla no
+cumple, el arreglo vuelve a la semilla.
 
 ## Lo que no está verificado
 
-- **Si Orca muestra los worktrees que crea `git worktree add`** (los de `abrir-carriles.sh`). Si no los muestra, se abren desde Orca con la misma rama y después se corre `preparar.sh`. Se prueba en el entregable 4.
-- **Si los costos de Codex aparecen en algún JSON:** sin eso, su cuota no entra en el cálculo.
-- **El techo de RAM** con más de 3 carriles en tu máquina: importadora llegó a 19,6 de 30 GB con 3 stacks y un e2e en cada uno.
+- **`preparar.sh`, `quitar.sh` y el stack de un carril:** pasan `bash -n`; no se corrieron en K04 (necesitan Docker y Supabase).
+- **Los e2e y `db:reset`:** no corren en el contenedor sin Docker; corren en la máquina de la persona y en el CI del proyecto generado.
+- **El techo de RAM** con más de 3 carriles: importadora llegó a 19,6 de 30 GB con 3 stacks y un e2e en cada uno.
+- **El reparto del límite de Claude entre orquestadores:** nadie lo cuenta hasta K06.
