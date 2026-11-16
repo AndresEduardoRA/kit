@@ -79,6 +79,7 @@ describe('los workflows del repo cumplen', () => {
       'base',
       'e2e-build',
       'e2e',
+      'listo',
     ])
   })
 })
