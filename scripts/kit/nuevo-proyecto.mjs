@@ -2,12 +2,15 @@
 // Crea un proyecto nuevo desde el kit y una semilla validada (la parte determinista de la skill semilla-a-repo). No llama a ningún
 // modelo ni a la red: copia, reemplaza, genera los docs derivados, hace el primer commit y verifica que no quedó un marcador.
 //
-//   node scripts/kit/nuevo-proyecto.mjs <carpeta de la semilla> <carpeta destino> [--bloque N] [--validador <validar_semilla.py>]
-//                                       [--en-seco]
+//   node scripts/kit/nuevo-proyecto.mjs <carpeta de la semilla> <carpeta destino> [--bloque N] [--cuenta <cuenta de GitHub>]
+//                                       [--validador <validar_semilla.py>] [--en-seco]
 //
 // - <carpeta de la semilla>: la de idea-a-semilla (<semillas>/<slug>/: semilla.md o semilla/, plan.yaml, registro.md, CHANGELOG.md).
 // - <carpeta destino>: no debe existir (o estar vacía). Por convención, <proyectos>/<slug>.
-// - --bloque: el bloque de puertos (1 a 9, nunca 4). Sin él, el primero libre entre los proyectos de ~/.config/kit/proyectos.txt.
+// - --bloque: el bloque de puertos (1 a 9, nunca 4). Sin él, el primero libre de [5,6,7,8,9,1,2,3] que no use ningún manifiesto
+//   <raíz de proyectos>/z_*/proyecto.yaml (la raíz es <kit>/../..). Con él, falla si algún manifiesto ya lo usa. Dos manifiestos con el
+//   mismo bloque hacen fallar al generador nombrando los dos.
+// - --cuenta: la cuenta de GitHub del repo (`<cuenta>/<slug>-app`). Sin ella, la del manifiesto de ejemplo del kit.
 // - --validador: validar_semilla.py (por defecto <carpeta de la semilla>/../_herramientas/validar_semilla.py). Si falta, se niega.
 // - --en-seco: valida, aplica los reemplazos en memoria (falla si quedaría un marcador) y dice qué haría, sin escribir nada.
 //
@@ -24,12 +27,21 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { homedir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parse } from 'yaml'
 import { leerPlan, problemasDelPlan } from '../coordinador/plan.mjs'
 import { baseDelBloque } from '../lib/stack-local.mjs'
+import {
+  bloqueLibre,
+  bloquesUsados,
+  cuentaDelRepo,
+  leerManifiesto,
+  leerManifiestoDe,
+  manifiestosDeLaRaiz,
+  raizDeProyectos,
+  repoPropio,
+} from '../proyecto/manifiesto.mjs'
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 // Lo que es del kit y no viaja a un proyecto: el generador, su skill, la semilla de ejemplo y lo generado.
@@ -58,20 +70,18 @@ const MARCADORES = [
   'cambiar-slug',
 ]
 // Los archivos del flujo (vienen de calesa-app) que nombran al proyecto: `{{NOMBRE}}` en la prosa y `cambiar-slug` en lo que es un
-// identificador (PROYECTO del orquestador, su servicio, su tema de ntfy). Sólo esos dos: los `{{ID}}`, `{{RAMA}}`… de los prompts
+// identificador (el servicio del orquestador, su tema de ntfy; PROYECTO de config.env va vacío: sale del manifiesto). Sólo esos dos: los `{{ID}}`, `{{RAMA}}`… de los prompts
 // los reemplaza el orquestador.
 const CON_NOMBRE = [
   '.claude/agents/revisor.md',
   '.claude/skills/entregar/SKILL.md',
   '.claude/skills/feature/SKILL.md',
   '.claude/skills/revisar/SKILL.md',
-  'scripts/orquestador/config.env',
   'scripts/orquestador/README.md',
   'scripts/orquestador/prompts/tarea.md',
   'scripts/orquestador/prompts/arreglar.md',
   'scripts/orquestador/prompts/planificar.md',
 ]
-const BLOQUES = [5, 6, 7, 8, 9, 1, 2, 3]
 const ANCHO = (() => {
   try {
     return JSON.parse(readFileSync(join(KIT, '.prettierrc'), 'utf8')).printWidth ?? 80
@@ -159,24 +169,22 @@ export function problemasDelCss(cssSemilla, cssKit) {
 
 // ---------- el proyecto ----------
 
-/** El bloque de puertos libre entre los proyectos anotados (sus piloto.config). */
-export function bloqueLibre(lista = join(homedir(), '.config/kit/proyectos.txt')) {
-  const usados = new Set()
-  if (existsSync(lista))
-    for (const raiz of readFileSync(lista, 'utf8')
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l && !l.startsWith('#'))) {
-      const conf = join(raiz, 'piloto.config')
-      const m = existsSync(conf) && /^PILOTO_BLOQUE=(\d)/m.exec(readFileSync(conf, 'utf8'))
-      if (m) usados.add(Number(m[1]))
-    }
-  const libre = BLOQUES.find((b) => !usados.has(b))
-  exigir(
-    libre,
-    'no queda un bloque de puertos libre: hay 8 proyectos anotados en ~/.config/kit/proyectos.txt',
-  )
-  return libre
+/**
+ * El bloque de puertos del proyecto: el pedido (que ningún manifiesto use) o el primero libre. Lee los `<raíz>/z_*\/proyecto.yaml`;
+ * dos con el mismo bloque, o uno ilegible, hacen fallar nombrando los archivos.
+ */
+export function elegirBloque(raizProyectos, pedido) {
+  let manifiestos
+  try {
+    manifiestos = manifiestosDeLaRaiz(raizProyectos)
+    if (pedido === undefined) return bloqueLibre(manifiestos)
+    bloqueLibre(manifiestos) // que no haya un bloque repetido entre los que ya existen
+  } catch (e) {
+    throw new Problema(e instanceof Error ? e.message : String(e))
+  }
+  const choque = bloquesUsados(manifiestos).find((u) => u.bloque === Number(pedido))
+  exigir(!choque, `el bloque ${pedido} ya lo usa ${choque?.repo} (${choque?.archivo})`)
+  return Number(pedido)
 }
 
 /** Los scopes de commit: los ids de los carriles y los módulos (`src/modules/<x>/`) que nombra el plan. */
@@ -215,6 +223,7 @@ export function reemplazos({
   funciones,
   cssSemilla,
   conf,
+  cuenta,
 }) {
   const p = baseDelBloque(bloque)
   const r = {
@@ -300,6 +309,13 @@ export function reemplazos({
         ...lineas.slice(ini),
       ].join('\n')
     },
+    // La copia del manifiesto del proyecto: el slug, el nombre, la cuenta de GitHub y el bloque (el repo se llama <slug>-app).
+    '.proyecto/proyecto.yaml': (t) =>
+      t
+        .replace(/^nombre: .*$/m, `nombre: ${JSON.stringify(nombre)}`)
+        .replace(/^(\s+github: )[^/\s]+\//m, `$1${cuenta}/`)
+        .replace(/^(\s+bloque: )\d+/m, `$1${bloque}`)
+        .replaceAll('cambiar-slug', slug),
     'package.json': (t) => {
       const j = JSON.parse(t)
       j.name = slug
@@ -369,10 +385,17 @@ function archivosDelKit() {
   return lista.filter((f) => !NO_VIAJA.some((re) => re.test(f)) && existsSync(join(KIT, f)))
 }
 
+/** La cuenta de GitHub del manifiesto de ejemplo del kit. */
+function cuentaDeEjemplo() {
+  const m = leerManifiestoDe(KIT)
+  exigir(m, 'el kit no tiene .proyecto/proyecto.yaml: pasa --cuenta')
+  return cuentaDelRepo(repoPropio(m, null))
+}
+
 export function crear(
   carpetaSemilla,
   destino,
-  { bloque, validador, enSeco = false, listaProyectos } = {},
+  { bloque, validador, enSeco = false, raizProyectos, cuenta } = {},
 ) {
   carpetaSemilla = resolve(carpetaSemilla)
   destino = resolve(destino)
@@ -420,8 +443,10 @@ export function crear(
     `el sistema de diseño no cumple el contrato del kit:\n- ${delCss.join('\n- ')}`,
   )
 
-  bloque = Number(bloque ?? bloqueLibre(listaProyectos))
+  bloque = elegirBloque(raizProyectos ?? raizDeProyectos(KIT), bloque)
   baseDelBloque(bloque) // falla si el bloque no vale
+  // La cuenta de GitHub: la pedida o la del manifiesto de ejemplo del kit (.proyecto/proyecto.yaml).
+  cuenta ??= cuentaDeEjemplo()
   const funciones = Array.isArray(fm.funciones_edge)
     ? fm.funciones_edge.join(' ')
     : String(fm.funciones_edge ?? '')
@@ -436,12 +461,34 @@ export function crear(
   }
   const scopes = scopesDelPlan(plan)
   const derivados = docsDerivados(texto, fm.version ?? 1)
-  const r = reemplazos({ slug, nombre, descripcion, bloque, scopes, funciones, cssSemilla, conf })
+  const r = reemplazos({
+    slug,
+    nombre,
+    descripcion,
+    bloque,
+    scopes,
+    funciones,
+    cssSemilla,
+    conf,
+    cuenta,
+  })
+  // El manifiesto que llevará el repo, revisado antes de escribir nada: si no vale, el motivo dice qué campo.
+  const rutaManifiesto = '.proyecto/proyecto.yaml'
+  exigir(existsSync(join(KIT, rutaManifiesto)), `el kit no tiene ${rutaManifiesto}`)
+  try {
+    leerManifiesto(
+      r[rutaManifiesto](readFileSync(join(KIT, rutaManifiesto), 'utf8')),
+      rutaManifiesto,
+    )
+  } catch (e) {
+    throw new Problema(e instanceof Error ? e.message : String(e))
+  }
   const resumen = {
     destino,
     slug,
     nombre,
     bloque,
+    cuenta,
     puertos: baseDelBloque(bloque),
     carriles: plan.carriles.map((c) => c.id),
     scopes,
@@ -533,12 +580,12 @@ function archivosDelProyecto(destino) {
 
 function principal(argv) {
   const pos = argv.filter(
-    (a, i) => !a.startsWith('--') && !['--bloque', '--validador'].includes(argv[i - 1]),
+    (a, i) => !a.startsWith('--') && !['--bloque', '--validador', '--cuenta'].includes(argv[i - 1]),
   )
   const opcion = (n) => (argv.includes(n) ? argv[argv.indexOf(n) + 1] : undefined)
   if (pos.length !== 2) {
     console.error(
-      'uso: node scripts/kit/nuevo-proyecto.mjs <carpeta de la semilla> <carpeta destino> [--bloque N] [--validador ruta] [--en-seco]',
+      'uso: node scripts/kit/nuevo-proyecto.mjs <carpeta de la semilla> <carpeta destino> [--bloque N] [--cuenta cuenta] [--validador ruta] [--en-seco]',
     )
     process.exit(64)
   }
@@ -546,6 +593,7 @@ function principal(argv) {
     const r = crear(pos[0], pos[1], {
       bloque: opcion('--bloque'),
       validador: opcion('--validador'),
+      cuenta: opcion('--cuenta'),
       enSeco: argv.includes('--en-seco'),
     })
     console.log(JSON.stringify(r, null, 2))

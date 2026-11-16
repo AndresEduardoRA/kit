@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { leerManifiesto } from '../proyecto/manifiesto.mjs'
 import {
   crear,
   marcadoresSueltos,
@@ -132,7 +133,30 @@ function semilla(cambio = (x) => x) {
     'CHANGELOG.md': '# v2\n',
   })
   for (const [n, t] of Object.entries(f)) writeFileSync(join(dir, n), t)
-  return { dir, destino: join(raiz, 'proyectos', 'turnos'), lista: join(raiz, 'proyectos.txt') }
+  // `proyectos`: la raíz de proyectos de la prueba, donde van los z_<proyecto>/proyecto.yaml de los demás.
+  return { dir, destino: join(raiz, 'proyectos', 'turnos'), proyectos: join(raiz, 'z') }
+}
+
+/** Escribe `<proyectos>/z_<slug>/proyecto.yaml` con un repo por bloque (`bloques`) o con puertos heredados (`{ heredado }`). */
+function manifiestoSuelto(proyectos, slug, ...puertos) {
+  const carpeta = join(proyectos, `z_${slug}`)
+  mkdirSync(carpeta, { recursive: true })
+  const repos = puertos.map((p, i) => {
+    const rol = ['app', 'web', 'crm'][i]
+    return `  - rol: ${rol}
+    nombre: ${slug}-${rol}
+    github: Duena/${slug}-${rol}
+    etapa: construccion
+    semilla: null
+    puertos: ${typeof p === 'number' ? `{ bloque: ${p} }` : `{ heredado: { api: 54621, base: 54622, app: 3000 } }`}
+    provee: []
+    consume: []`
+  })
+  writeFileSync(
+    join(carpeta, 'proyecto.yaml'),
+    `esquema: proyecto/v1\nproyecto: ${slug}\nnombre: ${slug}\nsemilla: null\nrepos:\n${repos.join('\n')}\ncontratos: []\n`,
+  )
+  return join(carpeta, 'proyecto.yaml')
 }
 
 test('los puertos del bloque 5 pasan al del proyecto, y nada más', () => {
@@ -172,8 +196,8 @@ conValidador(
   'un proyecto de punta a punta: reemplazos, docs derivados, commit y sin marcadores',
   () => {
     const s = semilla()
-    writeFileSync(s.lista, '') // ningún otro proyecto: el bloque es el 5
-    const r = crear(s.dir, s.destino, { validador: VALIDADOR, listaProyectos: s.lista })
+    // ningún otro manifiesto en la raíz: el bloque es el 5
+    const r = crear(s.dir, s.destino, { validador: VALIDADOR, raizProyectos: s.proyectos })
     assert.equal(r.bloque, 5)
     const leer = (f) => readFileSync(join(s.destino, f), 'utf8')
     assert.match(leer('piloto.config'), /^PROYECTO=turnos$/m)
@@ -190,8 +214,17 @@ conValidador(
     assert.match(leer('commitlint.config.mjs'), /'datos',\n\s+'ui',\n\s+'turnos',/)
     assert.match(leer('src/shared/config/app.ts'), /COLOR_TEMA = 'oklch\(0\.6 0\.2 30\)'/)
     // Los marcadores del flujo (de calesa-app): el orquestador, los puertos de la pila del CI, el revisor y las skills.
-    assert.match(leer('scripts/orquestador/config.env'), /^PROYECTO="turnos"$/m)
-    assert.match(leer('scripts/orquestador/README.md'), /orquestador-turnos/)
+    // El nombre del repo no se fija: PROYECTO va vacío y sale del manifiesto (`turnos-app`).
+    assert.match(leer('scripts/orquestador/config.env'), /^PROYECTO=""$/m)
+    assert.match(leer('scripts/orquestador/README.md'), /orquestador-turnos-app/)
+    // La copia del manifiesto: el slug, el nombre, la cuenta del kit, el bloque; válida y sin marcadores.
+    const manifiesto = leerManifiesto(leer('.proyecto/proyecto.yaml'))
+    assert.equal(manifiesto.proyecto, 'turnos')
+    assert.equal(manifiesto.nombre, 'Turnos del consultorio')
+    assert.equal(manifiesto.repos[0].nombre, 'turnos-app')
+    assert.equal(manifiesto.repos[0].github, 'AndresEduardoRA/turnos-app')
+    assert.deepEqual(manifiesto.repos[0].puertos, { bloque: 5 })
+    assert.equal(r.cuenta, 'AndresEduardoRA')
     assert.match(
       leer('.github/acciones/pila/action.yml'),
       /ip_local_reserved_ports=54300-54399,55320-55329$/m,
@@ -246,10 +279,9 @@ conValidador(
   'en seco aplica los reemplazos en memoria: ningún marcador suelto y nada escrito',
   () => {
     const s = semilla()
-    writeFileSync(s.lista, '')
     const r = crear(s.dir, s.destino, {
       validador: VALIDADOR,
-      listaProyectos: s.lista,
+      raizProyectos: s.proyectos,
       enSeco: true,
     })
     assert.equal(r.marcadores_sueltos, 0)
@@ -258,22 +290,89 @@ conValidador(
   },
 )
 
-conValidador('el bloque salta los que ya usan otros proyectos', () => {
+conValidador('el bloque salta los que ya usan los manifiestos de la raíz', () => {
   const s = semilla()
-  const otro = join(dirname(s.lista), 'otro')
-  mkdirSync(otro)
-  writeFileSync(join(otro, 'piloto.config'), 'PILOTO_BLOQUE=5\n')
-  writeFileSync(s.lista, `${otro}\n`)
-  assert.equal(
-    crear(s.dir, s.destino, { validador: VALIDADOR, listaProyectos: s.lista, enSeco: true }).bloque,
-    6,
+  const opciones = { validador: VALIDADOR, raizProyectos: s.proyectos, enSeco: true }
+  manifiestoSuelto(s.proyectos, 'otro', 5)
+  assert.equal(crear(s.dir, s.destino, opciones).bloque, 6)
+  // Un repo con puertos heredados (546xx) no ocupa ningún bloque; el segundo repo de otro proyecto, sí.
+  manifiestoSuelto(s.proyectos, 'viejo', { heredado: true }, 6)
+  assert.equal(crear(s.dir, s.destino, opciones).bloque, 7)
+})
+
+conValidador('un proyecto pide su bloque: si un manifiesto ya lo usa, se niega nombrándolo', () => {
+  const s = semilla()
+  const ajeno = manifiestoSuelto(s.proyectos, 'otro', 6)
+  const opciones = { validador: VALIDADOR, raizProyectos: s.proyectos, enSeco: true }
+  assert.equal(crear(s.dir, s.destino, { ...opciones, bloque: 7 }).bloque, 7)
+  assert.throws(
+    () => crear(s.dir, s.destino, { ...opciones, bloque: 6 }),
+    (e) =>
+      e.message.includes('bloque 6') && e.message.includes('otro-app') && e.message.includes(ajeno),
+  )
+})
+
+conValidador('dos manifiestos con el mismo bloque: el generador falla nombrando los dos', () => {
+  const s = semilla()
+  const uno = manifiestoSuelto(s.proyectos, 'uno', 5)
+  const dos = manifiestoSuelto(s.proyectos, 'dos', 5)
+  for (const bloque of [undefined, 8])
+    assert.throws(
+      () =>
+        crear(s.dir, s.destino, {
+          validador: VALIDADOR,
+          raizProyectos: s.proyectos,
+          enSeco: true,
+          bloque,
+        }),
+      (e) =>
+        e.message.includes('mismo bloque') &&
+        e.message.includes(uno) &&
+        e.message.includes(dos) &&
+        e.message.includes('uno-app') &&
+        e.message.includes('dos-app'),
+    )
+})
+
+conValidador('un manifiesto ajeno inválido corta nombrando el archivo y el campo', () => {
+  const s = semilla()
+  const roto = manifiestoSuelto(s.proyectos, 'roto', 5)
+  writeFileSync(roto, readFileSync(roto, 'utf8').replace('esquema: proyecto/v1', 'esquema: otro'))
+  assert.throws(
+    () =>
+      crear(s.dir, s.destino, { validador: VALIDADOR, raizProyectos: s.proyectos, enSeco: true }),
+    (e) =>
+      e.message.includes(roto) &&
+      e.message.includes('esquema:') &&
+      e.message.includes('--manifiesto'),
   )
 })
 
 conValidador(
+  'el manifiesto del proyecto generado pasa el validador de manifiestos (si está)',
+  (t) => {
+    const validador = join(KIT, '../semillas/validar_semilla.py')
+    if (!existsSync(validador)) return t.skip('no está ../semillas/validar_semilla.py')
+    const s = semilla()
+    crear(s.dir, s.destino, { validador: VALIDADOR, raizProyectos: s.proyectos, cuenta: 'Duena' })
+    execFileSync(
+      'python3',
+      [validador, '--manifiesto', join(s.destino, '.proyecto/proyecto.yaml')],
+      {
+        stdio: 'pipe',
+      },
+    )
+    assert.match(
+      readFileSync(join(s.destino, '.proyecto/proyecto.yaml'), 'utf8'),
+      /github: Duena\/turnos-app/,
+    )
+  },
+)
+
+conValidador(
   'se niega: semilla que no valida, plan con choque, tokens fuera de contrato, destino ocupado',
   () => {
-    const opciones = { validador: VALIDADOR, enSeco: true, listaProyectos: '/dev/null' }
+    const opciones = { validador: VALIDADOR, enSeco: true, raizProyectos: '/no/hay/raiz' }
     const s1 = semilla((f) => ({
       ...f,
       'semilla.md': f['semilla.md'].replace('(A1, F1)', '(A1, F1) etc.'),
