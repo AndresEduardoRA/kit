@@ -348,5 +348,7 @@ export default defineConfig([
     // Un worktree de otra sesión y lo que escribe el piloto: no son código de este árbol (el ESLint plano no ignora carpetas con punto).
     '.claude/worktrees/**',
     '.piloto/**',
+    // Los worktrees del orquestador (scripts/orquestador), por lo mismo.
+    '.orquestador/**',
   ]),
 ])

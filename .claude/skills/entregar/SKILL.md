@@ -1,18 +1,35 @@
 ---
 name: entregar
-description: Cierra el trabajo actual del proyecto — verificaciones, mapa, notas del paso y commit convencional, sin push.
+description: Cierra el trabajo actual de {{NOMBRE}} — verificación, docs que toca el cambio, commits convencionales y el PR integrado en main con el CI en verde.
 ---
 
 # /entregar
 
-1. `bash scripts/mapa.sh`, `pnpm lint`, `pnpm typecheck`, `pnpm test`; si tocaste `supabase/`, `pnpm db:probar`; los e2e dirigidos al
-   nivel de `.claude/rules/e2e.md`. Si algo falla, arréglalo o para y repórtalo: no se entrega trabajo rojo.
-2. Notas del paso, sólo en `docs/pasos/<PASO>/`:
-   - `bitacora.md`: fecha, qué se hizo, lo medido, lo pendiente y `e2e completo: sí|no (<motivo>)`.
-   - `decisiones.md`: cada decisión no obvia, con la fecha de `TZ=America/La_Paz date +%F`.
-     Ningún tablero ni `docs/semilla/`: el estado lo lleva el coordinador.
-3. `git status` **en este turno** y commit con Conventional Commits: `tipo(<carril>): …`, en español, minúscula, ≤ 72 caracteres
-   (scopes válidos en `CLAUDE.md` y `commitlint.config.mjs`). Si el mensaje necesita «y», son dos commits. Nunca `--no-verify`. Sin push:
-   publica el bucle.
-4. Reporta en tres líneas: qué quedó, qué sigue según `docs/semilla/plan.yaml` (los pasos que dependen de éste), qué decisión espera a la
-   persona.
+Una actualización está terminada cuando su PR quedó integrado en `main` (`docs/FLUJO.md`). En un paso del piloto (hay
+`.piloto/hechos.json` o `PILOTO_SESION`; hasta K04) no se publica: ve a «En un paso del piloto». En orden:
+
+1. **Rama.** Si estás en `main`, crea la rama del cambio (`git switch -c <tipo>/<tema>`); el trabajo sin commitear viaja con ella.
+2. **Verificar.** `bash scripts/mapa.sh`, `pnpm lint`, `pnpm typecheck`, `pnpm test`. Si tocaste `supabase/`: `pnpm db:reset`,
+   `pnpm db:types` y `pnpm db:probar`. Si tocaste una pantalla o su flujo: los e2e dirigidos (`pnpm test:e2e <spec>`; pide
+   `pnpm funciones` si hay funciones edge). Si algo falla, arréglalo: no se entrega trabajo rojo.
+3. **Docs que toca el cambio** (la tabla de `docs/FLUJO.md`): borra de `docs/PENDIENTES.md` lo que cerraste y anota en una línea lo que
+   descubriste y no hiciste; la ficha del módulo si cambió su contrato; `GLOSARIO` si hay término nuevo; `DECISIONES` si hubo una
+   decisión no obvia; `LECCIONES` si una trampa costó tiempo. `docs/ESTADO.md` sólo si cambió el estado del producto. Nunca historia.
+4. **Commits.** `git status` en este turno y Conventional Commits (scopes en `AGENTS.md` y `commitlint.config.mjs`); un commit, un
+   cambio. Nunca `--no-verify`.
+5. **Publicar.** `bash scripts/flujo/publicar.sh` (con `--titulo '<tipo(scope): descripción>'` si la rama lleva más de un commit, y
+   `--cuerpo <archivo.md>` con qué cambió, por qué y cómo se verificó). Empuja, abre el PR con auto-merge y espera al CI:
+   - integrado → ya estás en `main` al día, con las ramas integradas borradas;
+   - rojo → lee el job que cayó (`gh run view <id> --log-failed`), arregla en la misma rama, commitea y vuelve a correr el guion;
+   - choca con `main` → `git merge origin/main`, resuelve, commitea y vuelve a correrlo.
+6. **Reportar** en tres líneas: qué quedó en `main` (el PR), qué se anotó en `docs/PENDIENTES.md` y qué decisión espera a la persona.
+
+## En un paso del piloto
+
+1. La verificación del punto 2, con los e2e al nivel que pide el paso (`.claude/rules/e2e.md`).
+2. Notas del paso, sólo en `docs/pasos/<PASO>/`: `bitacora.md` (fecha, qué se hizo, lo medido, lo pendiente y
+   `e2e completo: sí|no (<motivo>)`) y `decisiones.md` (cada decisión no obvia, con la fecha de `TZ=America/La_Paz date +%F`).
+   Ni tablero, ni `docs/semilla/`, ni los docs compartidos del punto 3: el estado lo lleva el coordinador.
+3. Commit `tipo(<carril>): …`, en español, minúscula, ≤ 72 caracteres. Sin push ni `scripts/flujo/publicar.sh`: publica el bucle (con
+   `PILOTO=1` el hook lo bloquea).
+4. Reporta en tres líneas: qué quedó, qué sigue según `docs/semilla/plan.yaml` y qué decisión espera a la persona.

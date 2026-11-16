@@ -6,7 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { BLOQUEA, BLOQUEA_PILOTO, PASA, PASA_PILOTO } from './bloquear-peligrosos.casos'
 
 // `bloquear-peligrosos.sh` es el hook PreToolUse de Bash: lo irreversible, lo de afuera, las dependencias y saltarse el candado de
-// la base se rechazan siempre; con `PILOTO=1` (las sesiones del piloto) también todo `git push`, `gh` que escribe y `claude`.
+// la base se rechazan siempre; una etiqueta nueva sí se empuja. Con `PILOTO=1` (las sesiones del piloto) también todo `git push`,
+// `scripts/flujo/`, `gh` que escribe y `claude`.
 // Se prueba con el hook de verdad: una tabla de comandos → bloquea (exit 2 y el motivo por stderr) / pasa (exit 0), con repos de
 // git temporales para la rama del push (el patrón de `scripts/ci-cambios.test.ts`).
 const HOOK = resolve('.claude/hooks/bloquear-peligrosos.sh')
@@ -77,7 +78,7 @@ describe('bloquear-peligrosos.sh', () => {
   })
 })
 
-// Una sesión empuja sólo la rama en la que está; main lo integra la persona al aprobar el PR.
+// Una sesión empuja sólo la rama en la que está; main avanza al integrarse el PR (docs/FLUJO.md).
 describe('la rama del push', () => {
   it('un push sin rama sale de la rama del cwd: otra pasa, main no', () => {
     expect(correr('git push', { cwd: enOtra }).estado).toBe(0)

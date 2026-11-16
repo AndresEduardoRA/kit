@@ -9,7 +9,7 @@
 // - <carpeta destino>: no debe existir (o estar vacía). Por convención, <proyectos>/<slug>.
 // - --bloque: el bloque de puertos (1 a 9, nunca 4). Sin él, el primero libre entre los proyectos de ~/.config/kit/proyectos.txt.
 // - --validador: validar_semilla.py (por defecto <carpeta de la semilla>/../_herramientas/validar_semilla.py). Si falta, se niega.
-// - --en-seco: valida y dice qué haría, sin escribir nada.
+// - --en-seco: valida, aplica los reemplazos en memoria (falla si quedaría un marcador) y dice qué haría, sin escribir nada.
 //
 // Lo que reemplaza está en docs/KIT.md › «Lo que semilla-a-repo tiene que reemplazar». Sale con 1 y el motivo si algo no cuadra.
 // Se prueba en `nuevo-proyecto.test.mjs`.
@@ -32,9 +32,10 @@ import { leerPlan, problemasDelPlan } from '../coordinador/plan.mjs'
 import { baseDelBloque } from '../lib/stack-local.mjs'
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-// Lo que es del kit y no viaja a un proyecto: el generador, su skill y lo generado.
+// Lo que es del kit y no viaja a un proyecto: el generador, su skill, la semilla de ejemplo y lo generado.
 const NO_VIAJA = [
   /^scripts\/kit\//,
+  /^scripts\/semilla\//,
   /^\.claude\/skills\/semilla-a-repo\//,
   /^docs\/MAPA\.md$/,
   /^\.kit\/plantilla$/,
@@ -42,7 +43,7 @@ const NO_VIAJA = [
 ]
 // Lo ignorado por git que tampoco viaja cuando el kit no es un repo.
 const IGNORADO =
-  /^(node_modules|\.next|\.next-e2e|\.git|\.piloto|test-results|e2e-fallos)(\/|$)|\.tsbuildinfo$/
+  /^(node_modules|\.next|\.next-e2e|\.git|\.piloto|\.orquestador|test-results|e2e-fallos|test-salidas)(\/|$)|\.tsbuildinfo$/
 // Los archivos donde están los números del bloque 5 (el del kit) que pasan al bloque del proyecto.
 const CON_PUERTOS = ['supabase/config.toml', 'playwright.config.ts', '.env.example', 'README.md']
 const MARCADORES = [
@@ -53,7 +54,22 @@ const MARCADORES = [
   '{{API_PORT}}',
   '{{DB_PORT}}',
   '{{FUNCIONES}}',
+  '{{PUERTOS_PILA}}',
   'cambiar-slug',
+]
+// Los archivos del flujo (vienen de calesa-app) que nombran al proyecto: `{{NOMBRE}}` en la prosa y `cambiar-slug` en lo que es un
+// identificador (PROYECTO del orquestador, su servicio, su tema de ntfy). Sólo esos dos: los `{{ID}}`, `{{RAMA}}`… de los prompts
+// los reemplaza el orquestador.
+const CON_NOMBRE = [
+  '.claude/agents/revisor.md',
+  '.claude/skills/entregar/SKILL.md',
+  '.claude/skills/feature/SKILL.md',
+  '.claude/skills/revisar/SKILL.md',
+  'scripts/orquestador/config.env',
+  'scripts/orquestador/README.md',
+  'scripts/orquestador/prompts/tarea.md',
+  'scripts/orquestador/prompts/arreglar.md',
+  'scripts/orquestador/prompts/planificar.md',
 ]
 const BLOQUES = [5, 6, 7, 8, 9, 1, 2, 3]
 const ANCHO = (() => {
@@ -218,6 +234,16 @@ export function reemplazos({
         .replaceAll('{{API_PORT}}', String(p.SUPABASE_API_PORT))
         .replaceAll('{{DB_PORT}}', String(p.SUPABASE_DB_PORT))
         .replaceAll('{{FUNCIONES}}', funciones),
+    '.github/acciones/pila/action.yml': (t) =>
+      t
+        .replace(
+          / semilla-a-repo reemplaza \{\{PUERTOS_PILA\}\}[^.]*\./,
+          ` Puertos del bloque ${bloque}.`,
+        )
+        .replaceAll(
+          '{{PUERTOS_PILA}}',
+          `${p.SUPABASE_DB_SHADOW_PORT}-${p.SUPABASE_EDGE_RUNTIME_INSPECTOR_PORT}`,
+        ),
     'AGENTS.md': (t) =>
       t
         .replaceAll('{{NOMBRE}}', nombre)
@@ -283,11 +309,28 @@ export function reemplazos({
       return JSON.stringify(j, null, 2) + '\n'
     },
   }
+  for (const f of CON_NOMBRE)
+    r[f] = (t) => t.replaceAll('{{NOMBRE}}', nombre).replaceAll('cambiar-slug', slug)
   for (const f of CON_PUERTOS) if (!r[f]) r[f] = (t) => moverPuertos(t, bloque)
   const readme = r['README.md']
   r['README.md'] = (t) =>
     readme(t).replaceAll('{{NOMBRE}}', nombre).replaceAll('{{DESCRIPCION}}', descripcion)
   return r
+}
+
+/** Lo que se revisa por marcadores sueltos: todo lo que viaja menos la semilla, docs/KIT.md (que los documenta) y lo binario. */
+const seRevisa = (f) =>
+  f !== 'docs/KIT.md' &&
+  f !== 'docs/semilla' &&
+  !f.startsWith('docs/semilla/') &&
+  !/\.(png|jpg|ico|woff2?|tgz)$/.test(f)
+
+/** Los marcadores que quedarían sin reemplazar, `archivo: marcador`, de un mapa archivo → texto. Puro. */
+export function marcadoresSueltos(textos) {
+  const quedan = []
+  for (const [f, t] of Object.entries(textos))
+    for (const m of MARCADORES) if (t.includes(m)) quedan.push(`${f}: ${m}`)
+  return quedan
 }
 
 /** Los docs que salen de la semilla. */
@@ -393,6 +436,7 @@ export function crear(
   }
   const scopes = scopesDelPlan(plan)
   const derivados = docsDerivados(texto, fm.version ?? 1)
+  const r = reemplazos({ slug, nombre, descripcion, bloque, scopes, funciones, cssSemilla, conf })
   const resumen = {
     destino,
     slug,
@@ -403,7 +447,17 @@ export function crear(
     scopes,
     conf,
   }
-  if (enSeco) return resumen
+  if (enSeco) {
+    // Los reemplazos en memoria, archivo por archivo: el ensayo dice ya si quedaría un marcador suelto.
+    const enMemoria = { ...derivados }
+    for (const f of archivosDelKit().filter(seRevisa)) {
+      const t = readFileSync(join(KIT, f), 'utf8')
+      enMemoria[f] = r[f] ? r[f](t) : t
+    }
+    const quedan = marcadoresSueltos(enMemoria)
+    exigir(quedan.length === 0, `quedarían marcadores sin reemplazar:\n- ${quedan.join('\n- ')}`)
+    return { ...resumen, revisados: Object.keys(enMemoria).length, marcadores_sueltos: 0 }
+  }
 
   // 2. La copia del kit.
   mkdirSync(destino, { recursive: true })
@@ -415,7 +469,6 @@ export function crear(
   }
 
   // 3. Los reemplazos.
-  const r = reemplazos({ slug, nombre, descripcion, bloque, scopes, funciones, cssSemilla, conf })
   for (const [archivo, fn] of Object.entries(r)) {
     const ruta = join(destino, archivo)
     if (existsSync(ruta)) writeFileSync(ruta, fn(readFileSync(ruta, 'utf8')))
@@ -436,10 +489,11 @@ export function crear(
   )
 
   // 5. Sin marcadores.
-  const quedan = []
-  for (const f of archivosDelProyecto(destino))
-    for (const m of MARCADORES)
-      if (readFileSync(join(destino, f), 'utf8').includes(m)) quedan.push(`${f}: ${m}`)
+  const quedan = marcadoresSueltos(
+    Object.fromEntries(
+      archivosDelProyecto(destino).map((f) => [f, readFileSync(join(destino, f), 'utf8')]),
+    ),
+  )
   exigir(quedan.length === 0, `quedaron marcadores sin reemplazar:\n- ${quedan.join('\n- ')}`)
 
   // 6. El repo y el primer commit (sin hooks: todavía no hay node_modules; la skill corre la verificación después).

@@ -1,6 +1,6 @@
 // semilla-a-repo, la parte determinista: una semilla de prueba que pasa el validador real de idea-a-semilla, el proyecto que sale, y
-// lo que se niega a hacer. El validador está en el repo de semillas, no en el kit: la prueba lo busca en KIT_VALIDADOR o junto al kit
-// (<proyectos>/semillas/_herramientas/validar_semilla.py) y se salta, diciéndolo, si no está.
+// lo que se niega a hacer. El validador v1 (el que el generador entiende hoy) va con el kit en scripts/kit/fixtures/; KIT_VALIDADOR
+// lo cambia. Sin python3 con PyYAML las pruebas con validador se saltan, diciéndolo.
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -8,11 +8,27 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { crear, moverPuertos, problemasDelCss, scopesDelPlan, seccion } from './nuevo-proyecto.mjs'
+import {
+  crear,
+  marcadoresSueltos,
+  moverPuertos,
+  problemasDelCss,
+  scopesDelPlan,
+  seccion,
+} from './nuevo-proyecto.mjs'
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+const hayPyYaml = (() => {
+  try {
+    execFileSync('python3', ['-c', 'import yaml'], { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+})()
 const VALIDADOR = [
   process.env.KIT_VALIDADOR,
+  hayPyYaml ? join(KIT, 'scripts/kit/fixtures/validar_semilla_v1.py') : undefined,
   join(KIT, '../semillas/_herramientas/validar_semilla.py'),
   '/home/claude/idea-a-semilla/validar_semilla.py',
 ].find((r) => r && existsSync(r))
@@ -173,11 +189,33 @@ conValidador(
     assert.match(leer('AGENTS.md'), /Scopes: datos, ui, turnos\./)
     assert.match(leer('commitlint.config.mjs'), /'datos',\n\s+'ui',\n\s+'turnos',/)
     assert.match(leer('src/shared/config/app.ts'), /COLOR_TEMA = 'oklch\(0\.6 0\.2 30\)'/)
+    // Los marcadores del flujo (de calesa-app): el orquestador, los puertos de la pila del CI, el revisor y las skills.
+    assert.match(leer('scripts/orquestador/config.env'), /^PROYECTO="turnos"$/m)
+    assert.match(leer('scripts/orquestador/README.md'), /orquestador-turnos/)
+    assert.match(
+      leer('.github/acciones/pila/action.yml'),
+      /ip_local_reserved_ports=54300-54399,55320-55329$/m,
+    )
+    assert.match(leer('.github/acciones/pila/action.yml'), /Puertos del bloque 5\./)
+    assert.match(leer('.claude/agents/revisor.md'), /Eres el revisor de Turnos del consultorio\./)
+    assert.match(
+      leer('.claude/skills/entregar/SKILL.md'),
+      /trabajo actual de Turnos del consultorio/,
+    )
+    assert.match(
+      leer('scripts/orquestador/prompts/tarea.md'),
+      /orquestador de Turnos del consultorio\./,
+    )
+    assert.match(
+      leer('scripts/orquestador/prompts/tarea.md'),
+      /# Tarea \{\{ID\}\} — \{\{TITULO\}\}/,
+    )
     assert.match(leer('design/tokens.css'), /--color-primario: oklch\(0\.6 0\.2 30\);/)
     assert.match(leer('docs/UX.md'), /versión 2[\s\S]*\/turnos: lista/)
     assert.match(leer('docs/GLOSARIO.md'), /\*\*Turno:\*\*/)
     assert.ok(existsSync(join(s.destino, 'docs/semilla/plan.yaml')))
     assert.ok(!existsSync(join(s.destino, 'scripts/kit')), 'el generador no viaja')
+    assert.ok(!existsSync(join(s.destino, 'scripts/semilla')), 'la semilla de ejemplo no viaja')
     assert.ok(
       existsSync(join(KIT, '.kit/plantilla')),
       'el kit tiene la marca de plantilla que salta los jobs de proyecto',
@@ -192,6 +230,31 @@ conValidador(
       'chore(kit): arrancar turnos desde el kit (semilla v2)',
     )
     assert.equal(JSON.parse(leer('package.json')).name, 'turnos')
+  },
+)
+
+test('marcadoresSueltos nombra cada marcador que quedó y en qué archivo', () => {
+  assert.deepEqual(
+    marcadoresSueltos({ 'a.md': 'sin nada', 'b.yml': 'x {{PUERTOS_PILA}} y cambiar-slug' }),
+    ['b.yml: {{PUERTOS_PILA}}', 'b.yml: cambiar-slug'],
+  )
+  // Los del orquestador no son del generador: los reemplaza orquestador.sh al armar cada prompt.
+  assert.deepEqual(marcadoresSueltos({ 'tarea.md': '# Tarea {{ID}} — {{TITULO}}' }), [])
+})
+
+conValidador(
+  'en seco aplica los reemplazos en memoria: ningún marcador suelto y nada escrito',
+  () => {
+    const s = semilla()
+    writeFileSync(s.lista, '')
+    const r = crear(s.dir, s.destino, {
+      validador: VALIDADOR,
+      listaProyectos: s.lista,
+      enSeco: true,
+    })
+    assert.equal(r.marcadores_sueltos, 0)
+    assert.ok(r.revisados > 100, `revisó ${r.revisados} archivos`)
+    assert.ok(!existsSync(s.destino), 'en seco no escribe')
   },
 )
 

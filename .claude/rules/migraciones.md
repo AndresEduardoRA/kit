@@ -11,13 +11,16 @@ policy que no sale de ahí es una pregunta, no una decisión del paso.
 
 ## Una sola fuente: las migraciones
 
-- **Una migración que ya entró a `main` no se edita nunca.** Si un día se aplastan en una base, su
-  sha256 lo fija una guarda (`scripts/guardas/orden-de-migraciones.test.ts`).
+- **Una migración que ya entró a `main` no se edita nunca.** La base (`…_base.sql`) tiene su sha256 fijo en una guarda
+  (`scripts/guardas/orden-de-migraciones.test.ts`). Una cita a una migración vieja por su nombre en un comentario es historia:
+  está en git.
 - Todo cambio es una migración nueva: `pnpm exec supabase migration new <nombre>` (fecha y hora
-  reales, UTC). Si al integrar quedó antes de una que ya entró (otro carril se adelantó), se crea de
-  nuevo con otra fecha.
+  reales, UTC), con el nombre de su dominio al principio. Si otro PR (u otro carril) integró antes una posterior, se crea de
+  nuevo con otra fecha: lo exige la misma guarda, contra `main` en el CI del PR.
+- Una prueba o un comentario **nunca nombra un archivo de migración**: la definición vigente de una función o tabla se lee con
+  `definicionSql()`, `tablaSql()` o `migracionesEnOrden()` (`scripts/lib/definicion-sql.ts`), que sobreviven a un aplastado.
 - Cambiar una función: `create or replace` en la migración nueva, partiendo de su definición vigente
-  (la última migración que la toca, no la primera). Renombrar es `alter … rename`.
+  (la última migración que la toca, no la primera: `definicionSql()`). Renombrar es `alter … rename`.
 - Un dato de catálogo (permiso, estado, bucket, job) va en su migración con `insert … on conflict`:
   la nube no vuelve a correr el seed. `seed.sql` es lo configurable por empresa y los ejemplos.
 - Después de cualquier cambio: `pnpm db:reset`, `pnpm db:types` y `pnpm db:probar`; si tocaste
@@ -55,7 +58,9 @@ ids_con_alcance('x'))::uuid[])`. Se comprueba con `EXPLAIN` como `authenticated`
 - Conflicto de edición: `raise exception … using errcode = 'PT409'`, jamás `40001`. Un error de
   validación lleva en `hint` el campo. Los textos de `raise exception` siguen `docs/GLOSARIO.md`.
 - Toda RPC de edición nace con `p_actualizado_en_esperado timestamptz` sin default y lo exige; las de
-  crear no. Una de lote, por elemento. Una versión que debe moverse dos veces en una transacción no
+  crear no. Una RPC que guarda la única fila de su clase (un borrador por dueño) toma la esperada nula como crear: si la fila
+  ya existe, PT409; nunca pisa. Una que publica sobre una versión lleva la versión esperada
+  (`p_publicada_esperada uuid default null`: una versión, no una hora). Una de lote, por elemento. Una versión que debe moverse dos veces en una transacción no
   usa el trigger genérico: `greatest(clock_timestamp(), anterior + 1 µs)`.
 - Un `if` de plpgsql termina en el primer `then`, también el de un `case`: esa condición va a una
   variable antes.

@@ -37,6 +37,14 @@ Antes de construir una pantalla, lee su fila en `docs/UX.md` (patrón, roles, es
   cambia (esqueleto, error, formulario) cambia dentro del mismo panel.
 - Los avisos (toasts) no tapan contenido ni el pie de un panel; se comprueba en e2e.
 
+## Avisos con acciones
+
+- Todo aviso (error, advertencia o bloqueo) que tenga una salida la ofrece: de 1 a 3 acciones, la que destraba primero, con
+  verbo + objeto («Quitar el vínculo»), nunca «Aceptar».
+- Las acciones se declaran como datos en `entities/`, a partir de la causa del error, no en cada componente.
+- Sin permiso para la acción que resuelve, el aviso dice a quién pedírselo en vez del botón; la que sólo informa no se muestra.
+- Un aviso bloqueante lleva el foco a la principal; en el celular la principal va a lo ancho, a 44 px.
+
 ## Listas
 
 - Toda lista de registros usa el patrón de `@/shared/ui/lista`: una sola vista elegida en el servidor
@@ -72,5 +80,5 @@ Antes de construir una pantalla, lee su fila en `docs/UX.md` (patrón, roles, es
 
 - Un texto, un espacio, un icono, el orden de dos botones o el tamaño de un vacío no se preguntan:
   se deciden con `docs/UX.md`, `docs/GLOSARIO.md` y el patrón más parecido que ya exista, y se dicen
-  en `docs/pasos/<PASO>/decisiones.md`. Se pregunta sólo lo que cambia un flujo, lo que ve o puede un
-  rol, o un dato que se guarda.
+  en el cuerpo del PR (en un paso del piloto, en `docs/pasos/<PASO>/decisiones.md`). Se pregunta sólo lo que cambia un flujo,
+  lo que ve o puede un rol, o un dato que se guarda.

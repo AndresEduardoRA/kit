@@ -6,69 +6,109 @@ paths:
 
 # e2e y capturas
 
-Nadie prueba a mano: lo que no cubre una prueba automática no está verificado, y se dice.
-
 ## Fallos y base local
 
-- Un e2e que falla no se reintenta (`retries: 0`): se busca la causa en la traza, el video y la
-  captura que deja Playwright en cada corrida que falla. «La máquina estaba ocupada» no explica nada:
-  se mide.
-- La base local y el servidor de e2e de un stack son de una sola sesión a la vez: `db:reset`,
-  `db:types`, `db:diff`, `db:medir*`, `db:carreras`, `db:sembrar-volumen`, `test:e2e` y
-  `test:e2e:completo` toman `scripts/candado.sh` (no `db:probar`, que es PGlite). Hay un candado por
-  stack: la principal y cada carril, que el candado reconoce por su `.env.carril`
-  (`scripts/worktree/preparar.sh`). Ocupado falla con 75 (`CANDADO_ESPERA=<s>` espera);
-  `bloquear-peligrosos.sh` rechaza `supabase` y el runner sueltos.
-- `pnpm test:e2e <spec>` corre un spec sobre la base como esté; `--project=escritorio` o
-  `--project=movil` elige el proyecto. `pnpm test:e2e:completo` resetea la base, corre las carreras
-  (si hay) y todo; pasa sus argumentos a Playwright.
+- En local un e2e que falla no se reintenta (`retries: 0`): se busca la causa en `e2e-fallos/<fecha>/` (traza,
+  video, captura, reporte), que guarda `e2e/soporte/reporter-de-fallos.ts` en toda corrida que falla. En CI hay un
+  reintento: la que pasa al reintentar no pone el PR en rojo y `e2e/soporte/reporter-de-inestables.ts` la anota
+  en el PR y en el resumen de la corrida. Sólo se arregla si cae dos noches seguidas en el completo; no se piden
+  actualizaciones «estabilizar». Un `pnpm test` que cae deja su salida en `test-salidas/<fecha_hora-pid>/`. «La
+  máquina estaba ocupada» no explica nada: se mide.
+- La base local y el servidor de e2e de una pila son de una sola sesión a la vez: `db:reset`, `db:types`,
+  `db:diff`, `db:lint`, `test:e2e` y `test:e2e:completo` (y `db:medir*`, `db:carreras` o `db:sembrar-volumen` si el
+  proyecto los tiene) toman `scripts/candado.sh` (no `db:probar`, que es PGlite). Hay un candado por pila: la
+  principal y cada carril (un worktree con su pila), que el candado reconoce por su `.env.carril`
+  (`scripts/worktree/preparar.sh`). Ocupado falla con 75 (`CANDADO_ESPERA=<s>` espera); `bloquear-peligrosos.sh`
+  rechaza `supabase` y el runner suelto. En un carril, `pnpm dev` y `pnpm funciones` ya usan su pila; `supabase`
+  suelto, no.
+- `pnpm test:e2e <spec>` corre un spec sobre la base como esté (pide `pnpm funciones` si el proyecto tiene funciones
+  edge); `--project=escritorio` o `--project=movil` elige el proyecto. `pnpm test:e2e:completo` resetea la base,
+  corre las carreras (si hay) y todo; pasa sus argumentos a Playwright.
 
 ## Niveles de verificación
 
-- **Nivel 1**, toda tarea: `pnpm lint`, `pnpm typecheck`, `pnpm test` y los e2e dirigidos a lo
-  tocado, en `escritorio` y, si es interfaz (abajo), también en `movil`.
-- **Nivel 2**, si la tarea toca uno de seis disparadores: (1) lo compartido, `src/shared`; (2) el
-  proxy o middleware; (3) auth; (4) RLS: una migración que crea, cambia o borra una policy, un grant
-  o un `security definer`, o enciende RLS; (5) un layout o el `_shell`; (6) la estructura: una
-  migración que crea, cambia o borra una tabla o un índice. Además de lo dirigido corre
-  `pnpm test:e2e:completo --project=escritorio`, después del último cambio de código. Lo decide
-  `node scripts/piloto/nivel.mjs <archivos>`, no el ojo.
-- **Nivel 3**, cuando el paso lo pide en su `verificacion` de `plan.yaml` (un cierre de carril o de
-  entrega): `pnpm test:e2e:completo` con los dos proyectos. En CI, un PR corre el Nivel 1 y los
-  dirigidos (`scripts/e2e-dirigidos.mjs`); cada noche, el completo.
-- Rigor máximo (mutaciones, carreras, volumen, el auditor que bloquea) sólo en fórmulas y dinero
-  (`docs/semilla/semilla.md` › Reglas y fórmulas), RLS y permisos; lo demás, con su nivel y sin
-  pruebas de más.
-- `docs/pasos/<PASO>/bitacora.md` dice cuál se corrió: `e2e completo: sí|no (<motivo>)`. Un nivel
-  no corrido se dice; no se da por pasado.
-- **Interfaz** (la aplica `nivel.mjs` como `toca_interfaz`; si cambias una, cambia la otra): un archivo
-  es interfaz si no es una prueba (`*.test.*`, `*.spec.*`) y es un `.tsx` o `.css` de `src/`, o algo
-  de `design/`, `public/`, `src/app/` o `src/shared/ui/`. No lo es `entities/`, `infra/`,
-  `src/shared/lib`, `supabase/`, `scripts/`, `e2e/` ni docs. Sin interfaz, sólo `escritorio`.
+- Nivel 1, toda actualización: los e2e dirigidos a lo tocado, en `escritorio` y, si es interfaz (regla de
+  abajo), también en `movil`; las pruebas de lo tocado (`pnpm exec vitest related --run <archivos>`) y
+  `scripts/guardas`. `lint` y `typecheck` los corre el hook del commit (lefthook); la suite entera, la skill
+  `entregar` antes de publicar. El CI del PR vuelve a correr todo y es la autoridad (`docs/FLUJO.md`).
+- Nivel 2, sólo si la actualización toca uno de estos seis disparadores y ningún otro: (1) lo compartido,
+  `src/shared`; (2) el proxy, `src/proxy.ts`; (3) auth: `src/modules/<módulo>/features/auth`, `src/app/auth` y
+  `src/app/(acceso)`; (4) RLS: una migración que crea, cambia o borra una policy, o enciende RLS en una
+  tabla; (5) el layout: `src/app/layout.tsx`, `src/app/(app)/layout.tsx`, `src/app/(app)/_shell` y
+  `src/app/(acceso)/layout.tsx`; (6) la estructura: una migración que crea, cambia o borra una tabla o un
+  índice. Además de lo dirigido, el e2e completo de escritorio: lo corre el CI del PR en sus cuatro bloques
+  (`scripts/e2e-dirigidos.mjs` pasa a modo completo cuando el PR toca un disparador o algo que mueve a todos los
+  specs: dependencias, `playwright.config.ts`, `supabase/config.toml`, las migraciones), no la sesión. En local,
+  sólo lo dirigido. Lo decide `node scripts/nivel.mjs <archivos>`, no el ojo.
+- Nivel 3, antes de desplegar: el completo con los dos proyectos (Actions › ci › Run workflow,
+  `proyectos: ambos`, que dispara la persona; o `pnpm test:e2e:completo` en local). Cada noche el CI corre el
+  completo de escritorio sobre `main` si hubo commits. Un nivel no corrido se dice en el PR.
+- En un paso del piloto (hasta K04) manda lo suyo: el Nivel 2 lo decide `scripts/piloto/nivel.mjs` y lo corre su
+  verificación, el Nivel 3 lo pide el paso en su `verificacion` de `plan.yaml`, y `docs/pasos/<PASO>/bitacora.md` dice cuál
+  se corrió: `e2e completo: sí|no (<motivo>)`.
+- **Interfaz: cuándo los e2e dirigidos corren también en `movil`** (la regla vive aquí; la aplica
+  `scripts/nivel.mjs` como `toca_interfaz` y `scripts/nivel.test.ts` falla si se separan).
+  Un archivo cambiado es interfaz si no es una prueba (`*.test.*` o `*.spec.*`) y es un `.tsx` o un `.css`
+  de `src/`, algo de `design/`, `public/`, `src/app/` o `src/shared/ui/`, o algo de
+  `src/modules/<módulo>/pantallas/`. No lo es lo demás (`entities/`, `infra/`, `src/shared/lib`,
+  `supabase/`, `scripts/`, `e2e/`, docs). Ante la duda, `movil`; sin interfaz, sólo `escritorio`. No toca
+  al completo (Niveles 2 y 3).
+
+## Qué pruebas se escriben
+
+### Pruebas: sólo lo clave
+
+Decisión de la persona: «no quiero sobretestear; sólo las partes clave». El rigor va donde se pierde dinero o se filtran datos. Las pruebas que
+ya existen siguen corriendo y no se rompen; esto decide qué se escribe con cada cambio.
+
+- **Se escriben:** los tests de `entities/` con dinero, fórmula o permisos; las pruebas SQL (`db:probar`) de RLS, permisos y `security definer`; las carreras
+  sólo donde hay candados o numeración; **un** e2e del camino feliz por pantalla nueva, en `escritorio`.
+- **No se escriben:** mutaciones (salvo en fórmulas y dinero); sondas de medición; e2e de volumen de interfaz (nodos, bytes, pedidos) salvo en las
+  listas principales de una tabla que crece; e2e de conflicto o de versión si la RPC ya tiene su prueba SQL; `medir-*.sql` para tablas de configuración
+  (decenas de filas); capturas para mirar; e2e en `movil` de las pantallas de configuración (el archivo lleva `// @sin-celular-archivo:` con un motivo
+  de ≥ 40 caracteres, «Celular» abajo).
+- **Presupuestos** (JS por ruta, nodos, bytes): si un cambio los pasa por ≤ 5 %, sube el tope con una línea en `docs/RENDIMIENTO.md` y sigue; no se
+  refactoriza ni se difiere código para entrar.
+- **Datos y dinero** (fórmulas, dinero, RLS, permisos, `security definer`, migraciones): antes de publicar, una segunda lectura en un
+  contexto aparte (el agente `revisor` o `/revisar`). **Pantalla** (sólo `features/`, `components/`, `pantallas/` o `src/app/`, sin datos ni permisos
+  nuevos): un e2e del camino feliz y los tests de lo que tenga lógica.
+
+### Pulido
+
+No se recoge de paso en un cambio de producto ni se escribe prueba nueva para él: el texto o el diseño al 200 %; el foco tras recargar o tras «atrás»;
+ayudantes de medida nuevos; las capturas para juzgar con `E2E_CAPTURAS`. `ui.md` sigue diciendo cómo se construye (`min-w-0`, rem, `@container`). Un
+defecto de pulido que aparezca se anota en una línea en `docs/PENDIENTES.md` › «Pulido de interfaz». **No es pulido** lo que falla al 100 %: un botón
+inalcanzable, un monto mal dibujado, un dato que no se ve o un permiso que no se respeta; eso se arregla en el momento.
 
 ## Escribir specs
 
-- Cada spec prepara todo el estado que usa, no depende de otro (CI corre en shards, cada uno desde
-  `db:reset`), limpia lo que crea y nombra sus pruebas con prefijo `E2E`.
+- Cada spec limpia lo que crea y nombra sus pruebas con prefijo `E2E` y el proyecto.
+- Un spec prepara todo el estado que usa y no depende de otro (CI corre en `--shard=i/4`, cada uno desde
+  `db:reset`): lo que necesita lo deja sin pisar lo existente y lo quita.
 - Antes de medir una caja o ver quién recibe un clic se espera el estado final, nunca un tiempo
-  (`waitForTimeout` no). Tras un Esc que cierra un diálogo: `expect(dialogo).toBeHidden()`; entre un
-  `fill` y el Esc, dos cuadros (`requestAnimationFrame` dos veces).
-- Una prueba que baja de nivel (Vitest o `db:probar`) se prueba con una mutación: se rompe la
-  conducta en el producto, cae la de abajo, se revierte y recién entonces se borra el e2e. Lo que
-  exige dos conexiones a la vez va a las carreras (`pnpm db:carreras`).
+  (`e2e/soporte/esperas.ts`; `waitForTimeout` no).
+- Tras un Esc que cierra un diálogo: `expect(dialogo).toBeHidden()`; entre un `fill` y el Esc, dos cuadros
+  (`requestAnimationFrame` dos veces).
+- Una prueba que baja de nivel (Vitest o `db:probar`) se prueba con una mutación: se rompe la conducta en
+  el producto, cae la de abajo, se revierte y recién entonces se borra el e2e. Lo que exige dos
+  conexiones va a las carreras.
+- Lo que suma un pedido al marco de toda pantalla (un bloque, una suscripción) mueve las pruebas que cuentan
+  pedidos: antes de publicar, grep en `e2e/` del texto o del pedido tocado y correr esos specs. Más trampas
+  de e2e, por tema, en `docs/LECCIONES.md` › «e2e (Playwright)».
 - Cero pruebas saltadas nuevas (`.skip`, `.fixme`, `test.only`) sin motivo escrito al lado.
 
 ## Celular
 
-- Todo spec corre en `escritorio` y `movil`. Salir del celular exige marcarlo con motivo de
+- Todo spec corre en `escritorio` y `movil`. Salir del celular exige marcarlo en el spec con motivo de
   ≥ 40 caracteres: `// @sin-celular-archivo: <motivo>` para el archivo, o `// @sin-celular: <motivo>`
-  justo encima de un `test('título', …)` de nivel superior (lo lee `playwright.config.ts`). No vale
-  una prueba que pregunta por el ancho o el proyecto (`isMobile`, `project.name ===`,
-  `setViewportSize`). Una prueba que alimenta a otra de un archivo `serial` no se marca.
+  justo encima de un `test('título', …)` del nivel superior (lo lee `playwright.config.ts`: `testIgnore`,
+  `grepInvert`). No vale una prueba que pregunta por el ancho o el proyecto (`isMobile`, `project.name ===`,
+  `setViewportSize`).
+- Una prueba que alimenta a otra de un archivo `serial` no se marca.
 
 ## Capturas
 
-- Una captura para mirar se toma con el ayudante de `e2e/soporte/`, nunca con `page.screenshot`
-  suelto, y sólo con `E2E_CAPTURAS=<carpeta>`.
-- «Mirar las capturas» es abrir todas con `Read`; el informe lista las abiertas y lo visto en cada una.
-- Un defecto ajeno al paso no se arregla de paso: va como pendiente en `docs/pasos/<PASO>/bitacora.md`.
+- Una captura para mirar se toma con `capturarEn()` (`e2e/soporte/capturas.ts`), nunca con `page.screenshot`; sólo con
+  `E2E_CAPTURAS=<carpeta>`.
+- «Mirar las capturas» es abrir todas con `Read`; el PR lista las abiertas y lo visto en cada una.
+- Un defecto ajeno va a `docs/PENDIENTES.md` (en un paso del piloto, a su `bitacora.md`), no se arregla de paso.

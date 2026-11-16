@@ -15,7 +15,9 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(node scripts/coordinador/coordinador.mjs tablero)",
-      "Bash(node scripts/coordinador/coordinador.mjs validar)"
+      "Bash(node scripts/coordinador/coordinador.mjs validar)",
+      "Bash(gh pr *)",
+      "Bash(gh run *)"
     ],
     "deny": [
       "Bash(git commit --no-verify*)",
@@ -47,7 +49,6 @@
       "Read(.env.local)",
       "Read(.env.*.local)",
       "Read(.env.demo)",
-      "Bash(gh pr merge*)",
       "Bash(codex *)"
     ]
   },
@@ -103,8 +104,8 @@
           {
             "type": "command",
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/verificar-al-terminar.sh",
-            "timeout": 240,
-            "statusMessage": "Verificando antes de terminar (mapa, typecheck, lint, tests)…"
+            "timeout": 120,
+            "statusMessage": "Verificando antes de terminar (mapa, typecheck y lo tocado)…"
           }
         ]
       }

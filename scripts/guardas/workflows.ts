@@ -1,5 +1,5 @@
-// Las reglas de los workflows de GitHub Actions (vienen de un proyecto anterior: «CI-1» y «CI-1b»), leídas por líneas: sin
-// dependencias para parsear YAML. Cada función devuelve la lista de problemas en palabras; vacía es que cumple. Las prueba `workflows.test.ts`.
+// Las reglas de los workflows de GitHub Actions (vienen de calesa-app), leídas por líneas: sin dependencias para parsear
+// YAML. Cada función devuelve la lista de problemas en palabras; vacía es que cumple. Las prueba `workflows.test.ts`.
 
 const SHA = /^[0-9a-f]{40}$/
 const MINIMO_DE_MOTIVO = 40
@@ -197,14 +197,19 @@ function problemasDelInputCarreras(texto: string, archivo: string, jobs: Job[]):
   return [`${archivo}: workflow_dispatch necesita el input «carreras» (boolean, por defecto false)`]
 }
 
-// Un dispatch (un e2e largo, unas carreras) tiene su propio grupo, con run_id, y nunca se cancela: un push a la misma
-// rama no lo corta y otro dispatch no lo deja en espera. Push y pull_request cancelan a su corrida anterior.
-const NO_CANCELA_EL_DISPATCH = "${{ github.event_name != 'workflow_dispatch' }}"
+// Un dispatch (un e2e de 70 a 96 min, unas carreras) tiene su propio grupo, con run_id, y nunca se cancela: un push a la misma
+// rama no lo corta y otro dispatch no lo deja en espera. La corrida de cada noche (`schedule`), igual: en el grupo de main la cancelaba
+// la integración siguiente (en calesa-app). Push y pull_request cancelan a su corrida anterior.
+const NO_CANCELA_EL_DISPATCH =
+  "${{ github.event_name != 'workflow_dispatch' && github.event_name != 'schedule' }}"
 
-// `${{ github.event_name == 'workflow_dispatch' && <manual> || <el de push y PR> }}`: el manual lleva ci-manual- y run_id; el otro no.
+// `${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && <manual> || <el de push y PR> }}`: el manual
+// lleva ci-manual- y run_id; el otro no.
 function grupoManualAparte(grupo: string): boolean {
   const ramas =
-    /^\$\{\{\s*github\.event_name == 'workflow_dispatch' && (.+?) \|\| (.+?)\s*\}\}$/.exec(grupo)
+    /^\$\{\{\s*\(github\.event_name == 'workflow_dispatch' \|\| github\.event_name == 'schedule'\) && (.+?) \|\| (.+?)\s*\}\}$/.exec(
+      grupo,
+    )
   const manual = ramas?.[1] ?? ''
   const otro = ramas?.[2] ?? ''
   return (
@@ -222,12 +227,12 @@ function problemasDeConcurrencia(texto: string, archivo: string): string[] {
   const problemas: string[] = []
   if (!grupoManualAparte(grupo)) {
     problemas.push(
-      `${archivo}: concurrency: un workflow_dispatch necesita su propio grupo (ci-manual-… con github.run_id), distinto del de push y pull_request`,
+      `${archivo}: concurrency: un workflow_dispatch necesita su propio grupo (ci-manual-… con github.run_id), y la corrida de cada noche también, distinto del de push y pull_request`,
     )
   }
   if (cancela !== NO_CANCELA_EL_DISPATCH) {
     problemas.push(
-      `${archivo}: concurrency: cancel-in-progress tiene que ser ${NO_CANCELA_EL_DISPATCH} (un dispatch no se cancela; push y PR sí)`,
+      `${archivo}: concurrency: cancel-in-progress tiene que ser ${NO_CANCELA_EL_DISPATCH} (un dispatch y la corrida de cada noche no se cancelan; push y PR sí)`,
     )
   }
   return problemas
@@ -280,11 +285,19 @@ export function problemasDeEsperaDeFunciones(
     )
 }
 
-// Un e2e que falla no se reintenta: la causa va a e2e-fallos/ (`.claude/rules/e2e.md`).
+// Un reintento, y sólo en CI (en calesa-app, FLUJO-1): la prueba que pasa al reintentar no pone el PR en rojo y queda
+// anotada (e2e/soporte/reporter-de-inestables.ts). En local, ninguno. Cualquier otra cosa (más reintentos, o reintentos en local) cae.
+const REINTENTOS_PERMITIDOS = "process.env['CI'] ? 1 : 0"
 export function problemasDePlaywright(texto: string): string[] {
   const reintentos = [...texto.matchAll(/^\s*retries:\s*(.+?),?\s*$/gm)].map((m) => m[1])
-  if (reintentos.length === 1 && reintentos[0] === '0') return []
-  return [
-    `playwright.config.ts: tiene que decir «retries: 0» una sola vez (dice ${JSON.stringify(reintentos)})`,
-  ]
+  const problemas: string[] = []
+  if (!(reintentos.length === 1 && reintentos[0] === REINTENTOS_PERMITIDOS))
+    problemas.push(
+      `playwright.config.ts: tiene que decir «retries: ${REINTENTOS_PERMITIDOS}» una sola vez (dice ${JSON.stringify(reintentos)})`,
+    )
+  if (!texto.includes('./e2e/soporte/reporter-de-inestables.ts'))
+    problemas.push(
+      'playwright.config.ts: sin el reporter de inestables, un reintento escondería la prueba que falla a veces',
+    )
+  return problemas
 }

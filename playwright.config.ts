@@ -3,17 +3,23 @@ import { archivosSinCelular, patronesDePruebasSinCelular } from './e2e/soporte/s
 
 // Corre contra la app COMPILADA (NEXT_DIST_DIR=.next-e2e) y Supabase local (supabase start).
 // El e2e completo parte de un `db:reset`: `pnpm test:e2e:completo`. Un spec suelto: `pnpm test:e2e <spec>`.
-// Sin reintentos a propósito: un test flaky es un bug, no un número que subir.
 // El puerto sale del bloque del proyecto (`E2E_PORT`, scripts/lib/stack-local.mjs; en un carril, de `.env.carril`).
 const puerto = Number(process.env['E2E_PORT'] ?? 8210)
 
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
-  retries: 0,
+  // En CI, un reintento: una prueba inestable no pone el PR en rojo, pero el reporter de inestables la anota en el PR (en calesa-app,
+  // cada rojo así devolvía el PR sin código roto). En local, ninguno: la causa se busca (`.claude/rules/e2e.md`).
+  retries: process.env['CI'] ? 1 : 0,
   workers: 1,
   // El último guarda los artefactos de toda corrida que falla (`e2e/soporte/reporter-de-fallos.ts`).
-  reporter: [['list'], ['html', { open: 'never' }], ['./e2e/soporte/reporter-de-fallos.ts']],
+  reporter: [
+    ['list'],
+    ['html', { open: 'never' }],
+    ['./e2e/soporte/reporter-de-inestables.ts'],
+    ['./e2e/soporte/reporter-de-fallos.ts'],
+  ],
   // La guardia: falla en segundos si las funciones edge de PILOTO_FUNCIONES no están servidas (e2e/soporte/guardia.ts).
   globalSetup: './e2e/global-setup.ts',
   use: {

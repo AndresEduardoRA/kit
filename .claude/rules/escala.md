@@ -8,10 +8,11 @@ paths:
 
 # Escala
 
-Toda lista se diseña para miles de filas, aunque la semilla tenga 20, y se verifica con volumen
-sembrado, no a ojo (`pnpm db:sembrar-volumen`, `pnpm db:medir:volumen`). Cada superficie con su tope,
-índice y presupuesto está en `docs/RENDIMIENTO.md` (sale de `docs/semilla/semilla.md` › Escala y
-rendimiento); una lista nueva sin su fila ahí no está terminada.
+Toda lista se diseña para miles de filas, aunque la semilla tenga 20 (cursor, tope e índice, abajo). Se
+verifica con volumen sembrado, no a ojo (`pnpm db:sembrar-volumen`, `pnpm db:medir:volumen`), **sólo si va
+sobre una tabla que crece**. Las de configuración (decenas de filas) no se miden (`.claude/rules/e2e.md` ›
+«Pruebas: sólo lo clave»). Cada superficie con su tope, índice y presupuesto está en `docs/RENDIMIENTO.md`
+(sale de `docs/semilla/semilla.md` › Escala y rendimiento); una lista nueva sin su fila ahí no está terminada.
 
 ## Paginación y topes
 
@@ -29,6 +30,9 @@ rendimiento); una lista nueva sin su fila ahí no está terminada.
 - Un número que se muestra sale de `limit n + 1` o no se muestra. Nunca `count(*)` ni
   `count: 'exact'`: se escribe «más de 50» o «500+». PostgREST corta en 1.000 filas: un tope mayor
   se lee por páginas.
+- Excepción: un agregado de un **período cerrado** (un tablero del mes) se cuenta en la base, con ventana
+  máxima de 366 días, por índice de fecha y, si usa `count(`, con su motivo en `supabase/tests/escala.sql`.
+  Las listas y sus números siguen la regla de arriba.
 
 ## Consultas
 
@@ -37,6 +41,10 @@ rendimiento); una lista nueva sin su fila ahí no está terminada.
   filas que crezcan con la profundidad, y dentro de su presupuesto de tiempo.
 - En plpgsql, con cursor y sin cursor son dos consultas: un `p_x is null or (…)` o un `coalesce` en
   el cursor dejan de ser condición de índice.
+- Una lectura por rutas va en plpgsql, cada ruta con su `order by … limit`. Nunca ramas filtradas de una `setof` bajo un
+  `order by … limit` de afuera: Postgres 17 no las aplana y cada una ordena todo (y una forma probada con `enable_sort = off`
+  no prueba el plan real). Un filtro armado en SQL dinámico lleva todo valor por `using`. Lo derivado de la fila se calcula
+  sobre la que la ruta ya leyó: releerla paga otra pasada de la RLS.
 - Una función cara lleva su `COST` verdadero; con el barato, Postgres la llama en todas las filas y
   después ordena.
 - Un filtro que no es una columna indexada (`ilike` o `@>` bajo RLS, un campo libre) va a una función
@@ -57,8 +65,9 @@ rendimiento); una lista nueva sin su fila ahí no está terminada.
   lint lo prohíbe). Un modal o panel se monta la primera vez que se abre.
 - Lo que importa el layout de la app viaja en toda pantalla: importa la entrada `shell` del módulo,
   nunca su `index.ts` (`modulos.md`).
-- Toda lista nueva se prueba con volumen sembrado por SQL (`generate_series`): bytes de la primera
-  respuesta, plan y nodos del DOM, con el máximo de página y en una página profunda.
+- Una lista nueva sobre una tabla que crece (arriba) se prueba con volumen sembrado por SQL (`generate_series`,
+  `e2e/soporte/sql.ts`): el plan en `db:medir:volumen`, con el máximo de página y en una página profunda; bytes y nodos del
+  DOM sólo en las listas principales. Un presupuesto pasado por ≤ 5 % se sube en `docs/RENDIMIENTO.md`.
 
 ## Las guardas (qué falla si la próxima lista no cumple)
 

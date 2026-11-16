@@ -33,6 +33,9 @@ supabase/.temp/
 # volcados de la demo: esquema y datos, nunca en git
 respaldos/
 
+# el orquestador de este proyecto (scripts/orquestador): su cola, su estado, sus worktrees y lo de esta máquina
+.orquestador/
+
 # claude code (contador del hook Stop, su huella verde, los worktrees y lo que escribe el piloto)
 .claude/.intentos-stop
 .claude/.verificado-stop

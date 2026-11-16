@@ -2,10 +2,14 @@
 # Hook PreToolUse sobre Bash: bloquea lo que ninguna sesión de IA debería correr sola (exit 2 y el motivo por stderr,
 # que es lo que Claude recibe). Lee la entrada con jq (`tool_input.command`, `cwd`). Se prueba en `bloquear-peligrosos.test.ts`.
 #
-#   Siempre:          lo irreversible (reset --hard, clean, checkout --, branch -D…), publicar en main (push a main, `gh pr merge`:
-#                     lo integra la persona; una sesión empuja sólo su rama, sin forzar), lo remoto (supabase --linked salvo leer,
-#                     config push, gh api …/dispatches, vercel), cambiar dependencias y saltarse el candado de la base (`scripts/candado.sh`).
-#   Sólo PILOTO=1:    todo `git push` (lo publica el bucle, que no es una sesión), `gh` que escribe y `claude`.
+#   Siempre:        lo irreversible (reset --hard, clean, checkout --, branch -D…), publicar en main (una sesión empuja sólo su rama,
+#                   sin forzar, o una etiqueta nueva; main avanza por PR: docs/FLUJO.md), lo remoto (supabase contra el proyecto
+#                   remoto salvo leer, link, secrets, config push, functions deploy, gh api …/dispatches, vercel), cambiar
+#                   dependencias y saltarse el candado de la base (`scripts/candado.sh`).
+#   Sólo PILOTO=1:  (un paso del piloto, hasta K04) todo `git push` y `scripts/flujo/` (lo publica el bucle, que no es una sesión),
+#                   `gh` que escribe y `claude`.
+#
+# Viene de calesa-app. Allí la sesión cambia la base remota de su proyecto (una decisión de ese proyecto); aquí no.
 #
 # Un comando se parte en segmentos (`&&`, `||`, `;`, `|`, `$(`, comillas invertidas, saltos de línea) y de cada uno se
 # descartan los envoltorios (`VAR=x`, `sudo`, `npx`, `pnpm exec`, `bash -c`, `scripts/candado.sh <nombre> --`) hasta el comando
@@ -35,6 +39,14 @@ case "$CMD" in
   *"@next/codemod"*) bloquear "Un codemod de Next reescribe el código y las dependencias: lo decide una persona." ;;
 esac
 
+# Un paso del piloto no se publica solo: lo publica el bucle, después de verificar por su cuenta (scripts/piloto/publicar.sh).
+if [ "$PILOTO" = 1 ]; then
+  case "$CMD" in
+    *"flujo/publicar.sh"* | *"flujo/limpiar-ramas"*)
+      bloquear "Con PILOTO=1 un paso no se publica con scripts/flujo: publica el bucle, después de verificar por su cuenta." ;;
+  esac
+fi
+
 # La rama de una carpeta ($1 vacío = el cwd de la sesión; relativa = contra el cwd). Vacío si no hay rama (HEAD suelto).
 rama_de() {
   local d="${1:-}"
@@ -60,13 +72,14 @@ hay_posicional() {
   return 1
 }
 
-# Una sesión empuja sólo la rama en la que está (la de su carril o su PR), sin forzar ni borrar, y nunca main: main lo integra la
-# persona al aprobar el PR. `cd x && git push` cambiaría de rama sin que el hook lo vea: se rechaza.
+# Una sesión empuja sólo la rama en la que está (la de su PR), sin forzar ni borrar, y nunca main: main avanza al integrarse el PR
+# (docs/FLUJO.md). `cd x && git push` cambiaría de rama sin que el hook lo vea: se rechaza. Una etiqueta nueva (`git push origin
+# refs/tags/<nombre>`) sí se empuja, desde cualquier rama: no mueve ninguna.
 revisar_push() {
+  [ "$PILOTO" = 1 ] && bloquear "Con PILOTO=1 ninguna sesión hace git push: publica el bucle, después de verificar por su cuenta."
   local dir="$1"
   shift
   local pos=() t rama
-  [ "$PILOTO" = 1 ] && bloquear "Con PILOTO=1 ninguna sesión hace git push: publica el bucle, después de verificar por su cuenta."
   for t in "$@"; do
     case "$t" in
       --all | --mirror | --tags | --delete | -d | --prune | -f | --force* | --no-verify)
@@ -78,10 +91,13 @@ revisar_push() {
   if printf '%s' "$CMD" | grep -qE '(^|[[:space:];&|])cd[[:space:]]'; then
     bloquear "git push junto a un cd: el hook no ve en qué rama queda. Usa git -C <carpeta> push."
   fi
+  if [ "${#pos[@]}" = 2 ] && [[ "${pos[1]}" =~ ^refs/tags/[A-Za-z0-9._/-]+$ ]]; then
+    return 0
+  fi
   rama=$(rama_de "$dir")
   case "$rama" in
     '') bloquear "git push sin una rama (HEAD suelto o fuera de un repo): no se sabe qué se publica." ;;
-    main) bloquear "git push desde main: main lo integra la persona al aprobar el PR. Trabaja en tu rama y empújala." ;;
+    main) bloquear "git push desde main: main avanza por PR (docs/FLUJO.md). Trabaja en tu rama y empújala." ;;
   esac
   case "${#pos[@]}" in
     0 | 1) ;;
@@ -160,9 +176,6 @@ revisar_gh() {
   if [ "$sub" = api ] && printf '%s' "$ARGS" | grep -qE '/dispatches'; then
     bloquear "gh api …/dispatches dispara un flujo de trabajo: lo hace una persona."
   fi
-  if [ "$sub $sub2" = "pr merge" ] || { [ "$sub" = api ] && printf '%s' "$ARGS" | grep -qE '/pulls/[0-9]+/merge'; }; then
-    bloquear "gh pr merge integra en main: lo hace la persona al revisar el PR."
-  fi
   [ "$PILOTO" = 1 ] || return 0
   case "$sub $sub2" in
     "pr create" | "pr merge" | "repo edit" | "run rerun" | "run cancel")
@@ -183,23 +196,25 @@ revisar_gh() {
 }
 
 revisar_supabase() {
-  local sub="${A[0]:-}" sub2="${A[1]:-}"
+  local sub="${A[0]:-}" sub2="${A[1]:-}" remoto=0
   case "$ARGS" in
-    *" --linked"* | *" --project-ref"*)
-      # Sólo lectura del proyecto remoto (docs/PREPARACION.md, etapa 0): volcar, listar migraciones, comparar e inspeccionar.
-      # Lo que cambia la demo pasa por scripts/demo/*.sh, que corre una persona o la sesión con su aviso.
+    *" --linked"* | *" --project-ref"* | *" --db-url"*)
+      remoto=1
+      # Del proyecto remoto, la sesión sólo lee: volcar, listar migraciones, comparar e inspeccionar. Lo demás lo corre una persona.
       case "$sub $sub2" in
         "db dump" | "migration list" | "db diff") ;;
         inspect\ *) ;;
-        *) bloquear "supabase con --linked o --project-ref toca el proyecto remoto: lo hace una persona (sólo se leen db dump, migration list, db diff e inspect)." ;;
+        *) bloquear "supabase contra el proyecto remoto (--linked, --project-ref o --db-url): lo hace una persona (sólo se leen db dump, migration list, db diff e inspect)." ;;
       esac ;;
   esac
   case "$ARGS" in
     *"functions deploy"*) bloquear "supabase functions deploy publica en el proyecto remoto: lo hace una persona." ;;
-    *"config push"*) bloquear "supabase config push cambia la configuración del proyecto remoto: va por scripts/demo/restaurar.sh." ;;
+    *"config push"*) bloquear "supabase config push cambia la configuración del proyecto remoto: lo hace una persona." ;;
   esac
   case "$sub" in link | secrets) bloquear "supabase $sub toca el proyecto remoto: lo hace una persona." ;; esac
   [ "$CON_CANDADO" = 1 ] && return 0
+  # Contra el remoto no hay base local que cuidar, salvo `db diff`, que arma una sombra local.
+  [ "$remoto" = 1 ] && [ "$sub $sub2" != "db diff" ] && return 0
   case "$sub $sub2" in
     "db reset" | "db lint" | "db diff" | "gen types")
       bloquear "supabase $sub $sub2 usa la base local, que es de una a la vez: pasa por el candado (pnpm db:reset | db:lint | db:diff | db:types)." ;;
@@ -283,6 +298,8 @@ revisar_segmento() {
         case "$t" in -u | --upgrade) bloquear "ncu -u reescribe las versiones de package.json: lo decide una persona." ;; esac
       done ;;
     next) [ "${A[0]:-}" = upgrade ] && bloquear "next upgrade lo decide una persona." ;;
+    claude) [ "$PILOTO" = 1 ] && bloquear "Con PILOTO=1 una sesión no lanza otra: la lanza el bucle." ;;
+    tmux) [ "$PILOTO" = 1 ] && [[ "$ARGS" == *claude* ]] && bloquear "Con PILOTO=1 una sesión no lanza otra (ni dentro de tmux): la lanza el bucle." ;;
     playwright)
       if [ "${A[0]:-}" = test ] && [ "$CON_CANDADO" = 0 ] && [[ "$ARGS" != *" --list "* ]]; then
         bloquear "playwright test usa la base local, que es de una a la vez: pasa por el candado (pnpm test:e2e | test:e2e:completo)."
@@ -291,8 +308,6 @@ revisar_segmento() {
       if [ "$CON_CANDADO" = 0 ] && printf '%s' "${A[0]:-}" | grep -qE '(^|/)scripts/(e2e-completo|carreras|medir-listado|sembrar-volumen)\.mjs$'; then
         bloquear "${A[0]} usa la base local, que es de una a la vez: corre por su script de pnpm (candado) o por scripts/candado.sh."
       fi ;;
-    claude) [ "$PILOTO" = 1 ] && bloquear "Con PILOTO=1 una sesión no lanza otra: la lanza el bucle." ;;
-    tmux) [ "$PILOTO" = 1 ] && [[ "$ARGS" == *claude* ]] && bloquear "Con PILOTO=1 una sesión no lanza otra (ni dentro de tmux): la lanza el bucle." ;;
   esac
   return 0
 }

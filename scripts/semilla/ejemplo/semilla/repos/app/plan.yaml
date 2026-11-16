@@ -1,0 +1,51 @@
+esquema: plan/v2
+repo: turnero-app
+carriles:
+  - id: datos
+    dueno_de: [supabase/, contratos/]
+  - id: agenda
+    dueno_de: [src/modules/agenda/, src/app/(app)/agenda/]
+  - id: equipo
+    dueno_de: [src/modules/equipo/, src/app/(app)/barberos/]
+pasos:
+  - id: P01
+    titulo: crear las tablas de turnos con su rls
+    depende_de: []
+    carril: datos
+    riesgo: rojo
+    modulos: [supabase/migrations/]
+    decisiones: [B1, D1, F1]
+    ruteo: {nivel: capaz, effort: xhigh, planificar: si, revisor: si}
+    verificacion: {nivel: 2, comando: "pnpm db:reset && pnpm db:probar"}
+    terminado: cada fila de la matriz de seguridad tiene su prueba en supabase/tests y pasa
+  - id: P02
+    titulo: publicar el contrato agenda-publica v1
+    depende_de: [P01]
+    carril: datos
+    riesgo: rojo
+    modulos: [supabase/migrations/, contratos/]
+    decisiones: [C2, F1]
+    contrato: {provee: agenda-publica@1}
+    ruteo: {nivel: capaz, effort: xhigh, planificar: si, revisor: si}
+    verificacion: {nivel: 2, comando: "pnpm contrato:generar && pnpm contrato:probar"}
+    terminado: contratos/agenda-publica.json existe, el CI prueba la base contra la v1 y reservar dos veces la misma hora da PT409
+  - id: P03
+    titulo: mostrar la agenda del día y de la semana
+    depende_de: [P01]
+    carril: agenda
+    riesgo: verde
+    modulos: [src/modules/agenda/, src/app/(app)/agenda/]
+    decisiones: [A2]
+    ruteo: {nivel: normal, effort: high, planificar: no, revisor: no}
+    verificacion: {nivel: 1, comando: "pnpm test && pnpm test:e2e e2e/agenda.spec.ts"}
+    terminado: el e2e de la agenda pasa en escritorio y celular con sus cinco estados
+  - id: P04
+    titulo: administrar barberos y horarios
+    depende_de: [P01]
+    carril: equipo
+    riesgo: ambar
+    modulos: [src/modules/equipo/, src/app/(app)/barberos/]
+    decisiones: [F2]
+    ruteo: {nivel: normal, effort: high, planificar: no, revisor: no}
+    verificacion: {nivel: 1, comando: "pnpm test && pnpm test:e2e e2e/barberos.spec.ts"}
+    terminado: el dueño crea un barbero con horario y el barbero no puede editarlo (e2e)

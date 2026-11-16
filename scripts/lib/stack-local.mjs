@@ -34,11 +34,32 @@ export function baseDelBloque(bloque) {
   }
 }
 
-/** Los desfases de los carriles de este repo, leídos de plan.yaml (COORD_PLAN o docs/semilla/plan.yaml). */
+// Los carriles del orquestador (scripts/orquestador): un worktree por tarea, en una rama `<tipo>/<tema>`, que toma la primera letra
+// libre (scripts/worktree/preparar.sh). Como en calesa-app, a, b y c; aquí sobre el bloque del proyecto.
+export const CARRILES_DEL_ORQUESTADOR = ['a', 'b', 'c']
+
+/**
+ * Suma a la tabla de un plan los carriles del orquestador, en los primeros desfases que el plan deja libres: los dos pueden tener
+ * stacks arriba a la vez sin compartir un puerto. Sin plan quedan en 100, 200 y 300. Un carril del plan con el mismo id manda. Puro.
+ * @param {Record<string, number>} tabla  los desfases del plan (`desfases(plan)`), o `{}`
+ */
+export function conLosDelOrquestador(tabla) {
+  const usados = new Set(Object.values(tabla))
+  const libres = [...Array(9)].map((_, i) => 100 * (i + 1)).filter((d) => !usados.has(d))
+  const r = { ...tabla }
+  for (const id of CARRILES_DEL_ORQUESTADOR)
+    if (!(id in r) && libres.length > 0) r[id] = /** @type {number} */ (libres.shift())
+  return r
+}
+
+/**
+ * Los desfases de los carriles de este repo: los de plan.yaml (COORD_PLAN o docs/semilla/plan.yaml), si hay, y los del orquestador.
+ */
 export function desfasesDelRepo(raiz = process.cwd()) {
   const ruta = process.env.COORD_PLAN || join(raiz, 'docs/semilla/plan.yaml')
-  if (!existsSync(ruta)) throw new Error(`no está el plan en ${ruta}: los carriles salen de ahí`)
-  return desfases(leerPlan(readFileSync(ruta, 'utf8')))
+  return conLosDelOrquestador(
+    existsSync(ruta) ? desfases(leerPlan(readFileSync(ruta, 'utf8'))) : {},
+  )
 }
 
 /**

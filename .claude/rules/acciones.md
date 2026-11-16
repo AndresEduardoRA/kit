@@ -18,9 +18,11 @@ paths:
   `PT409` → `codigo: 'conflicto'`; `42501` → `codigo: 'sin_permiso'`; `23505` → `codigo: 'duplicado'`.
   Ningún error se traga: o se devuelve con su código o se registra y se devuelve uno genérico.
 - Después de mutar: `revalidatePath()` de la pantalla afectada (y `revalidateTag('x', 'max')`
-  si hay caché por etiqueta). Nada de `redirect()` dentro de un `try`.
+  si hay caché por etiqueta). **Excepción:** una action que se llama desde una pantalla con algo a medio
+  tipear (un editor, los comentarios) no revalida ni refresca: en Next 16 eso redibuja la página que llama
+  y remonta lo tipeado; devuelve el dato y el cliente lo aplica. Nada de `redirect()` dentro de un `try`.
 - Route handlers públicos (portal, webhooks, revalidación): validan el secreto o la cookie firmada
-  con `jose` antes de cualquier lectura, usan el cliente admin sólo para la RPC pública que les toca,
+  (HMAC-SHA256 de `node:crypto`) antes de cualquier lectura, usan el cliente admin sólo para la RPC pública que les toca,
   y nunca devuelven la ruta de storage: generan `createSignedUrl` de 60 s.
 - Nada de trabajo largo en una action (importación masiva, envío masivo): encolar y procesar en
   `supabase/functions/`. Dos excepciones razonadas:

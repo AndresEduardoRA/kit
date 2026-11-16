@@ -7,8 +7,9 @@ import { describe, expect, it } from 'vitest'
 // - La base (`…_base.sql`, la del kit) es la primera y **no se edita nunca**: su sha256 está fijo aquí. Si un día se aplastan las
 //   migraciones en una base nueva, se cambian las dos constantes en el mismo commit que la crea.
 // - Toda migración nueva sale de `supabase migration new <nombre>`: su prefijo es la fecha y hora reales en UTC, no una del futuro.
-// - Lo que se agrega respecto de HEAD va después de la última que HEAD tiene (un reset aplica por el orden del nombre): si otro
-//   carril integró antes una migración posterior, la tuya se renombra con `supabase migration new` antes de integrarla.
+// - Lo que se agrega va después de la última ya integrada (un reset aplica por el orden del nombre): contra HEAD en local y contra main
+//   en el CI de un PR (`MIGRACIONES_BASE`, de calesa-app). Si otro PR integró antes una posterior, la tuya se crea de nuevo con
+//   `supabase migration new`.
 const BASE = '20261030211736_base.sql'
 const SHA256_DE_LA_BASE = 'dc927f7ab39ef9bdd5805860b381b456bd96d7dc92b891fcfcc7bd47f60b2a95'
 const NOMBRE = /^(\d{14})_[a-z0-9_]+\.sql$/
@@ -123,10 +124,11 @@ describe('el orden de las migraciones: el repo', () => {
     ).toEqual([])
   })
 
-  it('las que se agregaron respecto de HEAD van después de la última', () => {
+  it('las que se agregaron respecto de lo integrado van después de la última', () => {
+    const base = process.env['MIGRACIONES_BASE'] ?? 'HEAD'
     let enHead: string[]
     try {
-      enHead = execFileSync('git', ['ls-tree', '--name-only', 'HEAD', 'supabase/migrations/'], {
+      enHead = execFileSync('git', ['ls-tree', '--name-only', base, 'supabase/migrations/'], {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'ignore'],
       })
