@@ -178,6 +178,14 @@ conValidador(
     assert.match(leer('docs/GLOSARIO.md'), /\*\*Turno:\*\*/)
     assert.ok(existsSync(join(s.destino, 'docs/semilla/plan.yaml')))
     assert.ok(!existsSync(join(s.destino, 'scripts/kit')), 'el generador no viaja')
+    assert.ok(
+      existsSync(join(KIT, '.kit/plantilla')),
+      'el kit tiene la marca de plantilla que salta los jobs de proyecto',
+    )
+    assert.ok(
+      !existsSync(join(s.destino, '.kit/plantilla')),
+      'un proyecto generado no la tiene: sus jobs corren',
+    )
     assert.ok(!existsSync(join(s.destino, 'node_modules')))
     assert.equal(
       execFileSync('git', ['-C', s.destino, 'log', '--format=%s'], { encoding: 'utf8' }).trim(),

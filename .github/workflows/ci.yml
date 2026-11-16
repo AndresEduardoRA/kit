@@ -64,7 +64,7 @@ jobs:
   # docs/pasos/<PASO>/; ninguna migración se intercala ni se edita.
   carriles:
     name: Carriles · lo que el PR puede tocar
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && hashFiles('.kit/plantilla') == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -116,7 +116,7 @@ jobs:
   base:
     name: Base · reset, tipos, probar, lint y advisors
     needs: cambios
-    if: needs.cambios.outputs.pesado == 'true'
+    if: needs.cambios.outputs.pesado == 'true' && hashFiles('.kit/plantilla') == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -145,7 +145,7 @@ jobs:
   e2e-build:
     name: e2e · compilar la app
     needs: cambios
-    if: needs.cambios.outputs.e2e == 'true' && needs.cambios.outputs.e2e_modo != 'ninguno' && (github.event_name != 'workflow_dispatch' || inputs.e2e)
+    if: needs.cambios.outputs.e2e == 'true' && needs.cambios.outputs.e2e_modo != 'ninguno' && (github.event_name != 'workflow_dispatch' || inputs.e2e) && hashFiles('.kit/plantilla') == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -171,7 +171,7 @@ jobs:
   e2e:
     name: e2e · bloque ${{ matrix.bloque }} de ${{ needs.cambios.outputs.e2e_de }}
     needs: [cambios, nivel-1, e2e-build]
-    if: needs.cambios.outputs.e2e == 'true' && needs.cambios.outputs.e2e_modo != 'ninguno' && (github.event_name != 'workflow_dispatch' || inputs.e2e)
+    if: needs.cambios.outputs.e2e == 'true' && needs.cambios.outputs.e2e_modo != 'ninguno' && (github.event_name != 'workflow_dispatch' || inputs.e2e) && hashFiles('.kit/plantilla') == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
@@ -262,6 +262,7 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  # Los jobs de proyecto (carriles, base, e2e) se saltan en la plantilla: .kit/plantilla no viaja a un proyecto generado.
   # Resumen para la protección de main: un solo check requerido. Los jobs saltados cuentan como verdes; uno fallido o cancelado, no.
   # Mismo nombre que en calesa-app.
   listo:

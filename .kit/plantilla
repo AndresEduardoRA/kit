@@ -1,0 +1,1 @@
+# Marca a este repo como la plantilla del kit: ci.yml se salta los jobs de proyecto (Base, Carriles, e2e). nuevo-proyecto.mjs no copia este archivo.

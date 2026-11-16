@@ -37,6 +37,7 @@ const NO_VIAJA = [
   /^scripts\/kit\//,
   /^\.claude\/skills\/semilla-a-repo\//,
   /^docs\/MAPA\.md$/,
+  /^\.kit\/plantilla$/,
   /^kit-protegidos\.tgz$/,
 ]
 // Lo ignorado por git que tampoco viaja cuando el kit no es un repo.

@@ -108,6 +108,20 @@ describe('ci.yml por niveles y carriles', () => {
     }
   })
 
+  it('los jobs de proyecto se saltan en la plantilla (.kit/plantilla) y listo los espera a todos', () => {
+    for (const nombre of ['base', 'carriles', 'e2e-build', 'e2e']) {
+      expect(job(nombre), nombre).toContain("hashFiles('.kit/plantilla') == ''")
+    }
+    for (const nombre of ['nivel-1', 'cambios']) {
+      expect(job(nombre), nombre).not.toContain('.kit/plantilla')
+    }
+    const listo = job('listo')
+    expect(listo).toContain('if: always()')
+    for (const nombre of ['nivel-1', 'carriles', 'cambios', 'base', 'e2e-build', 'e2e']) {
+      expect(listo).toContain(nombre)
+    }
+  })
+
   it('cada noche corre el completo (schedule), sólo si hubo commits', () => {
     expect(ci).toMatch(/^ {2}schedule:\n {4}- cron: '[^']+'/m)
     expect(leer('scripts/ci-cambios.sh')).toMatch(/schedule\)/)
