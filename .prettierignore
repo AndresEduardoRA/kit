@@ -9,7 +9,6 @@ playwright-report
 test-results
 e2e-fallos
 .claude/worktrees
-.piloto
 .orquestador
 docs/semilla
 # copias literales: la semilla de ejemplo (para K09) y la semilla v1 del job «kit · proyecto de ejemplo»

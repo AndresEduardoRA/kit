@@ -3,11 +3,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { BLOQUEA, BLOQUEA_PILOTO, PASA, PASA_PILOTO } from './bloquear-peligrosos.casos'
+import { BLOQUEA, PASA } from './bloquear-peligrosos.casos'
 
 // `bloquear-peligrosos.sh` es el hook PreToolUse de Bash: lo irreversible, lo de afuera, las dependencias y saltarse el candado de
-// la base se rechazan siempre; una etiqueta nueva sí se empuja. Con `PILOTO=1` (las sesiones del piloto) también todo `git push`,
-// `scripts/flujo/`, `gh` que escribe y `claude`.
+// la base se rechazan siempre; una etiqueta nueva sí se empuja.
 // Se prueba con el hook de verdad: una tabla de comandos → bloquea (exit 2 y el motivo por stderr) / pasa (exit 0), con repos de
 // git temporales para la rama del push (el patrón de `scripts/ci-cambios.test.ts`).
 const HOOK = resolve('.claude/hooks/bloquear-peligrosos.sh')
@@ -31,18 +30,18 @@ function repo(nombre: string, rama: string): string {
   return dir
 }
 
-function correr(command: string, opciones: { cwd?: string; piloto?: boolean } = {}) {
+function correr(command: string, opciones: { cwd?: string; agente?: string } = {}) {
   const r = spawnSync('bash', [HOOK], {
     input: JSON.stringify({
       tool_name: 'Bash',
       tool_input: { command },
       cwd: opciones.cwd ?? enMain,
+      ...(opciones.agente ? { agent_type: opciones.agente } : {}),
     }),
     encoding: 'utf8',
     env: {
       NODE_ENV: 'test',
       PATH: process.env['PATH'] ?? '',
-      ...(opciones.piloto ? { PILOTO: '1' } : {}),
     },
   })
   return { estado: r.status, motivo: r.stderr }
@@ -107,30 +106,24 @@ describe('la rama del push', () => {
   })
 })
 
-describe('bloquear-peligrosos.sh con PILOTO=1', () => {
-  it.each(BLOQUEA_PILOTO)('bloquea: %s', (comando) => {
-    const { estado, motivo } = correr(comando.replace('ENOTRA', enOtra).replace('ENMAIN', enMain), {
-      piloto: true,
-    })
-    expect({ estado, motivo: motivo.trim().length > 0 }).toEqual({ estado: 2, motivo: true })
-  })
+// El revisor lee: su Bash pasa por `solo-lectura.sh` desde settings (los hooks de su frontmatter no corren con la carpeta sin confiar).
+describe('el Bash del revisor', () => {
+  it.each(['touch x', 'git commit -m x', 'echo hola > a.txt', 'rm -f a.txt', 'pnpm lint'])(
+    'no corre: %s',
+    (comando) => {
+      expect(correr(comando, { agente: 'revisor' }).estado).toBe(2)
+    },
+  )
 
-  it.each(PASA_PILOTO)('deja pasar: %s', (comando) => {
-    expect(correr(comando, { piloto: true }).estado).toBe(0)
-  })
+  it.each(['git diff', 'git log --oneline -3', 'grep -rn flujo docs/', 'cat package.json'])(
+    'sí lee: %s',
+    (comando) => {
+      expect(correr(comando, { agente: 'revisor' }).estado).toBe(0)
+    },
+  )
 
-  it('sin PILOTO=1 lo mismo pasa (una sesión de la persona)', () => {
-    for (const comando of [
-      'git push origin otra',
-      'gh pr create --fill',
-      'claude -p hola',
-      'gh run rerun 1',
-    ]) {
-      expect(correr(comando, { cwd: enOtra }).estado, comando).toBe(0)
-    }
-  })
-
-  it('el motivo del push dice que lo publica el bucle', () => {
-    expect(correr('git push origin main', { piloto: true }).motivo).toContain('bucle')
+  it('otro agente, o la sesión principal, no pasa por la sola lectura', () => {
+    expect(correr('touch x', { agente: 'general-purpose' }).estado).toBe(0)
+    expect(correr('touch x').estado).toBe(0)
   })
 })

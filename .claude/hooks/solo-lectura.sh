@@ -9,7 +9,7 @@
 #
 # Admitidos: git log|show|diff|status|rev-parse|ls-files|cat-file|blame|grep|for-each-ref y branch --list, wc, ls, cat, head, tail,
 # grep, rg, jq, stat, df, du, file, sort, uniq, cut, tr, diff, cmp, find (sin -exec/-delete/-fprint), sed -n '<n>p', gh run
-# list|view, node scripts/nivel.mjs y scripts/piloto/{nivel,cuenta-e2e,saltadas}.mjs. Con sus salvedades: sin sort -o, sin tail -f, sin rg --pre, sin
+# list|view y node scripts/nivel.mjs. Con sus salvedades: sin sort -o, sin tail -f, sin rg --pre, sin
 # git --output, sin `git -c`, y uniq con un solo archivo (con dos escribe el segundo).
 set -uo pipefail
 
@@ -182,8 +182,7 @@ revisar_segmento() {
       [ "${A[0]:-}" = run ] && { [ "${A[1]:-}" = list ] || [ "${A[1]:-}" = view ]; } ||
         rechazar "gh sólo como gh run list|view." ;;
     node)
-      [[ "${A[0]:-}" =~ ^scripts/(nivel|piloto/(nivel|cuenta-e2e|saltadas))\.mjs$ ]] ||
-        rechazar "node sólo corre scripts/nivel.mjs y scripts/piloto/nivel.mjs, cuenta-e2e.mjs y saltadas.mjs." ;;
+      [ "${A[0]:-}" = scripts/nivel.mjs ] || rechazar "node sólo corre scripts/nivel.mjs." ;;
     *) rechazar "«$cmd» no está en la lista de lectura." ;;
   esac
 }

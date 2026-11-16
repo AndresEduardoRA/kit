@@ -29,7 +29,6 @@ export default defineConfig({
       '**/node_modules/**',
       '**/e2e/**',
       '**/.next*/**',
-      '.piloto/**',
       '.claude/worktrees/**',
       '.orquestador/**',
     ],

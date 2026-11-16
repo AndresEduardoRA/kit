@@ -21,11 +21,10 @@ Busca en este orden:
 3. **Estados no felices**: pantallas sin vacío/error/sin permiso; `PT409` tratado como error genérico; destructivas sin deshacer ni
    confirmación según `docs/UX.md`; errores tragados; Zod ausente en una frontera.
 4. **Contrato de módulo**: import a tripas de otro módulo, API pública que creció sin necesidad, dependencia nueva o ciclo (mira «Depende
-   de» en `docs/MAPA.md` antes y después); en un paso del piloto, archivos fuera de lo del carril y del paso.
+   de» en `docs/MAPA.md` antes y después).
 5. **Nombres**: términos fuera de `docs/GLOSARIO.md` o sinónimos de uno que sí está; textos fijos que nombran lo que el usuario
    configura (estados, categorías, tipos de documento: salen de la base).
 6. **Memoria**: unidad nueva sin `CLAUDE.md`, ficha que ya no describe la unidad, un pendiente cerrado que sigue en
-   `docs/PENDIENTES.md`, decisión no obvia sin su viñeta en `docs/DECISIONES.md` (en un paso del piloto, en
-   `docs/pasos/<PASO>/decisiones.md`), historia en un doc en vez de la regla que resultó.
+   `docs/PENDIENTES.md`, decisión no obvia sin su viñeta en `docs/DECISIONES.md`, historia en un doc en vez de la regla que resultó.
 
 Termina con un veredicto de una línea: **listo para commitear** o **no todavía** y por qué.

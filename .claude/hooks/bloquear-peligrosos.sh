@@ -2,12 +2,13 @@
 # Hook PreToolUse sobre Bash: bloquea lo que ninguna sesión de IA debería correr sola (exit 2 y el motivo por stderr,
 # que es lo que Claude recibe). Lee la entrada con jq (`tool_input.command`, `cwd`). Se prueba en `bloquear-peligrosos.test.ts`.
 #
-#   Siempre:        lo irreversible (reset --hard, clean, checkout --, branch -D…), publicar en main (una sesión empuja sólo su rama,
+#   Lo bloqueado:   lo irreversible (reset --hard, clean, checkout --, branch -D…), publicar en main (una sesión empuja sólo su rama,
 #                   sin forzar, o una etiqueta nueva; main avanza por PR: docs/FLUJO.md), lo remoto (supabase contra el proyecto
 #                   remoto salvo leer, link, secrets, config push, functions deploy, gh api …/dispatches, vercel), cambiar
 #                   dependencias y saltarse el candado de la base (`scripts/candado.sh`).
-#   Sólo PILOTO=1:  (un paso del piloto, hasta K04) todo `git push` y `scripts/flujo/` (lo publica el bucle, que no es una sesión),
-#                   `gh` que escribe y `claude`.
+#   El revisor:     su Bash es de sólo lectura (`solo-lectura.sh`) aunque la carpeta no esté confiada: los hooks del frontmatter de
+#                   `.claude/agents/revisor.md` sólo corren con la carpeta confiada y `claude -p` (el orquestador) no la confía; los de
+#                   settings sí corren y su entrada trae `agent_type`.
 #
 # Viene de calesa-app. Allí la sesión cambia la base remota de su proyecto (una decisión de ese proyecto); aquí no.
 #
@@ -21,7 +22,10 @@ CMD=$(printf '%s' "$ENTRADA" | jq -r '.tool_input.command // empty' 2>/dev/null)
 CWD=$(printf '%s' "$ENTRADA" | jq -r '.cwd // empty' 2>/dev/null)
 [ -z "$CMD" ] && exit 0
 [ -z "$CWD" ] && CWD="$PWD"
-PILOTO="${PILOTO:-}"
+
+if [ "$(printf '%s' "$ENTRADA" | jq -r '.agent_type // empty' 2>/dev/null)" = revisor ]; then
+  printf '%s' "$ENTRADA" | bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/solo-lectura.sh" || exit $?
+fi
 
 bloquear() {
   printf '%s\n' "$1" >&2
@@ -38,14 +42,6 @@ case "$CMD" in
   *"SUPABASE_SECRET_KEY"* | *"sb_secret_"*) bloquear "No imprimas ni manipules la secret key desde Bash." ;;
   *"@next/codemod"*) bloquear "Un codemod de Next reescribe el código y las dependencias: lo decide una persona." ;;
 esac
-
-# Un paso del piloto no se publica solo: lo publica el bucle, después de verificar por su cuenta (scripts/piloto/publicar.sh).
-if [ "$PILOTO" = 1 ]; then
-  case "$CMD" in
-    *"flujo/publicar.sh"* | *"flujo/limpiar-ramas"*)
-      bloquear "Con PILOTO=1 un paso no se publica con scripts/flujo: publica el bucle, después de verificar por su cuenta." ;;
-  esac
-fi
 
 # La rama de una carpeta ($1 vacío = el cwd de la sesión; relativa = contra el cwd). Vacío si no hay rama (HEAD suelto).
 rama_de() {
@@ -76,7 +72,6 @@ hay_posicional() {
 # (docs/FLUJO.md). `cd x && git push` cambiaría de rama sin que el hook lo vea: se rechaza. Una etiqueta nueva (`git push origin
 # refs/tags/<nombre>`) sí se empuja, desde cualquier rama: no mueve ninguna.
 revisar_push() {
-  [ "$PILOTO" = 1 ] && bloquear "Con PILOTO=1 ninguna sesión hace git push: publica el bucle, después de verificar por su cuenta."
   local dir="$1"
   shift
   local pos=() t rama
@@ -169,30 +164,13 @@ revisar_git() {
 }
 
 revisar_gh() {
-  local sub="${A[0]:-}" sub2="${A[1]:-}" t
+  local sub="${A[0]:-}" sub2="${A[1]:-}"
   case "$sub $sub2" in
     "workflow run") bloquear "gh workflow run gasta minutos de CI y lo dispara una persona." ;;
   esac
   if [ "$sub" = api ] && printf '%s' "$ARGS" | grep -qE '/dispatches'; then
     bloquear "gh api …/dispatches dispara un flujo de trabajo: lo hace una persona."
   fi
-  [ "$PILOTO" = 1 ] || return 0
-  case "$sub $sub2" in
-    "pr create" | "pr merge" | "repo edit" | "run rerun" | "run cancel")
-      bloquear "Con PILOTO=1, gh $sub $sub2 es de afuera: no hay PR ni cambios en el repo remoto desde una sesión." ;;
-  esac
-  case "$sub" in
-    secret | variable | release) bloquear "Con PILOTO=1, gh $sub escribe afuera del repo local." ;;
-    api)
-      for t in "${A[@]:1}"; do
-        case "$t" in
-          -f | -F | --field | --raw-field | --input | -f* | -F* | --field=* | --raw-field=* | --input=*)
-            bloquear "Con PILOTO=1, gh api que escribe (campos o cuerpo) es de afuera." ;;
-          -X | --method | -X* | --method=*)
-            printf '%s' "$ARGS" | grep -qiE '(-X ?|--method[ =])(GET|get)( |$)' || bloquear "Con PILOTO=1, gh api con un método que escribe es de afuera." ;;
-        esac
-      done ;;
-  esac
 }
 
 revisar_supabase() {
@@ -298,8 +276,6 @@ revisar_segmento() {
         case "$t" in -u | --upgrade) bloquear "ncu -u reescribe las versiones de package.json: lo decide una persona." ;; esac
       done ;;
     next) [ "${A[0]:-}" = upgrade ] && bloquear "next upgrade lo decide una persona." ;;
-    claude) [ "$PILOTO" = 1 ] && bloquear "Con PILOTO=1 una sesión no lanza otra: la lanza el bucle." ;;
-    tmux) [ "$PILOTO" = 1 ] && [[ "$ARGS" == *claude* ]] && bloquear "Con PILOTO=1 una sesión no lanza otra (ni dentro de tmux): la lanza el bucle." ;;
     playwright)
       if [ "${A[0]:-}" = test ] && [ "$CON_CANDADO" = 0 ] && [[ "$ARGS" != *" --list "* ]]; then
         bloquear "playwright test usa la base local, que es de una a la vez: pasa por el candado (pnpm test:e2e | test:e2e:completo)."

@@ -253,13 +253,13 @@ export function problemasDelWorkflow(texto: string, archivo: string): string[] {
   return problemas
 }
 
-// Las funciones que exige la guardia de los e2e: `PILOTO_FUNCIONES` de piloto.config (separadas por espacio), la misma lista que
-// lee `e2e/soporte/guardia.ts`.
-export function funcionesDelProyecto(pilotoConfig: string): string[] {
-  const linea = /^PILOTO_FUNCIONES=(.*)$/m.exec(pilotoConfig)?.[1] ?? ''
-  return linea
-    .trim()
-    .replace(/^(["'])(.*)\1$/, '$2')
+// Las funciones que exige la guardia de los e2e: las de `e2e/funciones.txt` (separadas por espacio o por línea; con # son
+// comentarios), la misma lista que lee `e2e/soporte/guardia.ts`.
+export function funcionesDelProyecto(archivo: string): string[] {
+  return archivo
+    .split('\n')
+    .filter((l) => !l.trimStart().startsWith('#'))
+    .join(' ')
     .split(/\s+/)
     .filter(Boolean)
 }
@@ -281,7 +281,7 @@ export function problemasDeEsperaDeFunciones(
     .filter((f) => !esperadas.has(f))
     .map(
       (f) =>
-        `${archivo}: la espera de las funciones edge no prueba ${f} (la pide PILOTO_FUNCIONES de piloto.config)`,
+        `${archivo}: la espera de las funciones edge no prueba ${f} (la pide e2e/funciones.txt)`,
     )
 }
 

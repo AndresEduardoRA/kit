@@ -34,9 +34,7 @@ Busca, en este orden, lo que los lints no atrapan:
 6. Trampas conocidas: busca con grep en `docs/LECCIONES.md` las del tipo de cambio (migración, RPC,
    e2e, pantalla) y comprueba que el diff no pisa ninguna.
 7. Memoria: ficha desactualizada, un pendiente cerrado que sigue en `docs/PENDIENTES.md`, decisión
-   no obvia sin su viñeta en `docs/DECISIONES.md` (en un paso del piloto, en `docs/pasos/<PASO>/decisiones.md`),
-   historia en un doc en vez de la regla.
-8. Rutas, en un paso del piloto: archivos fuera de lo del carril y del paso (la guarda de carriles rechazará el PR).
+   no obvia sin su viñeta en `docs/DECISIONES.md`, historia en un doc en vez de la regla.
 
 Formato por hallazgo: archivo:línea · qué · por qué importa · severidad (bloquea / debería /
 menor). Cierra con un veredicto de una línea.

@@ -14,8 +14,6 @@
       "Bash(git log*)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(node scripts/coordinador/coordinador.mjs tablero)",
-      "Bash(node scripts/coordinador/coordinador.mjs validar)",
       "Bash(gh pr *)",
       "Bash(gh run *)"
     ],
@@ -48,32 +46,11 @@
       "Read(.env)",
       "Read(.env.local)",
       "Read(.env.*.local)",
-      "Read(.env.demo)",
-      "Bash(codex *)"
+      "Read(.env.demo)"
     ]
   },
   "hooks": {
     "PreToolUse": [
-      {
-        "matcher": "Write|Edit|NotebookEdit|Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/guardar-autorizaciones.sh",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|NotebookEdit|Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/por-agente.sh",
-            "timeout": 5
-          }
-        ]
-      },
       {
         "matcher": "Bash",
         "hooks": [

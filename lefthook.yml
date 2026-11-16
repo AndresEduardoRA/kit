@@ -15,9 +15,14 @@ pre-commit:
       run: pnpm typecheck
     - name: mapa
       run: bash scripts/mapa.sh --check # docs/MAPA.md no se versiona y va en .prettierignore
+
+# El schema en PGlite con sus pruebas: una vez al empujar SQL, no en cada commit, y en su modo rápido (sin los bloques `-- @test [lento] …`
+# de scripts/probar-schema.mjs). El job «Base» del CI corre el completo, también contra la base real (.claude/rules/migraciones.md).
+pre-push:
+  jobs:
     - name: schema
       glob: 'supabase/**/*.sql'
-      run: '[ ! -f scripts/probar-schema.mjs ] || node scripts/probar-schema.mjs supabase'
+      run: PROBAR_RAPIDO=1 node scripts/probar-schema.mjs supabase
 
 # docs/MAPA.md no se versiona: se regenera al cambiar de rama y al integrar (scripts/mapa.sh).
 post-checkout:

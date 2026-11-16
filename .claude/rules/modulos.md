@@ -37,5 +37,4 @@ muestra. Crear un módulo nuevo es una decisión de arquitectura: si el paso no 
   ningún archivo pasa de 300 líneas ni una función de 80).
 - Las fichas `CLAUDE.md` de cada módulo son contrato: si cambias lo que entra, sale o las tablas,
   actualiza la ficha en el mismo commit. Sin ficha, `bash scripts/mapa.sh --check` falla.
-- Un módulo sólo cambia dentro de su carril: si tu paso necesita algo de un módulo de otro carril,
-  es una compuerta `afuera`, no un import a sus tripas.
+- Si necesitas algo de otro módulo, usa su entrada pública (`index.ts`, `client.ts`…), nunca un import a sus tripas.

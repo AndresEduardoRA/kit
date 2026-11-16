@@ -5,26 +5,22 @@
 Las reglas compartidas de este repo, para cualquier agente (Codex las lee de aquí; Claude Code, desde `CLAUDE.md`, que importa este
 archivo). Sólo español, de tú, salvo que la semilla diga otro idioma o registro.
 
-**Dos formas de trabajar, mientras el kit traiga el piloto.** Un paso del piloto (`plan.yaml`, su carril, `docs/pasos/<PASO>/`) sigue
-todo lo de abajo. Una actualización por rama y PR, a mano o del orquestador (`docs/FLUJO.md`, `scripts/orquestador/`), empieza con
-`bash scripts/flujo/estado.sh`, termina con el PR integrado (`bash scripts/flujo/publicar.sh`) y sigue `docs/FLUJO.md`, las skills y
-`.claude/rules/`: donde digan otra cosa que este archivo (los docs compartidos `PENDIENTES`, `DECISIONES`, `LECCIONES` y `ESTADO`, qué
-pruebas se escriben, el volumen sólo en tablas que crecen), mandan ellos.
+Un cambio es una rama, un PR con auto-merge y el CI que decide (`docs/FLUJO.md`); una tanda de tareas que corre sola es el orquestador
+(`scripts/orquestador/README.md`). Empieza con `bash scripts/flujo/estado.sh` y termina con el PR integrado
+(`bash scripts/flujo/publicar.sh`, que la skill `entregar` corre).
 
 ## Al empezar
 
-1. Lee tu paso: `docs/semilla/plan.yaml` (ruteo, dependencias y criterio de terminado) y lo que ya dejaron los pasos de los que
-   dependes en `docs/pasos/<PASO>/`. El producto, los permisos, los datos y el diseño están en `docs/semilla/semilla.md`.
+1. `bash scripts/flujo/estado.sh`: si hay un PR abierto o un CI en rojo, eso va antes que lo pedido. El producto, los permisos, los
+   datos y el diseño están en `docs/semilla/semilla.md`.
 2. `docs/MAPA.md` (generado: módulos, API, rutas, tablas). **El mapa antes que grep.** Si falta: `bash scripts/mapa.sh`.
 3. La ficha `CLAUDE.md` de un módulo y `.claude/rules/*` rigen al tocar sus archivos. Con grep, bajo demanda: `docs/GLOSARIO.md`,
-   `docs/UX.md`, `docs/RENDIMIENTO.md` (si existen) y `docs/KIT.md` (de dónde sale este repo y cómo corren los carriles).
-4. **No hay `ESTADO`, `PLAN`, `DECISIONES` ni `BITACORA` compartidos, y nadie los crea**: cada paso escribe sólo en `docs/pasos/<PASO>/`
-   (`decisiones.md`, `bitacora.md`); el tablero lo genera el coordinador.
+   `docs/UX.md`, `docs/RENDIMIENTO.md`, `docs/LECCIONES.md` (trampas ya pisadas) y `docs/KIT.md` (de dónde sale este repo), los que existan.
 
 ## Comandos
 
-`pnpm dev` · `test` · `lint` · `typecheck` · `test:e2e <spec>` · `test:e2e:completo` · `db:reset` · `db:types` · `db:probar` · `db:lint` ·
-`env:check` · `mapa`. La base y el e2e van con candado (`scripts/candado.sh`); en un carril, siempre por `pnpm`, nunca `supabase` suelto.
+`pnpm dev` · `test` · `lint` · `typecheck` · `test:e2e <spec>` · `test:e2e:completo` · `db:reset` · `db:types` · `db:probar` (`db:probar:rapido` al trabajar) · `db:lint` ·
+`env:check` · `mapa` · `bash scripts/flujo/publicar.sh`. La base y el e2e van con candado (`scripts/candado.sh`); en un carril, siempre por `pnpm`, nunca `supabase` suelto.
 
 ## Arquitectura: monolito modular
 
@@ -44,10 +40,10 @@ pruebas se escriben, el volumen sólo en tablas que crecen), mandan ellos.
 - Zod en todo límite (formulario, action, params, RPC, respuesta externa); ids con `z.guid()`. Errores como valores (`{ ok: false, error }`).
 - Ningún componente ni hook consulta Supabase: lecturas en `infra/`, mutaciones por Server Actions (`next-safe-action`), realtime en `*.client.ts`.
 - Lo que otorga permisos o cambia de dueño se escribe por RPC, nunca con `.update()` (`.claude/rules/datos.md`).
-- Cambio de base = una migración nueva, con `db:reset`, `db:types` y `db:probar` en el mismo commit.
+- Cambio de base = una migración nueva, con `db:reset`, `db:types` y `db:probar:rapido` en el mismo commit (el CI corre el completo).
 - Unidad nueva = su `CLAUDE.md`. Término nuevo = su entrada en `docs/GLOSARIO.md`, y ese nombre en tipos, tablas y UI; nunca un sinónimo.
 - Variables de entorno: sólo las de `src/shared/config/esquemas.ts` (y `.env.example`); el correo, sólo por `enviarEmail()`.
-- Un módulo de otro carril no se toca: es una compuerta `afuera`. Nadie prueba a mano: toda verificación es un test.
+- Nadie prueba a mano: toda verificación es un test.
 
 ## Stack: lo que muerde
 
@@ -64,17 +60,16 @@ pruebas se escriben, el volumen sólo en tablas que crecen), mandan ellos.
 ## Commits
 
 Conventional Commits: tipo en inglés, descripción en español, infinitivo y minúscula (`feat(shared): aceptar fechas sin hora`).
-Scopes: {{SCOPES}}. Un commit = un cambio: si el mensaje necesita «y», son dos.
+Scopes: `shared`, `app`, `db`, `ci`, `deps`, `config`, `docs`, `kit` y los módulos ({{SCOPES}}). Un commit = un cambio: si el mensaje necesita «y», son dos.
 
 ## Terminado significa
 
-`lint` y `typecheck` sin warnings · `test` (lo nuevo con test) y `db:probar` si tocaste `supabase/` · los e2e del nivel que toca
-(`.claude/rules/e2e.md`) · los estados de `docs/UX.md` y `.claude/rules/ui.md` · capas respetadas · `mapa.sh --check` · lo no obvio en
-`docs/pasos/<PASO>/decisiones.md` y lo corrido en su `bitacora.md` · commit convencional.
+`lint` y `typecheck` sin warnings · `test` (lo nuevo con test) y `db:probar:rapido` si tocaste `supabase/` · los e2e del nivel que toca
+(`.claude/rules/e2e.md`) · los estados de `docs/UX.md` y `.claude/rules/ui.md` · capas respetadas · `mapa.sh --check` · lo que corriste y lo que no, en el cuerpo del PR · commit convencional.
 
 ## Nunca
 
 `--no-verify` · versiones nuevas sin verificarlas hoy · la secret key fuera del servidor o en `NEXT_PUBLIC_*` · desactivar una regla de lint ·
 una tabla sin RLS, un `security definer` sin `set search_path = ''`, `auth.uid()` suelto (va `(select auth.uid())`) · `if (rol === …)` en
 la UI (va `puede(permisos, clave, alcance)`) · un número sin `formato.ts` o una fecha sin `fechas.ts` · editar una migración que ya entró
-a `main` · tocar lo de otro paso o de otro carril · crear `ESTADO.md`, `PLAN.md` o cualquier doc compartido fuera de `docs/pasos/<PASO>/`.
+a `main`.

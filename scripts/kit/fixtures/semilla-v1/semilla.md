@@ -11,10 +11,8 @@ arquitectura: monolito modular del kit (src/modules + src/shared) con Supabase
 stack: {base: el del kit}
 servicios: [supabase, vercel, resend]
 funciones_edge: []
-compuertas_rojas: [datos]
 agentes: [claude]
 tope_cuota: {ventana_5h_pct: 30, semanal_pct: 20}
-piloto_auto_min: 5
 generada_con: {modelo: opus, effort: medium, confirmado_por: dueño}
 ---
 

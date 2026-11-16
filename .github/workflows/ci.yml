@@ -1,7 +1,7 @@
 name: ci
 
 # Viene de calesa-app. Las reglas de este archivo las prueban scripts/guardas/workflows.test.ts y workflows-flujo.test.ts. semilla-a-repo reemplaza {{API_PORT}} y {{DB_PORT}} con los puertos del
-# bloque del proyecto (PILOTO_BLOQUE) y {{FUNCIONES}} con PILOTO_FUNCIONES. Por niveles (docs/FLUJO.md, .claude/rules/e2e.md): un PR
+# bloque del proyecto y {{FUNCIONES}} con e2e/funciones.txt. Por niveles (docs/FLUJO.md, .claude/rules/e2e.md): un PR
 # corre el Nivel 1 y los e2e dirigidos a lo tocado (el completo de escritorio si toca un disparador del Nivel 2:
 # scripts/e2e-dirigidos.mjs); cada noche, el completo de escritorio sobre main si hubo commits; antes de desplegar, el completo con los
 # dos proyectos a mano (workflow_dispatch, `proyectos: ambos`). El job `listo` resume a todos: es el único check que main exige, y con
@@ -60,14 +60,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/acciones/preparar
-      # El PR se integra con squash: su título es el mensaje del commit que queda en main (docs/FLUJO.md). El PR de un paso del piloto
-      # (hasta K04) se titula «P01 · …» (scripts/piloto/publicar.sh) y lo integra el coordinador: no se le pide.
+      # El PR se integra con squash: su título es el mensaje del commit que queda en main (docs/FLUJO.md).
       - name: el título del PR es un commit convencional
         if: github.event_name == 'pull_request'
         env:
           TITULO: ${{ github.event.pull_request.title }}
         run: |
-          if printf '%s\n' "$TITULO" | grep -qE '^[A-Z][0-9]+ · '; then echo "PR de un paso del piloto: sin commitlint"; exit 0; fi
           printf '%s\n' "$TITULO" | pnpm exec commitlint
       # Una migración nueva va después de la última de main: un reset aplica por el orden del nombre (.claude/rules/migraciones.md).
       - name: las migraciones del PR van después de las de main
@@ -97,24 +95,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/acciones/preparar
       - run: pnpm exec vitest run --shard=${{ matrix.parte }}/3
-
-  # Lo que un PR puede tocar según su paso de plan.yaml (scripts/guardas/carriles.mjs): lo de su carril, sus módulos y
-  # docs/pasos/<PASO>/; ninguna migración se intercala ni se edita. Del piloto: se va con él (K04).
-  carriles:
-    name: Carriles · lo que el PR puede tocar
-    needs: cambios
-    if: github.event_name == 'pull_request' && needs.cambios.outputs.plantilla != 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - uses: ./.github/acciones/preparar
-      - env:
-          BASE_PR: ${{ github.event.pull_request.base.sha }}
-          RAMA: ${{ github.head_ref }}
-        run: node scripts/guardas/carriles.mjs "$BASE_PR" "$RAMA"
 
   # Decide si corren los jobs pesados (scripts/ci-cambios.sh, probado en scripts/ci-cambios.test.ts) y qué e2e corre un PR: el completo
   # en 4 bloques, los dirigidos en 1 a 4, o ninguno (scripts/e2e-dirigidos.mjs). Fuera de un PR, el completo. Y si este repo es la
@@ -273,7 +253,7 @@ jobs:
           path: ${{ runner.temp }}
       - run: tar -xzf "$RUNNER_TEMP/next-e2e.tgz"
       - run: pnpm db:reset
-      # Las de PILOTO_FUNCIONES, con su regla: OPTIONS responde y no es 404 ni 5xx. Sin funciones, el paso no hace nada.
+      # Las de e2e/funciones.txt, con su regla: OPTIONS responde y no es 404 ni 5xx. Sin funciones, el paso no hace nada.
       - name: funciones edge
         run: |
           funciones="{{FUNCIONES}}"
@@ -357,7 +337,7 @@ jobs:
   listo:
     name: Listo · todo en verde
     if: always()
-    needs: [nivel-1, pruebas, carriles, cambios, base, e2e-build, e2e, ejemplo]
+    needs: [nivel-1, pruebas, cambios, base, e2e-build, e2e, ejemplo]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

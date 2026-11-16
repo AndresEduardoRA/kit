@@ -20,8 +20,8 @@ const CI = `${WORKFLOWS}/ci.yml`
 
 const leer = (ruta: string) => readFileSync(ruta, 'utf8')
 const ci = leer(CI)
-// Las del proyecto (PILOTO_FUNCIONES de piloto.config): en el kit, ninguna; ci.yml lleva el marcador de las funciones, que llena semilla-a-repo.
-const FUNCIONES = funcionesDelProyecto(leer('piloto.config'))
+// Las del proyecto (e2e/funciones.txt): en el kit, ninguna; ci.yml lleva el marcador de las funciones, que llena semilla-a-repo.
+const FUNCIONES = funcionesDelProyecto(leer('e2e/funciones.txt'))
 
 // Cambia `antes` por `despues` exactamente una vez: la mutación tiene que tocar el archivo real.
 function mutar(texto: string, antes: string | RegExp, despues: string): string {
@@ -47,13 +47,14 @@ describe('los workflows del repo cumplen', () => {
     ]).toEqual([])
   })
 
-  it('lee las funciones de PILOTO_FUNCIONES, con o sin comillas', () => {
-    expect(funcionesDelProyecto('PILOTO_FUNCIONES=""\n')).toEqual([])
-    expect(funcionesDelProyecto('A=1\nPILOTO_FUNCIONES="push storage-gc"\n')).toEqual([
+  it('lee las funciones de e2e/funciones.txt, por línea o por espacio, sin los comentarios', () => {
+    expect(funcionesDelProyecto('# ninguna\n')).toEqual([])
+    expect(funcionesDelProyecto('# las del proyecto\npush storage-gc\navatares\n')).toEqual([
       'push',
       'storage-gc',
+      'avatares',
     ])
-    expect(funcionesDelProyecto('PILOTO_FUNCIONES=push\n')).toEqual(['push'])
+    expect(funcionesDelProyecto('push\n')).toEqual(['push'])
     expect(funcionesDelProyecto('')).toEqual([])
   })
 
@@ -75,7 +76,6 @@ describe('los workflows del repo cumplen', () => {
     expect(jobsDe(ci).map((j) => j.nombre)).toEqual([
       'nivel-1',
       'pruebas',
-      'carriles',
       'cambios',
       'base',
       'e2e-build',
@@ -88,21 +88,14 @@ describe('los workflows del repo cumplen', () => {
 
 // Cada mutación rompe una regla en el ci.yml real y la guarda tiene que caer con el motivo.
 // CI por niveles (docs/FLUJO.md): los e2e del PR según scripts/e2e-dirigidos.mjs y el completo cada noche. El título, las migraciones
-// del PR y `listo`, el único check que main exige: `workflows-flujo.test.ts`. Del kit: la guarda de carriles del piloto (hasta K04), los
+// del PR y `listo`, el único check que main exige: `workflows-flujo.test.ts`. Del kit: los
 // jobs de proyecto que se saltan en la plantilla y el proyecto de ejemplo que corre en su lugar.
 describe('ci.yml por niveles', () => {
   const job = (nombre: string) => jobsDe(ci).find((j) => j.nombre === nombre)?.bloque ?? ''
 
-  it('el job carriles corre en cada PR, con la historia entera, la guarda de carriles', () => {
-    const carriles = job('carriles')
-    expect(carriles).toMatch(/if: github\.event_name == 'pull_request'/)
-    expect(carriles).toMatch(/fetch-depth: 0/)
-    expect(carriles).toContain('node scripts/guardas/carriles.mjs "$BASE_PR" "$RAMA"')
-  })
-
   it('los jobs de proyecto se saltan en la plantilla (.kit/plantilla) y en su lugar corre el proyecto de ejemplo', () => {
     expect(job('cambios')).toContain('plantilla: ${{ steps.marca.outputs.plantilla }}')
-    for (const nombre of ['base', 'carriles', 'e2e-build', 'e2e']) {
+    for (const nombre of ['base', 'e2e-build', 'e2e']) {
       expect(job(nombre), nombre).toContain("needs.cambios.outputs.plantilla != 'true'")
     }
     for (const nombre of ['nivel-1', 'pruebas']) {
@@ -157,7 +150,7 @@ describe('las mutaciones caen', () => {
       'un job sin timeout-minutes',
       /( {4}timeout-minutes: 5\n)/,
       '',
-      /job carriles no tiene timeout-minutes/,
+      /job cambios no tiene timeout-minutes/,
     ],
     [
       'una acción de GitHub por tag',
@@ -261,7 +254,7 @@ describe('las mutaciones de CI-1b caen', () => {
     expect(problemas.join('\n')).toMatch(motivo)
   })
 
-  it('la espera de funciones que no declara una de PILOTO_FUNCIONES', () => {
+  it('la espera de funciones que no declara una de e2e/funciones.txt', () => {
     const texto = mutar(ci, /funciones="[^"]*"/, 'funciones="push"')
     expect(problemasDeEsperaDeFunciones(texto, CI, ['push', 'storage-gc']).join('\n')).toMatch(
       /no prueba storage-gc/,

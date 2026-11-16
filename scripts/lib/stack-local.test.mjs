@@ -8,7 +8,9 @@ import {
   baseDelBloque,
   baseDelRepo,
   baseHeredada,
-  conLosDelOrquestador,
+  BLOQUE_POR_DEFECTO,
+  CARRILES_DEL_ORQUESTADOR,
+  DESFASES_DE_LOS_CARRILES,
   proyectoDelRepo,
   variablesDelCarril,
 } from './stack-local.mjs'
@@ -56,20 +58,13 @@ test('el bloque 4, uno fuera de rango y un carril desconocido fallan', () => {
   assert.equal(variablesDelCarril('tienda', 'a', { a: 100 }, 5).SUPABASE_PROJECT_ID, 'tienda-a')
 })
 
-test('los carriles del orquestador: 100, 200 y 300 sin plan; con plan, los desfases que el plan deja libres', () => {
-  assert.deepEqual(conLosDelOrquestador({}), { a: 100, b: 200, c: 300 })
-  const conPlan = conLosDelOrquestador({ datos: 100, ui: 200 })
-  assert.deepEqual(conPlan, { datos: 100, ui: 200, a: 300, b: 400, c: 500 })
+test('los carriles del orquestador son a, b y c, con desfases 100, 200 y 300 que no se repiten', () => {
+  assert.deepEqual(DESFASES_DE_LOS_CARRILES, { a: 100, b: 200, c: 300 })
+  assert.deepEqual(CARRILES_DEL_ORQUESTADOR, ['a', 'b', 'c'])
   assert.equal(
-    new Set(Object.values(conPlan)).size,
-    Object.keys(conPlan).length,
-    'ningún desfase repetido',
+    variablesDelCarril('turnos', 'b', DESFASES_DE_LOS_CARRILES, 5).SUPABASE_API_PORT,
+    55321 + 200,
   )
-  // Un carril del plan que se llama como uno del orquestador manda; con el plan lleno no queda lugar para los demás.
-  assert.deepEqual(conLosDelOrquestador({ a: 100 }), { a: 100, b: 200, c: 300 })
-  const lleno = Object.fromEntries([...Array(8)].map((_, i) => [`c${i + 1}`, 100 * (i + 1)]))
-  assert.deepEqual(Object.keys(conLosDelOrquestador(lleno)).slice(8), ['a'])
-  assert.equal(variablesDelCarril('turnos', 'b', conPlan, 5).SUPABASE_API_PORT, 55321 + 400)
 })
 
 // ---------- los puertos salen del manifiesto del repo (.proyecto/proyecto.yaml) ----------
@@ -101,8 +96,8 @@ contratos: []
   return raiz
 }
 
-const puertosDe = (raiz, proyecto, tabla, respaldo) => {
-  const base = baseDelRepo(raiz, respaldo)
+const puertosDe = (raiz, proyecto, tabla) => {
+  const base = baseDelRepo(raiz)
   return [
     base,
     ...Object.keys(tabla).map((carril) => variablesDelCarril(proyecto, carril, tabla, base)),
@@ -118,9 +113,9 @@ test('dos proyectos con bloques distintos, leídos de sus manifiestos, no compar
   ]) {
     const raiz = repoConManifiesto({ slug, puertos: { bloque } })
     assert.deepEqual(
-      baseDelRepo(raiz, undefined),
+      baseDelRepo(raiz),
       baseDelBloque(bloque),
-      'sale del manifiesto, no del respaldo',
+      'sale del manifiesto, no del bloque por defecto',
     )
     for (const v of puertosDe(raiz, proyectoDelRepo(raiz), tabla))
       for (const [clave, puerto] of Object.entries(v)) {
@@ -137,7 +132,7 @@ test('un repo con puertos heredados (546xx) los conserva y no choca con un bloqu
     slug: 'calesa',
     puertos: { heredado: { api: 54621, base: 54622, app: 3000 } },
   })
-  const base = baseDelRepo(raiz, '5') // el respaldo no manda: hay manifiesto
+  const base = baseDelRepo(raiz) // con manifiesto, no hay aviso ni bloque por defecto
   assert.deepEqual(base, baseHeredada({ api: 54621, base: 54622, app: 3000 }))
   assert.deepEqual(base, {
     SUPABASE_DB_SHADOW_PORT: 54620,
@@ -177,19 +172,44 @@ test('un repo con puertos heredados (546xx) los conserva y no choca con un bloqu
       }
 })
 
-test('sin manifiesto todo funciona como antes: el bloque de respaldo (PILOTO_BLOQUE) y el proyecto de piloto.config', () => {
+test('sin manifiesto el bloque es el 5 y lo dice un aviso; el proyecto sale de config.toml, también con aviso', () => {
   const sin = mkdtempSync(join(tmpdir(), 'sin-manifiesto-'))
-  assert.deepEqual(baseDelRepo(sin, '6'), baseDelBloque(6))
-  assert.deepEqual(baseDelRepo(sin, 6), baseDelBloque(6))
-  assert.equal(proyectoDelRepo(sin, 'viejo'), 'viejo')
-  assert.throws(() => baseDelRepo(sin, undefined), /debe ser un entero de 1 a 9/)
-  assert.equal(variablesDelCarril('viejo', 'a', { a: 100 }, '6').SUPABASE_API_PORT, 56321 + 100)
+  const avisos = []
+  assert.equal(BLOQUE_POR_DEFECTO, 5)
+  assert.deepEqual(
+    baseDelRepo(sin, (a) => avisos.push(a)),
+    baseDelBloque(5),
+  )
+  assert.equal(avisos.length, 1)
+  assert.match(avisos[0], /no tiene \.proyecto\/proyecto\.yaml[\s\S]*bloque de puertos 5/)
+  // Sin manifiesto ni config.toml no hay nombre que dar: falla en vez de inventarlo.
+  assert.throws(() => proyectoDelRepo(sin, () => {}), /no sé el nombre del proyecto/)
+  mkdirSync(join(sin, 'supabase'))
+  writeFileSync(join(sin, 'supabase/config.toml'), 'project_id = "viejo"\n')
+  const avisosDelNombre = []
+  assert.equal(
+    proyectoDelRepo(sin, (a) => avisosDelNombre.push(a)),
+    'viejo',
+  )
+  assert.match(avisosDelNombre[0], /«viejo»/)
+  // Un repo con manifiesto no avisa nada.
+  const con = repoConManifiesto({ slug: 'tienda', puertos: { bloque: 6 } })
+  const callado = []
+  assert.deepEqual(
+    baseDelRepo(con, (a) => callado.push(a)),
+    baseDelBloque(6),
+  )
+  assert.equal(
+    proyectoDelRepo(con, (a) => callado.push(a)),
+    'tienda',
+  )
+  assert.deepEqual(callado, [])
 })
 
 test('un manifiesto inválido corta con el campo y el comando del validador', () => {
   const raiz = repoConManifiesto({ slug: 'roto', puertos: { bloque: 4 } })
   assert.throws(
-    () => baseDelRepo(raiz, 5),
+    () => baseDelRepo(raiz),
     /puertos\.bloque: 1 a 9, nunca 4[\s\S]*validar_semilla\.py --manifiesto/,
   )
 })

@@ -16,26 +16,15 @@ Lo de arriba (`AGENTS.md`) son las reglas de todos los agentes. Esto es lo propi
 
 - `/feature` — un caso de uso completo (capas, tests, ficha, glosario y mapa).
 - `/revisar` — revisión adversarial del diff contra las reglas, antes de commitear.
-- `/entregar` — cierra el trabajo: verificación, docs, commits convencionales y el PR integrado con `scripts/flujo/publicar.sh`
-  (en un paso del piloto: notas del paso y commit, sin push).
-- `/piloto` — lo usa el bucle del piloto (`scripts/piloto/bucle.sh`); `piloto-decidir` y `piloto-control`, sus sesiones de compuerta
-  y de control. No los invoques a mano dentro de un paso.
+- `/entregar` — cierra el trabajo: verificación, docs, commits convencionales y el PR integrado con `scripts/flujo/publicar.sh`.
 
 ## El flujo de un PR y el orquestador
 
-- Fuera del piloto, un cambio es una rama, un PR con auto-merge y el CI que decide (`docs/FLUJO.md`); una tanda de tareas que corre
-  sola, el orquestador (`scripts/orquestador/README.md`). Lo de la máquina vive en `.orquestador/` (no se versiona).
-
-## El piloto y los carriles
-
-- Cada carril es un worktree con su stack (`.env.carril`) y corre los pasos que le entrega el coordinador
-  (`node scripts/coordinador/coordinador.mjs siguiente <carril>`), uno por rama `<carril>/<paso>` y un PR por paso. `docs/KIT.md`
-  explica el flujo; `piloto.config`, la configuración del proyecto.
-- Lo que el piloto escribe vive en `.piloto/` (no se versiona). Una pregunta que sólo la persona puede responder es una compuerta
-  (`.claude/skills/piloto/compuertas.md`), no una suposición.
-- Los subagentes `planificador`, `revisor` y `auditor` (`.claude/agents/`) planifican, revisan y auditan; no editan.
+- Un cambio es una rama, un PR con auto-merge y el CI que decide (`docs/FLUJO.md`); una tanda de tareas que corre sola, el
+  orquestador (`scripts/orquestador/README.md`). Lo de la máquina vive en `.orquestador/` (no se versiona).
+- El subagente `revisor` (`.claude/agents/`) revisa; no edita.
 
 ## Antes de dar algo por terminado
 
-Corre lo de «Terminado significa» de `AGENTS.md`. Lo que no corriste (un e2e sin Docker, por ejemplo) se dice en la bitácora del paso;
+Corre lo de «Terminado significa» de `AGENTS.md`. Lo que no corriste (un e2e sin Docker, por ejemplo) se dice en el cuerpo del PR;
 no se da por pasado.

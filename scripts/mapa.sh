@@ -4,13 +4,11 @@
 #   bash scripts/mapa.sh           regenera docs/MAPA.md
 #   bash scripts/mapa.sh --check   lo regenera también, y falla (exit 1) si una unidad
 #                                  no tiene CLAUDE.md, o si un módulo importa las tripas de otro
-#                                  (cualquier cosa que no sea `@/modules/<x>` o `@/modules/<x>/client`), o si una
-#                                  entrada de DECISIONES o BITACORA lleva una fecha de mañana o fuera de orden
-#                                  (`scripts/fechas-de-entradas.mjs`: la fecha sale de `TZ=America/La_Paz date +%F`), o si un
+#                                  (cualquier cosa que no sea `@/modules/<x>` o `@/modules/<x>/client`), o si un
 #                                  enlace interno está roto (`scripts/enlaces-internos.mjs`: un doc citado que no existe, o
-#                                  una sección «…» que no es título del doc ni de su copia en docs/archivo/)
+#                                  una sección «…» que no es título del doc)
 #
-# docs/MAPA.md no se versiona (está en .gitignore): con dos carriles, cada PR lo cambiaría y chocarían. Lo regeneran el hook Stop de
+# docs/MAPA.md no se versiona (está en .gitignore): dos PR en paralelo lo cambiarían y chocarían. Lo regeneran el hook Stop de
 # Claude Code, lefthook (pre-commit con --check; post-checkout y post-merge), scripts/worktree/preparar.sh y CI (--check).
 # No escribe fechas a propósito: la salida es determinista.
 # Compatible con bash 3.2 (macOS) y Git Bash: sin arrays asociativos ni globstar.
@@ -52,15 +50,32 @@ aplanar_exports() {
   awk '/^export (type )?\{[^}]*$/ { junta = $0; while ((getline linea) > 0) { junta = junta " " linea; if (linea ~ /\}/) break }; print junta; next } { print }' "$1"
 }
 
-# Nombres que exporta un archivo de entrada de TypeScript.
+# El archivo al que llega un `export * from '<relativo>'` desde la carpeta $1 (vacío si no resuelve).
+archivo_reexportado() {
+  local f
+  case "$2" in .*) ;; *) return 0 ;; esac
+  for f in "$1/$2.ts" "$1/$2.tsx" "$1/$2/index.ts" "$1/$2"; do
+    if [ -f "$f" ]; then echo "$f"; return 0; fi
+  done
+}
+
+# Nombres que exporta un archivo de entrada de TypeScript. Un `export * from '<relativo>'` se sigue hasta los nombres de ese archivo,
+# también anidado (4.15-4: las entradas de `cotizaciones` sólo reexportan cada área); si no resuelve, queda `* <ruta>`. Cada nivel de la
+# recursión tiene su temporal.
 exports_del_archivo() {
-  aplanar_exports "$1" > "$TMPD/entrada"
+  local tmp rel destino
+  tmp=$(mktemp "$TMPD/entrada.XXXXXX")
+  aplanar_exports "$1" > "$tmp"
   {
-    sed -nE 's/^export (default )?(async )?(declare )?(abstract )?(function\*?|const|let|class|type|interface|enum) +([A-Za-z0-9_$]+).*/\6/p' "$TMPD/entrada"
-    sed -nE 's/^export (type )?\{([^}]*)\}.*/\2/p' "$TMPD/entrada" | tr ',' '\n' \
+    sed -nE 's/^export (default )?(async )?(declare )?(abstract )?(function\*?|const|let|class|type|interface|enum) +([A-Za-z0-9_$]+).*/\6/p' "$tmp"
+    sed -nE 's/^export (type )?\{([^}]*)\}.*/\2/p' "$tmp" | tr ',' '\n' \
       | sed -E 's/^ *(type +)?//; s/.* as +//; s/ *$//' | grep -v '^$' || true
-    sed -nE "s/^export \* from ['\"]([^'\"]+)['\"].*/* \1/p" "$TMPD/entrada"
+    sed -nE "s/^export \* from ['\"]([^'\"]+)['\"].*/\1/p" "$tmp" | while IFS= read -r rel; do
+      destino=$(archivo_reexportado "$(dirname "$1")" "$rel")
+      if [ -n "$destino" ]; then exports_del_archivo "$destino"; else echo "* $rel"; fi
+    done
   } | awk '!seen[$0]++'
+  rm -f "$tmp"
 }
 
 # API pública de una unidad: nombres exportados por su archivo de entrada.
@@ -248,7 +263,6 @@ if [ "$MODO" = "--check" ]; then
     echo "✗ El mapa tiene pendientes:" >&2; echo "$AVISOS_TXT" >&2; fallo=1
   fi
   # No depende del mapa sino de los docs: va aparte para que `generar` no escriba fechas en MAPA.md.
-  if [ -f scripts/fechas-de-entradas.mjs ] && ! node scripts/fechas-de-entradas.mjs; then fallo=1; fi
   if [ -f scripts/enlaces-internos.mjs ] && ! node scripts/enlaces-internos.mjs; then fallo=1; fi
   exit $fallo
 fi

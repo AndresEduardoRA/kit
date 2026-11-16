@@ -18,7 +18,7 @@ repos:
 
   - rol: web
     nombre: calesa-web
-    github: AndresEduardoRA/calesa-web # se rehace desde el kit nuevo; el repo viejo pasa a calesa-web-piloto
+    github: AndresEduardoRA/calesa-web # se rehace desde el kit nuevo
     etapa: construccion
     semilla: null
     puertos:

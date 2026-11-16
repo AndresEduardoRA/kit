@@ -140,6 +140,10 @@ console.log(`✓ ${ok} archivos aplicados`)
 // `supabase/tests/*.sql`, por nombre. SOLO=<archivo>[,<archivo>] corre sólo esos (para iterar sobre uno).
 const PRIMERO = ['rls-en-todo.sql', 'privilegios-de-anon.sql', 'humo.sql', 'escala.sql']
 const SOLO = process.env['SOLO']?.split(',')
+// PROBAR_RAPIDO=1 (`pnpm db:probar:rapido`): salta los bloques `-- @test [lento] …` (las comparaciones exhaustivas). Es el modo de
+// trabajo y del hook del push; el CI corre todo (`pnpm db:probar`). El kit no trae ninguno: un proyecto los marca con ese prefijo.
+const RAPIDO = process.env['PROBAR_RAPIDO'] === '1'
+let saltados = 0
 const carpetaDePruebas = path.join(base, 'tests')
 const pruebas = fs.existsSync(carpetaDePruebas)
   ? fs.readdirSync(carpetaDePruebas).filter((n) => n.endsWith('.sql'))
@@ -156,6 +160,10 @@ for (const archivo of orden) {
   // Lo que va antes del primer `-- @test` es el encabezado del archivo (comentarios): no es una prueba.
   for (const b of partes.slice(1)) {
     const [nombre, ...resto] = b.split('\n')
+    if (RAPIDO && nombre.trim().startsWith('[lento]')) {
+      saltados++
+      continue
+    }
     try {
       await db.exec(resto.join('\n'))
       console.log('  ✓ ' + nombre.trim())
@@ -167,4 +175,6 @@ for (const archivo of orden) {
     }
   }
 }
+if (saltados > 0)
+  console.log(`· ${String(saltados)} bloques [lento] saltados (PROBAR_RAPIDO): el CI los corre.`)
 await db.close()

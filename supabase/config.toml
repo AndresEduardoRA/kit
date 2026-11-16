@@ -1,5 +1,5 @@
-# Supabase CLI — la principal del proyecto. semilla-a-repo reescribe project_id y los puertos desde piloto.config (PROYECTO y
-# PILOTO_BLOQUE; los puertos salen de baseDelBloque() de scripts/lib/stack-local.mjs). Aquí, los del bloque 5 de piloto.config.
+# Supabase CLI — la principal del proyecto. el generador de proyectos (scripts/kit/nuevo-proyecto.mjs) reescribe project_id y los puertos
+# con el bloque del proyecto (los puertos salen de baseDelBloque() de scripts/lib/stack-local.mjs). Aquí, los del bloque 5.
 # Un carril no edita este archivo: cambia el project_id y los puertos por entorno (.env.carril, scripts/worktree/preparar.sh).
 project_id = "cambiar-slug"
 
