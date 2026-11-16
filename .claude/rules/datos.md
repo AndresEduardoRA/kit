@@ -37,4 +37,5 @@ Qué tabla lee y escribe quién está en `docs/semilla/semilla.md` › Datos y �
   (refcount) o lo barre el recolector de la base. El navegador no borra lo compartido.
 - Las claves de integraciones viven en Vault y las lee sólo una función `security definer`; nunca
   el cliente admin ni el navegador. Lo crudo de una API externa lo guarda la edge function.
-- `revalidatePath` en la action que muta; sin `router.refresh()` en el éxito.
+- `revalidatePath` en la action que muta (salvo desde una pantalla con algo a medio tipear: `.claude/rules/acciones.md`); sin
+  `router.refresh()` en el éxito.

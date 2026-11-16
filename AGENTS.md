@@ -5,6 +5,12 @@
 Las reglas compartidas de este repo, para cualquier agente (Codex las lee de aquí; Claude Code, desde `CLAUDE.md`, que importa este
 archivo). Sólo español, de tú, salvo que la semilla diga otro idioma o registro.
 
+**Dos formas de trabajar, mientras el kit traiga el piloto.** Un paso del piloto (`plan.yaml`, su carril, `docs/pasos/<PASO>/`) sigue
+todo lo de abajo. Una actualización por rama y PR, a mano o del orquestador (`docs/FLUJO.md`, `scripts/orquestador/`), empieza con
+`bash scripts/flujo/estado.sh`, termina con el PR integrado (`bash scripts/flujo/publicar.sh`) y sigue `docs/FLUJO.md`, las skills y
+`.claude/rules/`: donde digan otra cosa que este archivo (los docs compartidos `PENDIENTES`, `DECISIONES`, `LECCIONES` y `ESTADO`, qué
+pruebas se escriben, el volumen sólo en tablas que crecen), mandan ellos.
+
 ## Al empezar
 
 1. Lee tu paso: `docs/semilla/plan.yaml` (ruteo, dependencias y criterio de terminado) y lo que ya dejaron los pasos de los que

@@ -1,5 +1,5 @@
 // Los e2e que corre un PR en CI (el Nivel 1 de `.claude/rules/e2e.md`, en CI): el completo si el cambio toca un disparador del
-// Nivel 2 (`scripts/piloto/nivel.mjs`) o algo que mueve a todos los specs; si no, los dirigidos a lo tocado; ninguno si no hay qué.
+// Nivel 2 (`scripts/nivel.mjs`) o algo que mueve a todos los specs; si no, los dirigidos a lo tocado; ninguno si no hay qué.
 // El completo de cada noche (`.github/workflows/ci.yml`, `schedule`) cubre lo que esta elección deje afuera.
 //
 //   node scripts/e2e-dirigidos.mjs --rango <base>...<head> [--github]   → JSON por stdout, o las líneas de $GITHUB_OUTPUT
@@ -13,7 +13,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { nivelDe } from './piloto/nivel.mjs'
+import { nivelDe } from './nivel.mjs'
 
 // Lo que mueve a todos los specs a la vez: la configuración del runner, las dependencias y la base (migraciones y semillas).
 const MUEVE_TODO = [
@@ -147,14 +147,21 @@ export function e2eDelCambio(archivos, specs, leer, soportes = []) {
   }
 }
 
-/** Las líneas de $GITHUB_OUTPUT: el modo, los specs, los bloques de la matriz (1 dirigido, 4 completo) y los proyectos. */
+// Specs dirigidos por bloque: con más, se reparten en bloques paralelos (hasta 4, como el completo). Un bloque con 91 specs en los dos
+// proyectos pasaba los 45 min del job, se cancelaba y el PR nunca quedaba en verde (PR 69 y 78, 2026-11-08).
+export const SPECS_POR_BLOQUE = 20
+
+/** Las líneas de $GITHUB_OUTPUT: el modo, los specs, los bloques de la matriz (4 el completo; los dirigidos, uno cada 20 specs, hasta 4) y los proyectos. */
 export function salidaDeGithub(eleccion) {
   const completo = eleccion.modo === 'completo'
+  const bloques = completo
+    ? 4
+    : Math.min(4, Math.max(1, Math.ceil(eleccion.specs.length / SPECS_POR_BLOQUE)))
   return [
     `e2e_modo=${eleccion.modo}`,
     `e2e_specs=${eleccion.specs.join(' ')}`,
-    `e2e_bloques=${completo ? '[1,2,3,4]' : '[1]'}`,
-    `e2e_de=${completo ? '4' : '1'}`,
+    `e2e_bloques=[${Array.from({ length: bloques }, (_, i) => i + 1).join(',')}]`,
+    `e2e_de=${String(bloques)}`,
     // El completo de un PR es el del Nivel 2 (escritorio); lo dirigido va también en móvil si toca interfaz (el Nivel 1).
     `e2e_proyectos=${!completo && eleccion.interfaz ? 'ambos' : 'escritorio'}`,
   ].join('\n')
