@@ -39,7 +39,7 @@ coordinador (que el plan corra en paralelo sin choques). Revisa además que el s
 Si pasa, muestra el resumen en 6 líneas:
 
 - nombre y slug,
-- bloque y puertos (app, API, base),
+- bloque y puertos (app, API, base): el primer bloque libre entre los `z_*/proyecto.yaml` de la raíz de proyectos,
 - carriles y `CARRILES_MAX`,
 - scopes,
 - tope de cuota y `PILOTO_AUTO_MIN`,
@@ -87,7 +87,7 @@ Sin esto, el job `base` del CI cae. Si no hay Docker, este paso queda pendiente:
 1. **La confianza de la carpeta:** el dueño abre `claude` una vez, en modo interactivo, en la **principal** del proyecto y acepta el diálogo.
    - Sin eso, `claude -p` ignora las `permissions.allow` (medido en un proyecto anterior).
    - Es una decisión del dueño: se la pides, no la tomas.
-2. Si dijo que sí a los carriles: `bash scripts/coordinador/abrir-carriles.sh`. Crea los worktrees en `<destino>.carriles/`, levanta un Supabase por carril y anota el proyecto para la cuota.
+2. Si dijo que sí a los carriles: `bash scripts/coordinador/abrir-carriles.sh`. Crea los worktrees en `<destino>.carriles/`, levanta un Supabase por carril (los puertos salen del manifiesto del repo, `.proyecto/proyecto.yaml`).
    - Si el dueño trabaja en Orca, dile que abra en Orca la principal y los worktrees de `<destino>.carriles/`.
    - Si Orca no los muestra, que los cree desde Orca con la misma rama (`<carril>/base`) y corra `bash scripts/worktree/preparar.sh <carril>` en cada uno.
 

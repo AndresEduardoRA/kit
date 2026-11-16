@@ -26,7 +26,10 @@ if [ "$STASHES" != 0 ]; then
 fi
 
 command -v gh >/dev/null 2>&1 || { echo "· sin gh: no se mira GitHub."; exit 0; }
-DUENO=$(git remote get-url origin 2>/dev/null | sed -nE 's#.*github\.com[:/]([^/]+)/.*#\1#p')
+# La cuenta dueña: la del manifiesto (.proyecto/proyecto.yaml); sin manifiesto (o ilegible: nunca frena), la del remoto.
+DUENO=""
+[ ! -f .proyecto/proyecto.yaml ] || DUENO=$(node scripts/proyecto/manifiesto.mjs cuenta . 2>/dev/null || true)
+[ -n "$DUENO" ] || DUENO=$(git remote get-url origin 2>/dev/null | sed -nE 's#.*github\.com[:/]([^/]+)/.*#\1#p')
 if [ -z "${GH_TOKEN:-}" ] && [ -n "$DUENO" ] && TOKEN=$(gh auth token --user "$DUENO" 2>/dev/null) && [ -n "$TOKEN" ]; then
   export GH_TOKEN="$TOKEN"
 fi

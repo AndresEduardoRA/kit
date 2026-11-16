@@ -1,5 +1,14 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -104,5 +113,48 @@ esac`)
     const r = estado()
     expect(r.estado).toBe(0)
     expect(r.salida).toContain('✗ PR #12 abierto (fix/algo): fix(leads): algo — CI en rojo')
+  })
+})
+
+describe('estado.sh › la cuenta del manifiesto', () => {
+  const manifiesto = `esquema: proyecto/v1
+proyecto: tienda
+nombre: Tienda
+semilla: null
+repos:
+  - { rol: app, nombre: tienda-app, github: CuentaDelManifiesto/tienda-app, etapa: construccion, semilla: null, puertos: { bloque: 6 } }
+contratos: []
+`
+  function conManifiesto(texto: string) {
+    mkdirSync(join(repo, '.proyecto'))
+    writeFileSync(join(repo, '.proyecto/proyecto.yaml'), texto)
+    // scripts/ está excluido de git en estas pruebas: el manifiesto y su lector se copian al lado del guion.
+    mkdirSync(join(repo, 'scripts/proyecto'), { recursive: true })
+    copyFileSync(
+      resolve('scripts/proyecto/manifiesto.mjs'),
+      join(repo, 'scripts/proyecto/manifiesto.mjs'),
+    )
+    symlinkSync(resolve('node_modules'), join(repo, 'node_modules'))
+    writeFileSync(join(repo, '.git/info/exclude'), 'scripts/\n.proyecto/\nnode_modules\n')
+  }
+  const pideToken = (cuerpo = '') =>
+    gh(
+      `echo "gh $*" >> "${join(raiz, 'llamadas.txt')}"\ncase "$1 $2" in "auth token") exit 1 ;; esac\n${cuerpo}\nexit 1`,
+    )
+  const llamadas = () => readFileSync(join(raiz, 'llamadas.txt'), 'utf8')
+
+  it('pide el token de la cuenta del manifiesto', () => {
+    conManifiesto(manifiesto)
+    pideToken()
+    expect(estado().estado).toBe(0)
+    expect(llamadas()).toContain('gh auth token --user CuentaDelManifiesto')
+  })
+
+  it('con un manifiesto ilegible no frena: cae al remoto y sigue diciendo lo local', () => {
+    conManifiesto('esquema: v0\n')
+    pideToken()
+    const r = estado()
+    expect(r.estado).toBe(0)
+    expect(r.salida).toContain('· rama main')
   })
 })

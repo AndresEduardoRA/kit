@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Abre un worktree por carril de plan.yaml (hasta CARRILES_MAX), cada uno con su stack (scripts/worktree/preparar.sh), y anota el
-# proyecto en ~/.config/kit/proyectos.txt para que la cuota se cuente entre todos los proyectos. Se corre en la principal.
+# Abre un worktree por carril de plan.yaml (hasta CARRILES_MAX), cada uno con su stack (scripts/worktree/preparar.sh). Los puertos
+# salen del manifiesto del repo (.proyecto/proyecto.yaml); ya no anota nada en ~/.config/kit/proyectos.txt. Se corre en la principal.
 #
 #   bash scripts/coordinador/abrir-carriles.sh [<carril>…]     (sin carriles: los primeros CARRILES_MAX con pasos sin integrar)
 #
@@ -58,8 +58,5 @@ for carril in "${PEDIDOS[@]}"; do
   (cd "$dir" && bash scripts/worktree/preparar.sh "$carril")
 done
 
-mkdir -p "$HOME/.config/kit"
-touch "$HOME/.config/kit/proyectos.txt"
-grep -qxF "$RAIZ" "$HOME/.config/kit/proyectos.txt" || echo "$RAIZ" >>"$HOME/.config/kit/proyectos.txt"
 echo
 echo "Carriles listos: ${PEDIDOS[*]}. Tablero: node scripts/coordinador/coordinador.mjs tablero"

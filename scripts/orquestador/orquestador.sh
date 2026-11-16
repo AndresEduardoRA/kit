@@ -37,7 +37,6 @@ COLA="$DATOS/cola"
 EST="$DATOS/estado"
 WTS="$DATOS/worktrees"
 PROMPTS="$ORQ/prompts"
-SERVICIO="orquestador-${PROYECTO:?falta PROYECTO en config.env}"
 mkdir -p "$COLA" "$EST" "$WTS"
 
 export PATH="${PATH_EXTRA:+$PATH_EXTRA:}$PATH"
@@ -46,6 +45,14 @@ if [ -s "$HOME/.nvm/nvm.sh" ]; then
   . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1
   [ -f "$REPO/.nvmrc" ] && nvm use --silent "$(cat "$REPO/.nvmrc")" >/dev/null 2>&1
 fi
+
+# El repo propio, de su manifiesto (.proyecto/proyecto.yaml): PROYECTO si config.env o config.local.env no lo fijan, y la cuenta del
+# token. Sin manifiesto, ni lo uno ni lo otro: PROYECTO tiene que venir fijado y la cuenta es la del remoto, como antes.
+MANIFIESTO="$REPO/scripts/proyecto/manifiesto.mjs"
+# Un campo del repo propio, o nada: sin manifiesto, o con uno inválido (el motivo sale por stderr: no se traga).
+manifiesto() { [ -f "$REPO/.proyecto/proyecto.yaml" ] && node "$MANIFIESTO" "$1" "$REPO" || true; }
+[ -n "${PROYECTO:-}" ] || PROYECTO=$(manifiesto nombre)
+SERVICIO="orquestador-${PROYECTO:?falta PROYECTO: fíjalo en config.env o dalo en .proyecto/proyecto.yaml (node scripts/proyecto/manifiesto.mjs nombre)}"
 
 # ------------------------------------------------------------------------------------------------------------------ utilidades
 
@@ -94,7 +101,11 @@ sumar() { est_set "$1" "$2" $(($(num "$1" "$2") + 1)); }
 
 vivo() { local p; p=$(est_get "$1" pid); [ -n "$p" ] && kill -0 "$p" 2>/dev/null; }
 
-dueno_del_repo() { git -C "$REPO" remote get-url origin | sed -nE 's#.*github\.com[:/]([^/]+)/.*#\1#p'; }
+dueno_del_repo() { # la cuenta del manifiesto; sin manifiesto, la del remoto
+  local d; d=$(manifiesto cuenta)
+  [ -n "$d" ] || d=$(git -C "$REPO" remote get-url origin | sed -nE 's#.*github\.com[:/]([^/]+)/.*#\1#p')
+  echo "$d"
+}
 token_gh() { # la cuenta dueña del repo, aunque la activa sea otra (igual que publicar.sh)
   [ -n "${GH_TOKEN:-}" ] && return 0
   local d t

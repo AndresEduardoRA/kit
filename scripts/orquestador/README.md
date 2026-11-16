@@ -13,16 +13,16 @@ Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquest
 
 ## Qué hay
 
-| Dónde                                    | Qué es                                                                               |
-| ---------------------------------------- | ------------------------------------------------------------------------------------ |
-| `scripts/orquestador/orquestador.sh`     | El bucle y los comandos (abajo)                                                      |
-| `scripts/orquestador/config.env`         | `PROYECTO`, paralelo, modelos y límites. Se versiona: sin secretos                   |
-| `scripts/orquestador/prompts/`           | Lo que recibe cada sesión: `tarea.md`, `planificar.md`, `arreglar.md`, `retomar.md`  |
-| `scripts/orquestador/plantilla-tarea.md` | La forma de una spec (la copia `nueva`)                                              |
-| `.orquestador/config.local.env`          | Lo de tu máquina, pisa a `config.env`: `NTFY_TEMA`, `PARALELO`, `PATH_EXTRA`         |
-| `.orquestador/cola/T*.md`                | Una tarea por archivo: frontmatter + la spec con tus decisiones                      |
-| `.orquestador/estado/`                   | Lo crea él: el estado de cada tarea, los logs, los prompts y lo que dijo cada sesión |
-| `.orquestador/worktrees/`                | Lo crea él: un worktree por tarea en curso                                           |
+| Dónde                                    | Qué es                                                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `scripts/orquestador/orquestador.sh`     | El bucle y los comandos (abajo)                                                               |
+| `scripts/orquestador/config.env`         | `PROYECTO` (vacío: el del manifiesto), paralelo, modelos y límites. Se versiona: sin secretos |
+| `scripts/orquestador/prompts/`           | Lo que recibe cada sesión: `tarea.md`, `planificar.md`, `arreglar.md`, `retomar.md`           |
+| `scripts/orquestador/plantilla-tarea.md` | La forma de una spec (la copia `nueva`)                                                       |
+| `.orquestador/config.local.env`          | Lo de tu máquina, pisa a `config.env`: `NTFY_TEMA`, `PARALELO`, `PATH_EXTRA`                  |
+| `.orquestador/cola/T*.md`                | Una tarea por archivo: frontmatter + la spec con tus decisiones                               |
+| `.orquestador/estado/`                   | Lo crea él: el estado de cada tarea, los logs, los prompts y lo que dijo cada sesión          |
+| `.orquestador/worktrees/`                | Lo crea él: un worktree por tarea en curso                                                    |
 
 ## Una tarea
 
@@ -39,11 +39,11 @@ vez); `planificar: si` para que una sesión de Opus en modo plan escriba el plan
 
 1. `bash scripts/orquestador/orquestador.sh verificar`: herramientas, la cuenta de GitHub dueña del repo, auto-merge, Docker, RAM, que
    `claude -p` responda, la cola, el estado del repo (`scripts/flujo/estado.sh`) y un aviso de prueba.
-   - Avisos: `echo "NTFY_TEMA=\"cambiar-slug-$(openssl rand -hex 8)\"" >> .orquestador/config.local.env` y suscríbete en la app ntfy.
+   - Avisos: `echo "NTFY_TEMA=\"cambiar-slug-app-$(openssl rand -hex 8)\"" >> .orquestador/config.local.env` y suscríbete en la app ntfy.
    - Si `claude -p` no responde en `auto`: `MODO_EJECUTAR="acceptEdits"` en `config.local.env`.
-2. En primer plano para ver la primera ola: `tmux new -s orquestador-cambiar-slug 'bash scripts/orquestador/orquestador.sh'`.
+2. En primer plano para ver la primera ola: `tmux new -s orquestador-cambiar-slug-app 'bash scripts/orquestador/orquestador.sh'`.
 3. Como servicio (sobrevive a reinicios): `bash scripts/orquestador/orquestador.sh instalar`, y una vez por máquina
-   `loginctl enable-linger "$USER"`. Su log: `journalctl --user -u orquestador-cambiar-slug -f`. Quitarlo: `… desinstalar`.
+   `loginctl enable-linger "$USER"`. Su log: `journalctl --user -u orquestador-cambiar-slug-app -f`. Quitarlo: `… desinstalar`.
 
 Si el servicio no encuentra `claude`, `pnpm` o `node`, agrega sus rutas a `PATH_EXTRA` (`which claude pnpm node`) y vuelve a `instalar`.
 

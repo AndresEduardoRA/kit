@@ -54,9 +54,10 @@ fi
 # 2) .env.carril (falla con la lista de carriles si éste no está en plan.yaml).
 node --input-type=module -e "
 import { writeFileSync } from 'node:fs'
-import { variablesDelCarril, desfasesDelRepo } from './scripts/lib/stack-local.mjs'
+import { variablesDelCarril, desfasesDelRepo, baseDelRepo, proyectoDelRepo } from './scripts/lib/stack-local.mjs'
+// El proyecto y sus puertos salen del manifiesto (.proyecto/proyecto.yaml); sin él, de piloto.config.
 const [proyecto, carril, bloque] = process.argv.slice(1)
-const v = variablesDelCarril(proyecto, carril, desfasesDelRepo(), bloque)
+const v = variablesDelCarril(proyectoDelRepo(process.cwd(), proyecto), carril, desfasesDelRepo(), baseDelRepo(process.cwd(), bloque))
 const lineas = Object.entries(v).map(([k, x]) => k + '=' + String(x))
 writeFileSync('.env.carril', '# Carril ' + carril + ': lo escribe scripts/worktree/preparar.sh. No se edita a mano.\nCARRIL=' + carril + '\n' + lineas.join('\n') + '\n')
 " "$PROYECTO" "$CARRIL" "$PILOTO_BLOQUE" || falta "no pude escribir .env.carril (arriba, por qué)."

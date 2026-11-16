@@ -44,8 +44,14 @@ printf '%s\n' "$TITULO" | pnpm exec commitlint >/dev/null 2>&1 ||
   falta "el título «$TITULO» no es un commit convencional (commitlint.config.mjs: tipo(scope): descripción en minúscula, ≤ 72)."
 [ -z "$CUERPO" ] || [ -f "$CUERPO" ] || falta "no existe el archivo del cuerpo: $CUERPO"
 
-# La cuenta de GitHub es la dueña del repo, aunque la activa de la máquina sea otra.
-DUENO=$(git remote get-url origin | sed -nE 's#.*github\.com[:/]([^/]+)/.*#\1#p')
+# La cuenta de GitHub es la dueña del repo, aunque la activa de la máquina sea otra: la del manifiesto (.proyecto/proyecto.yaml);
+# sin manifiesto, la del remoto. Un manifiesto inválido corta aquí y dice qué campo.
+DUENO=""
+if [ -f .proyecto/proyecto.yaml ] && ! DUENO=$(node scripts/proyecto/manifiesto.mjs cuenta . 2>&1); then
+  printf '%s\n' "$DUENO" >&2
+  exit 64
+fi
+[ -n "$DUENO" ] || DUENO=$(git remote get-url origin | sed -nE 's#.*github\.com[:/]([^/]+)/.*#\1#p')
 if [ -z "${GH_TOKEN:-}" ] && [ -n "$DUENO" ] && TOKEN=$(gh auth token --user "$DUENO" 2>/dev/null) && [ -n "$TOKEN" ]; then
   export GH_TOKEN="$TOKEN"
 fi

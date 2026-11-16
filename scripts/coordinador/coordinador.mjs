@@ -127,7 +127,8 @@ function filasDeConsumo(repo) {
 }
 
 // La cuota es UNA para todos los proyectos de la cuenta (la ventana de 5 h de Max). Dos límites, y vale el más cerca:
-// todo lo que gastaron los proyectos de ~/.config/kit/proyectos.txt (una ruta por línea) contra la ventana entera, y lo de este
+// todo lo que gastaron los proyectos de ~/.config/kit/proyectos.txt (una ruta por línea; a mano: abrir-carriles.sh ya no lo escribe)
+// contra la ventana entera, y lo de este
 // proyecto contra su tope (COORD_TOPE_PCT, de la semilla). COORD_USD_VENTANA se mide (docs/KIT.md, «Calibrar la cuota»).
 function cuota() {
   const usd = Number(process.env.COORD_USD_VENTANA || 0)
