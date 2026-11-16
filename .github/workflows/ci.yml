@@ -261,3 +261,21 @@ jobs:
             test-results/
           retention-days: 14
           if-no-files-found: ignore
+
+  # Resumen para la protección de main: un solo check requerido. Los jobs saltados cuentan como verdes; uno fallido o cancelado, no.
+  # Mismo nombre que en calesa-app.
+  listo:
+    name: Listo · todo en verde
+    needs: [nivel-1, carriles, cambios, base, e2e-build, e2e]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: ningún job falló ni se canceló
+        env:
+          RESULTADOS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "resultados: $RESULTADOS"
+          case " $RESULTADOS " in
+            *" failure "*|*" cancelled "*) echo "::error::Hay jobs en rojo o cancelados"; exit 1 ;;
+          esac
