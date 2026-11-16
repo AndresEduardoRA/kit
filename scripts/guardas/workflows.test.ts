@@ -79,6 +79,7 @@ describe('los workflows del repo cumplen', () => {
       'base',
       'e2e-build',
       'e2e',
+      'listo',
     ])
   })
 })
@@ -104,6 +105,20 @@ describe('ci.yml por niveles y carriles', () => {
     expect(job('e2e')).toContain('"${especs[@]}"')
     for (const nombre of ['e2e', 'e2e-build']) {
       expect(job(nombre)).toContain("needs.cambios.outputs.e2e_modo != 'ninguno'")
+    }
+  })
+
+  it('los jobs de proyecto se saltan en la plantilla (.kit/plantilla) y listo los espera a todos', () => {
+    for (const nombre of ['base', 'carriles', 'e2e-build', 'e2e']) {
+      expect(job(nombre), nombre).toContain("needs.cambios.outputs.plantilla != 'true'")
+    }
+    for (const nombre of ['nivel-1']) {
+      expect(job(nombre), nombre).not.toContain('outputs.plantilla')
+    }
+    const listo = job('listo')
+    expect(listo).toContain('if: always()')
+    for (const nombre of ['nivel-1', 'carriles', 'cambios', 'base', 'e2e-build', 'e2e']) {
+      expect(listo).toContain(nombre)
     }
   })
 

@@ -64,7 +64,8 @@ jobs:
   # docs/pasos/<PASO>/; ninguna migración se intercala ni se edita.
   carriles:
     name: Carriles · lo que el PR puede tocar
-    if: github.event_name == 'pull_request'
+    needs: cambios
+    if: github.event_name == 'pull_request' && needs.cambios.outputs.plantilla != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -84,6 +85,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
+      plantilla: ${{ steps.marca.outputs.plantilla }}
       pesado: ${{ steps.filtro.outputs.pesado }}
       e2e: ${{ steps.filtro.outputs.e2e }}
       e2e_modo: ${{ steps.e2e.outputs.e2e_modo }}
@@ -96,6 +98,9 @@ jobs:
         with:
           # El diff necesita `before` (push) y la base del PR: con un clon superficial no están y todo cae a «pesado».
           fetch-depth: 0
+      # ¿Es este repo la plantilla del kit? (.kit/plantilla no viaja a un proyecto generado). hashFiles no existe en el `if` de un job.
+      - id: marca
+        run: echo "plantilla=$([ -f .kit/plantilla ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - id: filtro
         env:
           EVENTO: ${{ github.event_name }}
@@ -116,7 +121,7 @@ jobs:
   base:
     name: Base · reset, tipos, probar, lint y advisors
     needs: cambios
-    if: needs.cambios.outputs.pesado == 'true'
+    if: needs.cambios.outputs.pesado == 'true' && needs.cambios.outputs.plantilla != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -145,7 +150,7 @@ jobs:
   e2e-build:
     name: e2e · compilar la app
     needs: cambios
-    if: needs.cambios.outputs.e2e == 'true' && needs.cambios.outputs.e2e_modo != 'ninguno' && (github.event_name != 'workflow_dispatch' || inputs.e2e)
+    if: needs.cambios.outputs.e2e == 'true' && needs.cambios.outputs.e2e_modo != 'ninguno' && (github.event_name != 'workflow_dispatch' || inputs.e2e) && needs.cambios.outputs.plantilla != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -171,7 +176,7 @@ jobs:
   e2e:
     name: e2e · bloque ${{ matrix.bloque }} de ${{ needs.cambios.outputs.e2e_de }}
     needs: [cambios, nivel-1, e2e-build]
-    if: needs.cambios.outputs.e2e == 'true' && needs.cambios.outputs.e2e_modo != 'ninguno' && (github.event_name != 'workflow_dispatch' || inputs.e2e)
+    if: needs.cambios.outputs.e2e == 'true' && needs.cambios.outputs.e2e_modo != 'ninguno' && (github.event_name != 'workflow_dispatch' || inputs.e2e) && needs.cambios.outputs.plantilla != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
@@ -261,3 +266,22 @@ jobs:
             test-results/
           retention-days: 14
           if-no-files-found: ignore
+
+  # Los jobs de proyecto (carriles, base, e2e) se saltan en la plantilla (salida «plantilla» de cambios): .kit/plantilla no viaja a un proyecto.
+  # Resumen para la protección de main: un solo check requerido. Los jobs saltados cuentan como verdes; uno fallido o cancelado, no.
+  # Mismo nombre que en calesa-app.
+  listo:
+    name: Listo · todo en verde
+    needs: [nivel-1, carriles, cambios, base, e2e-build, e2e]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: ningún job falló ni se canceló
+        env:
+          RESULTADOS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "resultados: $RESULTADOS"
+          case " $RESULTADOS " in
+            *" failure "*|*" cancelled "*) echo "::error::Hay jobs en rojo o cancelados"; exit 1 ;;
+          esac
