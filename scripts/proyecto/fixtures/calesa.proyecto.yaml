@@ -1,0 +1,29 @@
+# Manifiesto de Calesa (proyecto/v1). Suelto, sin versionar: las copias de cada repo (.proyecto/proyecto.yaml) son el respaldo.
+# Plantilla y reglas: _herramientas/semillas/proyecto.plantilla.yaml.
+esquema: proyecto/v1
+proyecto: calesa
+nombre: Calesa
+semilla: semilla/
+
+repos:
+  - rol: app
+    nombre: calesa-app
+    github: AndresEduardoRA/calesa-app # hoy calesa.app: se renombra (REORGANIZACION.md, paso 4)
+    etapa: mantenimiento
+    semilla: null # nació antes de las semillas; su historia está en la etiqueta fases-0-9
+    puertos:
+      heredado: { api: 54621, base: 54622, app: 3000 }
+    provee: []
+    consume: []
+
+  - rol: web
+    nombre: calesa-web
+    github: AndresEduardoRA/calesa-web # se rehace desde el kit nuevo; el repo viejo pasa a calesa-web-piloto
+    etapa: construccion
+    semilla: null
+    puertos:
+      bloque: 5
+    provee: []
+    consume: []
+
+contratos: [] # hoy app y web no comparten nada en ejecución: sólo la marca, que va en semilla/comun.md
