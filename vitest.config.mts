@@ -16,6 +16,7 @@ export default defineConfig({
       '**/.next*/**',
       '.piloto/**',
       '.claude/worktrees/**',
+      '.orquestador/**',
     ],
     passWithNoTests: true,
     coverage: { include: ['src/modules/*/entities/**'] },
