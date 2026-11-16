@@ -15,6 +15,38 @@ allá avanza de a un paso se rediseña para que **varios carriles trabajen a la 
 | Puertos              | 546xx; carriles +100 y +200                                | Un **bloque** por proyecto (`PILOTO_BLOQUE`) y +100 por carril: varios proyectos a la vez sin chocar                                  |
 | Cuota                | Tope de USD por paso                                       | Además, la ventana de 5 h compartida entre **todos** los proyectos, con un tope por proyecto                                          |
 
+## Lo que vino de calesa-app (K02)
+
+Desde K02, un proyecto del kit trabaja como calesa-app: una rama, un PR con auto-merge que decide el CI («Listo · todo en verde», la
+única regla de `main`) y un orquestador que corre una cola de tareas (`docs/FLUJO.md`, `scripts/orquestador/README.md`). El piloto
+sigue hasta K04: las dos formas conviven (`AGENTS.md`). Copiado de `calesa-app` en `origin/main` **`499b26a9`** (2026-11-16), sólo
+lectura. Lo que es flujo está en `scripts/kit/flujo.txt` (K12 lo usa).
+
+| Qué                                                                                                                                                      | Cómo llegó                                                                                                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/flujo/` (`estado.sh`, `publicar.sh`, `limpiar-ramas.mjs` y sus pruebas)                                                                         | Copiado. `estado.sh` y `publicar.sh` se ubican por la carpeta del propio guion (prueba nueva)                                                                                   |
+| `scripts/orquestador/` (bucle, `config.env`, prompts, plantilla, README y su prueba)                                                                     | Copiado, con el nombre en marcadores. `COMPARTIDAS` vacío                                                                                                                       |
+| `.github/workflows/ci.yml`, `.github/acciones/pila/`, `.github/pull_request_template.md`                                                                 | El de app más lo del kit: job `carriles`, salida `plantilla`, marcadores de puertos y funciones, splinter. `pila` con `{{PUERTOS_PILA}}`. Job nuevo «kit · proyecto de ejemplo» |
+| `.claude/skills/entregar`, `feature`, `revisar`; `.claude/agents/revisor.md`                                                                             | Base de app con `{{NOMBRE}}`; en un paso del piloto, `entregar` no publica                                                                                                      |
+| `.claude/hooks/` y `.claude/settings.json`                                                                                                               | Base de app más lo del piloto (`PILOTO=1`, `PILOTO_SESION`, sus hooks). La base remota sigue bloqueada                                                                          |
+| `.claude/rules/*.md`                                                                                                                                     | Lo genérico de app sobre las reglas del kit, sin lo de los módulos de calesa                                                                                                    |
+| `scripts/guardas/`: `workflows*`, `bloquear-peligrosos*`, `solo-lectura*`, `verificar-al-terminar`, `orden-de-migraciones`, `ignorados`, `ajustes`       | Base de app más los casos del piloto                                                                                                                                            |
+| `scripts/nivel.mjs`, `e2e-dirigidos.mjs`, `e2e-fallos.ts`, `salida-de-test.ts`, `reporter-de-salida.ts`, `huella.sh`, `ci-cambios.test.ts` y sus pruebas | Copiado; el disparador de auth de `nivel.mjs` vale para cualquier módulo. `scripts/piloto/nivel.mjs` y `huella.sh` siguen para el piloto                                        |
+| `e2e/soporte/reporter-de-inestables.ts`, `reporter-de-fallos.ts`, `vitest.config.mts`, `playwright.config.ts`                                            | Copiado o adaptado: la salida de cada `pnpm test` en `test-salidas/` y un reintento del e2e en CI, anotado en el PR                                                             |
+| `docs/FLUJO.md`, `docs/LECCIONES.md`                                                                                                                     | Sin lo propio de calesa (fases, demo, despliegue, «Por módulo», tablas y RPC suyas)                                                                                             |
+
+No vino, con su motivo en el PR de K02: las guardas que nombran módulos de calesa o exigen componentes que el kit no trae
+(`listas-con-patron`, `modales-con-salida`, `drawers-con-salida`, `areas-*`, `paginas*`…), `workflows-fallo` con `ci/volcar-base.sh`
+(consulta tablas de calesa), el job `carreras`, `demo.yml`, `docs/ENTORNOS.md` y los `stack-local.mjs` y `preparar.sh` de app (546xx):
+quedan los del kit, con el bloque por proyecto. `preparar.sh` toma sin carril la primera letra libre entre a, b y c (las ramas del
+orquestador son `<tipo>/<tema>`).
+
+**El CI del kit prueba lo que sale del kit.** Los jobs de proyecto (`carriles`, `base`, `e2e`) se saltan en la plantilla (la salida
+`plantilla` del job `cambios`, por `.kit/plantilla`). En su lugar, «kit · proyecto de ejemplo» genera con `nuevo-proyecto.mjs` un
+proyecto desde `scripts/kit/fixtures/semilla-v1/` (un turnero mínimo sacado de `scripts/semilla/ejemplo/`, con el validador v1 de
+`scripts/kit/fixtures/`, el que el generador entiende hoy) y le corre `pnpm install`, `lint`, `typecheck`, `test` y `db:probar`. El
+paso a la semilla v2 es de K09.
+
 ## Lo que ya está (tanda 1)
 
 | Archivo                                                                               | Qué hace                                                                                                                                                    | Probado                                                                                                    |
@@ -115,16 +147,18 @@ Verificado en el contenedor el 2026-10-30:
 
 ### Lo que `semilla-a-repo` tiene que reemplazar
 
-| Dónde                                | Qué                                                                                                                                          |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `piloto.config`                      | `PROYECTO`, `PILOTO_BLOQUE`, `CARRILES_MAX`, `COORD_TOPE_PCT`, `PILOTO_AUTO_MIN` y `PILOTO_FUNCIONES`, desde el frontmatter de la semilla    |
-| `supabase/config.toml`               | `project_id` y los puertos, con `baseDelBloque(PILOTO_BLOQUE)` de `scripts/lib/stack-local.mjs`                                              |
-| `.github/workflows/ci.yml`           | `{{API_PORT}}`, `{{DB_PORT}}` y `{{FUNCIONES}}`                                                                                              |
-| `AGENTS.md`                          | `{{NOMBRE}}`, `{{DESCRIPCION}}` y `{{SCOPES}}`                                                                                               |
-| `commitlint.config.mjs`              | `// {{SCOPES_MODULOS}}`, por los módulos de la semilla **y los ids de los carriles**, porque los commits de un paso van con `tipo(<carril>)` |
-| `design/tokens.css`                  | El bloque entre `semilla:inicio` y `semilla:fin`, por el CSS del sistema de diseño de la semilla                                             |
-| `docs/semilla/`                      | `semilla.md` y `plan.yaml`. También genera `docs/UX.md`, `GLOSARIO.md` y `RENDIMIENTO.md` desde sus secciones                                |
-| `src/shared/types/database.types.ts` | Hoy está escrito a mano. El primer arranque con Docker corre `pnpm db:types` y lo commitea; si no, el job `base` del CI cae                  |
+| Dónde                                 | Qué                                                                                                                                          |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `piloto.config`                       | `PROYECTO`, `PILOTO_BLOQUE`, `CARRILES_MAX`, `COORD_TOPE_PCT`, `PILOTO_AUTO_MIN` y `PILOTO_FUNCIONES`, desde el frontmatter de la semilla    |
+| `supabase/config.toml`                | `project_id` y los puertos, con `baseDelBloque(PILOTO_BLOQUE)` de `scripts/lib/stack-local.mjs`                                              |
+| `.github/workflows/ci.yml`            | `{{API_PORT}}`, `{{DB_PORT}}` y `{{FUNCIONES}}`                                                                                              |
+| `.github/acciones/pila/action.yml`    | `{{PUERTOS_PILA}}`: los puertos de la principal del bloque (del shadow al inspector; bloque 5: `55320-55329`)                                |
+| Los archivos del flujo (`CON_NOMBRE`) | `{{NOMBRE}}` y `cambiar-slug` en el revisor, las tres skills, `scripts/orquestador/config.env` (`PROYECTO`), su README y sus prompts         |
+| `AGENTS.md`                           | `{{NOMBRE}}`, `{{DESCRIPCION}}` y `{{SCOPES}}`                                                                                               |
+| `commitlint.config.mjs`               | `// {{SCOPES_MODULOS}}`, por los módulos de la semilla **y los ids de los carriles**, porque los commits de un paso van con `tipo(<carril>)` |
+| `design/tokens.css`                   | El bloque entre `semilla:inicio` y `semilla:fin`, por el CSS del sistema de diseño de la semilla                                             |
+| `docs/semilla/`                       | `semilla.md` y `plan.yaml`. También genera `docs/UX.md`, `GLOSARIO.md` y `RENDIMIENTO.md` desde sus secciones                                |
+| `src/shared/types/database.types.ts`  | Hoy está escrito a mano. El primer arranque con Docker corre `pnpm db:types` y lo commitea; si no, el job `base` del CI cae                  |
 
 ## Entregable 2: `semilla-a-repo` (hecho)
 
@@ -138,7 +172,7 @@ Una semilla validada se convierte en un repo con dos piezas:
 - **El script** `scripts/kit/nuevo-proyecto.mjs` (`pnpm kit:nuevo <semilla> <destino> [--en-seco]`) hace la parte determinista.
   - Valida con el validador de idea-a-semilla y con el del coordinador, y exige el contrato de tokens.
   - Elige un bloque de puertos libre, copia el kit sin lo que es solo del kit, hace todos los reemplazos de la tabla de arriba, genera los docs derivados y hace el primer commit.
-  - Se niega si queda algún marcador sin reemplazar.
+  - Se niega si queda algún marcador sin reemplazar. Con `--en-seco` aplica los reemplazos en memoria y lo dice sin escribir nada.
 
 Probado (`pnpm test:generador`: 7 pruebas, con el validador real de idea-a-semilla). Además, un proyecto generado desde una semilla de prueba pasó en el contenedor, desde cero:
 

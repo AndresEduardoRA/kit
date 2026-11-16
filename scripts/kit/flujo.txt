@@ -1,0 +1,46 @@
+# Lo que es flujo: lo que vino de calesa-app en K02 (docs/KIT.md › «Lo que vino de calesa-app»), una ruta o patrón por línea.
+# K12 lo usa para llevar mejoras entre el kit y los proyectos. Nunca entra aquí nada de src/, supabase/, design/ ni docs de producto.
+# Las líneas que empiezan con # son comentarios.
+scripts/flujo/*
+scripts/orquestador/**
+.github/workflows/ci.yml
+.github/acciones/pila/action.yml
+.github/pull_request_template.md
+.claude/skills/entregar/SKILL.md
+.claude/skills/feature/SKILL.md
+.claude/skills/revisar/SKILL.md
+.claude/agents/revisor.md
+.claude/hooks/bloquear-peligrosos.sh
+.claude/hooks/verificar-al-terminar.sh
+.claude/hooks/lint-archivo.sh
+.claude/hooks/solo-lectura.sh
+.claude/hooks/sesion-edito.jq
+.claude/settings.json
+.claude/rules/*.md
+scripts/guardas/workflows.ts
+scripts/guardas/workflows.test.ts
+scripts/guardas/workflows-flujo.test.ts
+scripts/guardas/bloquear-peligrosos.casos.ts
+scripts/guardas/bloquear-peligrosos.test.ts
+scripts/guardas/solo-lectura.casos.ts
+scripts/guardas/solo-lectura.test.ts
+scripts/guardas/verificar-al-terminar.test.ts
+scripts/guardas/orden-de-migraciones.test.ts
+scripts/guardas/ignorados.test.ts
+scripts/guardas/ajustes.test.ts
+scripts/nivel.mjs
+scripts/nivel.test.ts
+scripts/e2e-dirigidos.mjs
+scripts/e2e-dirigidos.test.ts
+scripts/e2e-fallos.ts
+scripts/e2e-fallos.test.ts
+scripts/salida-de-test.ts
+scripts/salida-de-test.test.ts
+scripts/reporter-de-salida.ts
+scripts/huella.sh
+scripts/ci-cambios.test.ts
+e2e/soporte/reporter-de-inestables.ts
+e2e/soporte/reporter-de-fallos.ts
+vitest.config.mts
+docs/FLUJO.md
+docs/LECCIONES.md
