@@ -12,6 +12,9 @@ e2e-fallos
 .piloto
 .orquestador
 docs/semilla
+# copias literales: la semilla de ejemplo (para K09) y la semilla v1 del job «kit · proyecto de ejemplo»
+scripts/semilla/ejemplo
+scripts/kit/fixtures
 # plantillas con marcadores {{X}}: Prettier los reescribe en el frontmatter como { { X } } y `nueva` deja de reemplazarlos
 scripts/orquestador/plantilla-tarea.md
 scripts/orquestador/prompts

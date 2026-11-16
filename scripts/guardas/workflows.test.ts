@@ -10,7 +10,7 @@ import {
   problemasDelWorkflow,
 } from './workflows'
 
-// Las reglas de CI (vienen de un proyecto anterior, «CI-1»): cada job con su tope de minutos, permisos de lectura, acciones fijadas por SHA y
+// Las reglas de CI (vienen de calesa-app): cada job con su tope de minutos, permisos de lectura, acciones fijadas por SHA y
 // sólo de GitHub (o con su excepción escrita), nada de `latest`, lo que mide tiempo fuera de CI, el e2e en
 // bloques con E2E_COMPLETO y escritorio o ambos, el diff con la historia entera y Playwright sin reintentos. Desde CI-1b: un dispatch
 // con su propio grupo y sin cancelarse, `db:carreras` sólo en su job manual con su input apagado, y la espera de cada función edge.
@@ -67,27 +67,30 @@ describe('los workflows del repo cumplen', () => {
     expect(problemasDeAcciones(leer(ruta), ruta)).toEqual([])
   })
 
-  it('playwright.config.ts no reintenta', () => {
+  it('playwright.config.ts reintenta una vez sólo en CI, con el reporter de inestables', () => {
     expect(problemasDePlaywright(leer('playwright.config.ts'))).toEqual([])
   })
 
   it('lee los jobs de ci.yml', () => {
     expect(jobsDe(ci).map((j) => j.nombre)).toEqual([
       'nivel-1',
+      'pruebas',
       'carriles',
       'cambios',
       'base',
       'e2e-build',
       'e2e',
+      'ejemplo',
       'listo',
     ])
   })
 })
 
 // Cada mutación rompe una regla en el ci.yml real y la guarda tiene que caer con el motivo.
-// CI por niveles y carriles (docs/KIT.md): la guarda de carriles en cada PR, sobre todo el diff; los e2e del PR según
-// scripts/e2e-dirigidos.mjs; el completo cada noche.
-describe('ci.yml por niveles y carriles', () => {
+// CI por niveles (docs/FLUJO.md): los e2e del PR según scripts/e2e-dirigidos.mjs y el completo cada noche. El título, las migraciones
+// del PR y `listo`, el único check que main exige: `workflows-flujo.test.ts`. Del kit: la guarda de carriles del piloto (hasta K04), los
+// jobs de proyecto que se saltan en la plantilla y el proyecto de ejemplo que corre en su lugar.
+describe('ci.yml por niveles', () => {
   const job = (nombre: string) => jobsDe(ci).find((j) => j.nombre === nombre)?.bloque ?? ''
 
   it('el job carriles corre en cada PR, con la historia entera, la guarda de carriles', () => {
@@ -95,6 +98,28 @@ describe('ci.yml por niveles y carriles', () => {
     expect(carriles).toMatch(/if: github\.event_name == 'pull_request'/)
     expect(carriles).toMatch(/fetch-depth: 0/)
     expect(carriles).toContain('node scripts/guardas/carriles.mjs "$BASE_PR" "$RAMA"')
+  })
+
+  it('los jobs de proyecto se saltan en la plantilla (.kit/plantilla) y en su lugar corre el proyecto de ejemplo', () => {
+    expect(job('cambios')).toContain('plantilla: ${{ steps.marca.outputs.plantilla }}')
+    for (const nombre of ['base', 'carriles', 'e2e-build', 'e2e']) {
+      expect(job(nombre), nombre).toContain("needs.cambios.outputs.plantilla != 'true'")
+    }
+    for (const nombre of ['nivel-1', 'pruebas']) {
+      expect(job(nombre), nombre).not.toContain('outputs.plantilla')
+    }
+    const ejemplo = job('ejemplo')
+    expect(ejemplo).toContain("if: needs.cambios.outputs.plantilla == 'true'")
+    expect(ejemplo).toContain('node scripts/kit/nuevo-proyecto.mjs scripts/kit/fixtures/semilla-v1')
+    for (const paso of [
+      'pnpm install --frozen-lockfile',
+      'pnpm lint',
+      'pnpm typecheck',
+      'pnpm test',
+      'pnpm db:probar',
+    ]) {
+      expect(ejemplo, paso).toContain(paso)
+    }
   })
 
   it('el PR elige sus e2e con scripts/e2e-dirigidos.mjs, y la matriz y los specs salen de esa elección', () => {
@@ -108,18 +133,16 @@ describe('ci.yml por niveles y carriles', () => {
     }
   })
 
-  it('los jobs de proyecto se saltan en la plantilla (.kit/plantilla) y listo los espera a todos', () => {
-    for (const nombre of ['base', 'carriles', 'e2e-build', 'e2e']) {
-      expect(job(nombre), nombre).toContain("needs.cambios.outputs.plantilla != 'true'")
-    }
-    for (const nombre of ['nivel-1']) {
-      expect(job(nombre), nombre).not.toContain('outputs.plantilla')
-    }
-    const listo = job('listo')
-    expect(listo).toContain('if: always()')
-    for (const nombre of ['nivel-1', 'carriles', 'cambios', 'base', 'e2e-build', 'e2e']) {
-      expect(listo).toContain(nombre)
-    }
+  it('vitest corre en 3 partes, cada una en su job, y las pruebas de node --test en el Nivel 1', () => {
+    const pruebas = job('pruebas')
+    expect(pruebas).toMatch(/name: Nivel 1 · tests, parte \$\{\{ matrix\.parte \}\} de 3/)
+    expect(pruebas).toMatch(/parte: \[1, 2, 3\]/)
+    // `pnpm test --shard` le pasaría la bandera también a `test:kit` (`pnpm test` = vitest y después test:kit).
+    expect(pruebas).toContain('pnpm exec vitest run --shard=${{ matrix.parte }}/3')
+    expect(pruebas).toMatch(/fail-fast: false/)
+    // Una sola vez: el job de lint y tipos no repite la suite entera, sólo test:kit.
+    expect(job('nivel-1')).not.toMatch(/^\s*- run: pnpm test\s*$/m)
+    expect(job('nivel-1')).toMatch(/^\s*- run: pnpm test:kit$/m)
   })
 
   it('cada noche corre el completo (schedule), sólo si hubo commits', () => {
@@ -190,13 +213,21 @@ describe('las mutaciones caen', () => {
     expect(problemas.join('\n')).toMatch(motivo)
   })
 
-  it('Playwright con un reintento', () => {
-    const config = mutar(leer('playwright.config.ts'), 'retries: 0', 'retries: 1')
+  it.each([
+    ['un reintento también en local', "retries: process.env['CI'] ? 1 : 0", 'retries: 1'],
+    [
+      'dos reintentos en CI',
+      "retries: process.env['CI'] ? 1 : 0",
+      "retries: process.env['CI'] ? 2 : 0",
+    ],
+    ['sin el reporter de inestables', "['./e2e/soporte/reporter-de-inestables.ts'],", ''],
+  ])('Playwright con %s cae', (_c, de, a) => {
+    const config = mutar(leer('playwright.config.ts'), de, a)
     expect(problemasDePlaywright(config)).not.toEqual([])
   })
 })
 
-// CI-1b: el dispatch con su grupo y sin cancelarse, `db:carreras` sólo en un job manual y la espera de cada función edge.
+// CI-1b: el dispatch con su grupo y sin cancelarse, `db:carreras` sólo en su job manual y la espera de cada función edge.
 describe('las mutaciones de CI-1b caen', () => {
   const casos: [string, string | RegExp, string, RegExp][] = [
     [
@@ -245,6 +276,7 @@ describe('las mutaciones de CI-1b caen', () => {
     )
   })
 
+  // El kit no trae el job carreras (en calesa-app corre a mano): si un proyecto lo agrega, la guarda pide su if y su input.
   it('un job carreras que corre sin pedirse cae', () => {
     const conCarreras = ci.replace(
       /\n {2}base:\n/,
@@ -252,6 +284,26 @@ describe('las mutaciones de CI-1b caen', () => {
     )
     expect(problemasDe(conCarreras).join('\n')).toMatch(/db:carreras no corre en CI/)
     expect(problemasDe(conCarreras).join('\n')).toMatch(/input «carreras»/)
+  })
+})
+
+// La corrida de cada noche, en el grupo de main, la cancelaba la integración siguiente (en calesa-app).
+describe('las mutaciones de la corrida de cada noche caen', () => {
+  it.each([
+    [
+      'vuelve al grupo de main',
+      "(github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && format",
+      "github.event_name == 'workflow_dispatch' && format",
+      /un workflow_dispatch necesita su propio grupo/,
+    ],
+    [
+      'se cancela',
+      " && github.event_name != 'schedule' }}",
+      ' }}',
+      /cancel-in-progress tiene que ser/,
+    ],
+  ])('%s', (_, antes, despues, motivo) => {
+    expect(problemasDe(mutar(ci, antes, despues)).join('\n')).toMatch(motivo)
   })
 })
 

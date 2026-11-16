@@ -1,0 +1,39 @@
+esquema: plan/v2
+repo: turnero-web
+carriles:
+  - id: contrato
+    dueno_de: [.proyecto/contratos/, src/modules/reserva/infra/]
+  - id: reserva
+    dueno_de: [src/modules/reserva/features/, src/app/reservar/, src/app/cancelar/]
+pasos:
+  - id: P01
+    titulo: fijar la copia del contrato agenda-publica v1
+    depende_de: [app:P02]
+    carril: contrato
+    riesgo: ambar
+    modulos: [.proyecto/contratos/, src/modules/reserva/infra/]
+    decisiones: [C3]
+    contrato: {consume: agenda-publica@1}
+    ruteo: {nivel: normal, effort: high, planificar: no, revisor: no}
+    verificacion: {nivel: 1, comando: "pnpm contrato:usar && pnpm test"}
+    terminado: la copia fijada está en .proyecto/contratos/ y contrato:usar falla si infra llama algo que no está ahí
+  - id: P02
+    titulo: reservar un turno en tres pasos
+    depende_de: [P01]
+    carril: reserva
+    riesgo: verde
+    modulos: [src/modules/reserva/features/, src/app/reservar/]
+    decisiones: [F1, A2]
+    ruteo: {nivel: normal, effort: high, planificar: no, revisor: no}
+    verificacion: {nivel: 1, comando: "pnpm test:e2e e2e/reservar.spec.ts"}
+    terminado: el e2e reserva, ve la confirmación y muestra el conflicto cuando la hora se ocupa
+  - id: P03
+    titulo: cancelar con el código del correo
+    depende_de: [P02]
+    carril: reserva
+    riesgo: verde
+    modulos: [src/app/cancelar/]
+    decisiones: [A2]
+    ruteo: {nivel: rapido, effort: medium, planificar: no, revisor: no}
+    verificacion: {nivel: 1, comando: "pnpm test:e2e e2e/cancelar.spec.ts"}
+    terminado: el e2e cancela dentro de plazo y muestra «fuera de plazo» a menos de 2 horas
