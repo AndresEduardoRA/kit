@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { readdirSync, statSync } from 'node:fs'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { leerManifiesto } from '../proyecto/manifiesto.mjs'
@@ -17,6 +18,15 @@ import {
   scopesDelPlan,
   seccion,
 } from './nuevo-proyecto.mjs'
+
+/** Los archivos de una carpeta, relativos a ella (sin node_modules). */
+function listarArchivos(raiz, pre = '') {
+  return readdirSync(join(raiz, pre)).flatMap((n) => {
+    const rel = pre + n
+    if (n === 'node_modules') return []
+    return statSync(join(raiz, rel)).isDirectory() ? listarArchivos(raiz, rel + '/') : [rel]
+  })
+}
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const hayPyYaml = (() => {
@@ -87,10 +97,9 @@ plataforma: PWA
 arquitectura: features
 stack: {next: "16.4.3"}
 servicios: [supabase, vercel]
-compuertas_rojas: [datos]
 agentes: [claude]
 tope_cuota: {ventana_5h_pct: 30, semanal_pct: 20}
-piloto_auto_min: 7
+funciones_edge: [push, storage-gc]
 generada_con: {modelo: Opus 5.5, effort: high, confirmado_por: dueño}
 ---
 
@@ -169,7 +178,7 @@ test('los puertos del bloque 5 pasan al del proyecto, y nada más', () => {
   )
 })
 
-test('los scopes salen de los carriles y los módulos del plan', () => {
+test('los scopes salen de los módulos del plan', () => {
   const plan = {
     carriles: [
       { id: 'datos', dueno_de: ['supabase/', 'src/modules/turnos/infra/'] },
@@ -177,7 +186,8 @@ test('los scopes salen de los carriles y los módulos del plan', () => {
     ],
     pasos: [{ modulos: ['src/modules/pagos/features/x/'] }],
   }
-  assert.deepEqual(scopesDelPlan(plan), ['datos', 'ui', 'pagos', 'turnos'])
+  assert.deepEqual(scopesDelPlan(plan), ['pagos', 'turnos'])
+  assert.deepEqual(scopesDelPlan(null), [])
 })
 
 test('el contrato de tokens: nombres del kit y tema oscuro', () => {
@@ -200,18 +210,15 @@ conValidador(
     const r = crear(s.dir, s.destino, { validador: VALIDADOR, raizProyectos: s.proyectos })
     assert.equal(r.bloque, 5)
     const leer = (f) => readFileSync(join(s.destino, f), 'utf8')
-    assert.match(leer('piloto.config'), /^PROYECTO=turnos$/m)
-    assert.match(leer('piloto.config'), /^PILOTO_AUTO_MIN=7$/m)
-    assert.match(leer('piloto.config'), /^COORD_TOPE_PCT=30$/m)
-    assert.match(leer('piloto.config'), /^CARRILES_MAX=2$/m)
+    assert.match(leer('e2e/funciones.txt'), /^push\nstorage-gc\n$/m)
     assert.match(leer('supabase/config.toml'), /^project_id = "turnos"$/m)
     assert.match(
       leer('.github/workflows/ci.yml'),
       /SUPABASE_API_LOCAL: http:\/\/127\.0\.0\.1:55321/,
     )
     assert.match(leer('AGENTS.md'), /^# Turnos del consultorio$/m)
-    assert.match(leer('AGENTS.md'), /Scopes: datos, ui, turnos\./)
-    assert.match(leer('commitlint.config.mjs'), /'datos',\n\s+'ui',\n\s+'turnos',/)
+    assert.match(leer('AGENTS.md'), /Scopes: .*\(turnos\)/)
+    assert.match(leer('commitlint.config.mjs'), /'turnos',\n/)
     assert.match(leer('src/shared/config/app.ts'), /COLOR_TEMA = 'oklch\(0\.6 0\.2 30\)'/)
     // Los marcadores del flujo (de calesa-app): el orquestador, los puertos de la pila del CI, el revisor y las skills.
     // El nombre del repo no se fija: PROYECTO va vacío y sale del manifiesto (`turnos-app`).
@@ -247,6 +254,18 @@ conValidador(
     assert.match(leer('docs/UX.md'), /versión 2[\s\S]*\/turnos: lista/)
     assert.match(leer('docs/GLOSARIO.md'), /\*\*Turno:\*\*/)
     assert.ok(existsSync(join(s.destino, 'docs/semilla/plan.yaml')))
+    assert.ok(!existsSync(join(s.destino, 'docs/pasos')), 'ni docs/pasos')
+    // Nada del flujo viejo (el regex se arma en pedazos: el grep de K04 no cuenta esta prueba). Ni archivos ni texto, salvo docs/semilla.
+    const viejo = new RegExp(
+      ['pilo', 'to|coordina', 'dor|compuer', 'ta|PILO', 'TO_|COORD', '_'].join(''),
+      'i',
+    )
+    const sueltos = []
+    for (const f of listarArchivos(s.destino)) {
+      if (f.startsWith('docs/semilla/') || f.startsWith('.git/') || f === 'docs/KIT.md') continue
+      if (viejo.test(f) || viejo.test(readFileSync(join(s.destino, f), 'utf8'))) sueltos.push(f)
+    }
+    assert.deepEqual(sueltos, [], 'el proyecto generado no trae rastro del flujo viejo')
     assert.ok(!existsSync(join(s.destino, 'scripts/kit')), 'el generador no viaja')
     assert.ok(!existsSync(join(s.destino, 'scripts/semilla')), 'la semilla de ejemplo no viaja')
     assert.ok(
@@ -369,26 +388,23 @@ conValidador(
   },
 )
 
-conValidador(
-  'se niega: semilla que no valida, plan con choque, tokens fuera de contrato, destino ocupado',
-  () => {
-    const opciones = { validador: VALIDADOR, enSeco: true, raizProyectos: '/no/hay/raiz' }
-    const s1 = semilla((f) => ({
-      ...f,
-      'semilla.md': f['semilla.md'].replace('(A1, F1)', '(A1, F1) etc.'),
-    }))
-    assert.throws(() => crear(s1.dir, s1.destino, opciones), /no pasa el validador[\s\S]*etc\./)
-    const s2 = semilla((f) => ({
-      ...f,
-      'semilla.md': f['semilla.md'].replace(/--color-paper:/g, '--color-fondo:'),
-    }))
-    assert.throws(() => crear(s2.dir, s2.destino, opciones), /contrato del kit[\s\S]*--color-paper/)
-    const s3 = semilla()
-    mkdirSync(s3.destino, { recursive: true })
-    writeFileSync(join(s3.destino, 'algo'), 'x')
-    assert.throws(() => crear(s3.dir, s3.destino, opciones), /ya existe y no está vacía/)
-  },
-)
+conValidador('se niega: semilla que no valida, tokens fuera de contrato, destino ocupado', () => {
+  const opciones = { validador: VALIDADOR, enSeco: true, raizProyectos: '/no/hay/raiz' }
+  const s1 = semilla((f) => ({
+    ...f,
+    'semilla.md': f['semilla.md'].replace('(A1, F1)', '(A1, F1) etc.'),
+  }))
+  assert.throws(() => crear(s1.dir, s1.destino, opciones), /no pasa el validador[\s\S]*etc\./)
+  const s2 = semilla((f) => ({
+    ...f,
+    'semilla.md': f['semilla.md'].replace(/--color-paper:/g, '--color-fondo:'),
+  }))
+  assert.throws(() => crear(s2.dir, s2.destino, opciones), /contrato del kit[\s\S]*--color-paper/)
+  const s3 = semilla()
+  mkdirSync(s3.destino, { recursive: true })
+  writeFileSync(join(s3.destino, 'algo'), 'x')
+  assert.throws(() => crear(s3.dir, s3.destino, opciones), /ya existe y no está vacía/)
+})
 
 if (!VALIDADOR)
   console.log(

@@ -2,7 +2,7 @@
 # calesa-app. Los puertos de `supabase/config.toml` (los del bloque del proyecto, y los 543xx que la CLI usa por defecto) caen en el rango
 # efímero de Linux (32768–60999): mientras `supabase start` baja sus imágenes en paralelo, una conexión saliente puede tomar uno y el
 # contenedor cae con «address already in use». Reservados en `ip_local_reserved_ports`, el kernel no los da como puerto de origen (vale
-# también para IPv6). semilla-a-repo reemplaza {{PUERTOS_PILA}} con los de la principal del bloque (PILOTO_BLOQUE).
+# también para IPv6). semilla-a-repo reemplaza {{PUERTOS_PILA}} con los de la principal del bloque del proyecto.
 name: pila
 description: Supabase local con sus puertos reservados
 inputs:

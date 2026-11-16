@@ -36,12 +36,11 @@ respaldos/
 # el orquestador de este proyecto (scripts/orquestador): su cola, su estado, sus worktrees y lo de esta máquina
 .orquestador/
 
-# claude code (contador del hook Stop, su huella verde, los worktrees y lo que escribe el piloto)
+# claude code (contador del hook Stop, su huella verde y los worktrees)
 .claude/.intentos-stop
 .claude/.verificado-stop
 .claude/settings.local.json
 .claude/worktrees/
-.piloto/
 
 # sistema
 .DS_Store

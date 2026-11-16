@@ -20,7 +20,7 @@ export default defineConfig({
     ['./e2e/soporte/reporter-de-inestables.ts'],
     ['./e2e/soporte/reporter-de-fallos.ts'],
   ],
-  // La guardia: falla en segundos si las funciones edge de PILOTO_FUNCIONES no están servidas (e2e/soporte/guardia.ts).
+  // La guardia: falla en segundos si las funciones edge de e2e/funciones.txt no están servidas (e2e/soporte/guardia.ts).
   globalSetup: './e2e/global-setup.ts',
   use: {
     baseURL: `http://localhost:${puerto}`,

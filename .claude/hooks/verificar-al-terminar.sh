@@ -4,8 +4,7 @@
 # humano. La suite entera, el lint de todo el repo y los e2e no corren aquí: son del hook del commit (lefthook) y del CI del PR, que es
 # la autoridad (docs/FLUJO.md). Se prueba en `scripts/guardas/verificar-al-terminar.test.ts`.
 #
-#   Sale sin verificar:  una sesión del piloto que no edita (PILOTO_SESION = ruteo|decidir|control|en-seco; hasta K04); queda
-#                        trabajo en segundo plano (`background_tasks` no vacío); la sesión no escribió en este árbol
+#   Sale sin verificar:  queda trabajo en segundo plano (`background_tasks` no vacío); la sesión no escribió en este árbol
 #                        (`sesion-edito.jq` lee su transcript); o la huella del árbol (HEAD + diff + no rastreados) es la de la última
 #                        verificación verde (`scripts/huella.sh`).
 #   Árbol sucio:         typecheck + eslint --cache de los cambiados + vitest related + scripts/guardas + mapa (≈ 17–27 s).
@@ -17,12 +16,6 @@ CWD=$(printf '%s' "$ENTRADA" | jq -r '.cwd // empty' 2>/dev/null)
 cd "${CWD:-${CLAUDE_PROJECT_DIR:-.}}" || exit 0
 RAIZ=$(git rev-parse --show-toplevel 2>/dev/null) && cd "$RAIZ" || exit 0
 CONTADOR=".claude/.intentos-stop" # en .gitignore
-
-# Una sesión del piloto que no edita no verifica: con el árbol rojo de un paso fallido, el Stop bloquearía a una sesión que no
-# puede arreglar nada.
-case "${PILOTO_SESION:-}" in
-  ruteo | decidir | control | en-seco) rm -f "$CONTADOR"; exit 0 ;;
-esac
 
 if printf '%s' "$ENTRADA" | jq -e '(.background_tasks // []) | length > 0' >/dev/null 2>&1; then
   exit 0

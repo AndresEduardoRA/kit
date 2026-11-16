@@ -1,32 +1,30 @@
 // La guardia de los e2e: antes de gastar minutos en una corrida, las funciones edge que los specs llaman tienen que estar servidas.
-// Si no lo están, falla en segundos diciendo qué correr. Cuáles son lo dice `PILOTO_FUNCIONES` (piloto.config, separadas por espacio;
-// vacío = ninguna), la misma lista que espera el job `e2e` de `.github/workflows/ci.yml`.
+// Si no lo están, falla en segundos diciendo qué correr. Cuáles son lo dice `e2e/funciones.txt`
+// (vacío = ninguna), la misma lista que espera el job `e2e` de `.github/workflows/ci.yml`.
 import { existsSync, readFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
 
 const INTENTOS = 4
 const ESPERA_ENTRE_INTENTOS_MS = 500
 
-// La lista de `PILOTO_FUNCIONES`: del entorno o, si no está, de `piloto.config` (que es un archivo de shell con `CLAVE=valor`).
+// La lista de `e2e/funciones.txt` (sin las líneas de comentario).
 export function funcionesExigidas(
-  entorno: Record<string, string | undefined> = process.env,
-  config = existsSync('piloto.config') ? readFileSync('piloto.config', 'utf8') : '',
+  archivo = existsSync('e2e/funciones.txt') ? readFileSync('e2e/funciones.txt', 'utf8') : '',
 ): string[] {
-  const crudo = entorno['PILOTO_FUNCIONES'] ?? leerDeConfig(config)
-  return crudo.split(/\s+/).filter(Boolean)
+  return archivo
+    .split('\n')
+    .filter((l) => !l.trimStart().startsWith('#'))
+    .join(' ')
+    .split(/\s+/)
+    .filter(Boolean)
 }
 
-function leerDeConfig(config: string): string {
-  const linea = config.split('\n').find((l) => /^PILOTO_FUNCIONES=/.test(l)) ?? ''
-  return parseEnv(linea)['PILOTO_FUNCIONES'] ?? ''
-}
-
-// La URL de la API local: la de la app (`.env.local`) o la del carril (`PILOTO_SUPABASE_URL`).
+// La URL de la API local: la de la app (`.env.local`) o la del carril (`E2E_SUPABASE_URL`).
 function urlDeLaApi(): string {
   const deArchivo = existsSync('.env.local') ? parseEnv(readFileSync('.env.local', 'utf8')) : {}
   const url =
     process.env['NEXT_PUBLIC_SUPABASE_URL'] ??
-    process.env['PILOTO_SUPABASE_URL'] ??
+    process.env['E2E_SUPABASE_URL'] ??
     deArchivo['NEXT_PUBLIC_SUPABASE_URL']
   if (!url)
     throw new Error('[guardia] falta NEXT_PUBLIC_SUPABASE_URL (en el entorno o en .env.local).')

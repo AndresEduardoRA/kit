@@ -84,16 +84,11 @@ describe('.claude/settings.json › hooks', () => {
     expect(cableado('PostToolUse', 'Edit|Write', '.claude/hooks/lint-archivo.sh')).toBe(true)
     expect(cableado('Stop', '', '.claude/hooks/verificar-al-terminar.sh')).toBe(true)
   })
-
-  it('los hooks del piloto siguen cableados mientras exista (hasta K04)', () => {
-    for (const ruta of ['.claude/hooks/guardar-autorizaciones.sh', '.claude/hooks/por-agente.sh'])
-      expect(cableado('PreToolUse', 'Write|Edit|NotebookEdit|Bash', ruta), ruta).toBe(true)
-  })
 })
 
 // Todo lo que usa la base local o el servidor de e2e pasa por `scripts/candado.sh` (una sesión a la vez, en cualquier worktree).
 // `db:probar` no: corre en PGlite, en memoria, sin base ni puerto compartidos (y lefthook corre `probar-schema` al
-// commitear SQL: bloquearlo frenaría los commits de otra sesión durante un e2e).
+// empujar SQL: bloquearlo frenaría los pushes de otra sesión durante un e2e).
 const scripts = (
   JSON.parse(readFileSync(join(RAIZ, 'package.json'), 'utf8')) as {
     scripts: Record<string, string>

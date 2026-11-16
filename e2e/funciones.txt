@@ -1,0 +1,3 @@
+# Las funciones edge que los e2e exigen servidas (`pnpm funciones`), una por línea o separadas por espacio; las líneas con # son comentarios.
+# Las lee e2e/soporte/guardia.ts, scripts/e2e-completo.mjs y la guarda de workflows (que pide que el job `e2e` de ci.yml espere a cada una).
+# Vacío = ninguna. En un proyecto nuevo las llena el generador desde `funciones_edge` de la semilla.

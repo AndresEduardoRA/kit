@@ -4,7 +4,7 @@
 // `python3 _herramientas/semillas/validar_semilla.py --manifiesto <archivo>`. Aquí se revisa lo que este kit usa, sin red ni Python.
 //
 // Lo de este archivo es puro (texto adentro, datos afuera) salvo `leerManifiestoDe` y `manifiestosDeLaRaiz`, que leen archivos.
-// Sin `.proyecto/proyecto.yaml` el repo funciona como antes (el remoto y `piloto.config`): `leerManifiestoDe` devuelve `null`.
+// Sin `.proyecto/proyecto.yaml` el repo funciona con el remoto, el bloque 5 y un aviso (`stack-local.mjs`): `leerManifiestoDe` devuelve `null`.
 // Se prueba en `manifiesto.test.mjs`; lo leen `scripts/lib/stack-local.mjs`, el generador y, por la CLI de abajo, los guiones de bash.
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'

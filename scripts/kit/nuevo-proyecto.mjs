@@ -30,7 +30,6 @@ import {
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parse } from 'yaml'
-import { leerPlan, problemasDelPlan } from '../coordinador/plan.mjs'
 import { baseDelBloque } from '../lib/stack-local.mjs'
 import {
   bloqueLibre,
@@ -55,7 +54,7 @@ const NO_VIAJA = [
 ]
 // Lo ignorado por git que tampoco viaja cuando el kit no es un repo.
 const IGNORADO =
-  /^(node_modules|\.next|\.next-e2e|\.git|\.piloto|\.orquestador|test-results|e2e-fallos|test-salidas)(\/|$)|\.tsbuildinfo$/
+  /^(node_modules|\.next|\.next-e2e|\.git|\.orquestador|test-results|e2e-fallos|test-salidas)(\/|$)|\.tsbuildinfo$/
 // Los archivos donde están los números del bloque 5 (el del kit) que pasan al bloque del proyecto.
 const CON_PUERTOS = ['supabase/config.toml', 'playwright.config.ts', '.env.example', 'README.md']
 const MARCADORES = [
@@ -187,18 +186,17 @@ export function elegirBloque(raizProyectos, pedido) {
   return Number(pedido)
 }
 
-/** Los scopes de commit: los ids de los carriles y los módulos (`src/modules/<x>/`) que nombra el plan. */
+/** Los scopes de commit: los módulos (`src/modules/<x>/`) que nombra el plan.yaml de la semilla (sin plan, ninguno). */
 export function scopesDelPlan(plan) {
   const modulos = new Set()
   for (const ruta of [
-    ...plan.carriles.flatMap((c) => c.dueno_de ?? []),
-    ...plan.pasos.flatMap((p) => p.modulos ?? []),
+    ...(plan?.carriles ?? []).flatMap((c) => c.dueno_de ?? []),
+    ...(plan?.pasos ?? []).flatMap((p) => p.modulos ?? []),
   ]) {
     const m = /^src\/modules\/([a-z0-9-]+)\//.exec(ruta)
     if (m) modulos.add(m[1])
   }
-  const carriles = plan.carriles.map((c) => c.id)
-  return [...new Set([...carriles, ...[...modulos].sort()])]
+  return [...modulos].sort()
 }
 
 /** Del bloque 5 (el del kit) al del proyecto, número por número. */
@@ -222,22 +220,19 @@ export function reemplazos({
   scopes,
   funciones,
   cssSemilla,
-  conf,
   cuenta,
 }) {
   const p = baseDelBloque(bloque)
   const r = {
-    'piloto.config': (t) =>
-      Object.entries(conf).reduce(
-        (acc, [k, v]) => acc.replace(new RegExp(`^${k}=.*$`, 'm'), `${k}=${v}`),
-        t,
-      ),
+    // Las funciones edge que los e2e exigen servidas: una por línea, tras los comentarios del archivo.
+    'e2e/funciones.txt': (t) =>
+      funciones ? `${t.trimEnd()}\n${funciones.split(/\s+/).join('\n')}\n` : t,
     'supabase/config.toml': (t) =>
       moverPuertos(t, bloque).replace(/^project_id = ".*"$/m, `project_id = "${slug}"`),
     '.github/workflows/ci.yml': (t) =>
       t
         .replace(
-          / semilla-a-repo reemplaza \{\{API_PORT\}\}[\s\S]*?con PILOTO_FUNCIONES\./,
+          / semilla-a-repo reemplaza \{\{API_PORT\}\}[\s\S]*?con e2e\/funciones\.txt\./,
           ` Puertos del bloque ${bloque}.`,
         )
         .replaceAll('{{API_PORT}}', String(p.SUPABASE_API_PORT))
@@ -257,7 +252,7 @@ export function reemplazos({
       t
         .replaceAll('{{NOMBRE}}', nombre)
         .replaceAll('{{DESCRIPCION}}', descripcion)
-        .replaceAll('{{SCOPES}}', scopes.join(', ')),
+        .replaceAll('{{SCOPES}}', scopes.join(', ') || 'ninguno todavía'),
     'commitlint.config.mjs': (t) =>
       t.replace(/^(\s*)\/\/ \{\{SCOPES_MODULOS\}\}$/m, (_, sangria) =>
         scopes.map((s) => `${sangria}'${s}',`).join('\n'),
@@ -404,19 +399,15 @@ export function crear(
     `${destino} ya existe y no está vacía`,
   )
 
-  // 1. La semilla, validada: el validador de idea-a-semilla y el del coordinador.
+  // 1. La semilla, validada por el validador de idea-a-semilla.
   validador ??= join(dirname(carpetaSemilla), '_herramientas/validar_semilla.py')
   exigir(existsSync(validador), `no está el validador (${validador}): pásalo con --validador`)
   const v = spawnSync('python3', [validador, carpetaSemilla], { encoding: 'utf8' })
   exigir(v.status === 0, `la semilla no pasa el validador:\n${(v.stdout + v.stderr).trim()}`)
   const texto = leerSemilla(carpetaSemilla)
   const fm = frontmatter(texto)
-  const plan = leerPlan(readFileSync(join(carpetaSemilla, 'plan.yaml'), 'utf8'))
-  const delPlan = problemasDelPlan(plan)
-  exigir(
-    delPlan.length === 0,
-    `el plan no corre en paralelo sin choques:\n- ${delPlan.join('\n- ')}`,
-  )
+  const rutaPlan = join(carpetaSemilla, 'plan.yaml')
+  const plan = existsSync(rutaPlan) ? parse(readFileSync(rutaPlan, 'utf8')) : null
 
   const slug = String(fm.slug ?? '')
   exigir(
@@ -450,15 +441,6 @@ export function crear(
   const funciones = Array.isArray(fm.funciones_edge)
     ? fm.funciones_edge.join(' ')
     : String(fm.funciones_edge ?? '')
-  const carrilesMax = Math.min(Number(fm.carriles_max ?? 3), plan.carriles.length)
-  const conf = {
-    PROYECTO: slug,
-    PILOTO_BLOQUE: bloque,
-    CARRILES_MAX: carrilesMax,
-    PILOTO_AUTO_MIN: Number(fm.piloto_auto_min ?? 5),
-    PILOTO_FUNCIONES: `"${funciones}"`,
-    COORD_TOPE_PCT: Number(fm.tope_cuota?.ventana_5h_pct ?? 100),
-  }
   const scopes = scopesDelPlan(plan)
   const derivados = docsDerivados(texto, fm.version ?? 1)
   const r = reemplazos({
@@ -469,7 +451,6 @@ export function crear(
     scopes,
     funciones,
     cssSemilla,
-    conf,
     cuenta,
   })
   // El manifiesto que llevará el repo, revisado antes de escribir nada: si no vale, el motivo dice qué campo.
@@ -490,9 +471,7 @@ export function crear(
     bloque,
     cuenta,
     puertos: baseDelBloque(bloque),
-    carriles: plan.carriles.map((c) => c.id),
     scopes,
-    conf,
   }
   if (enSeco) {
     // Los reemplazos en memoria, archivo por archivo: el ensayo dice ya si quedaría un marcador suelto.
@@ -529,11 +508,6 @@ export function crear(
       cpSync(join(carpetaSemilla, f), join(semillaDst, f), { recursive: true })
   for (const [archivo, contenido] of Object.entries(derivados))
     writeFileSync(join(destino, archivo), contenido)
-  mkdirSync(join(destino, 'docs/pasos'), { recursive: true })
-  writeFileSync(
-    join(destino, 'docs/pasos/README.md'),
-    '# Notas de los pasos\n\nCada paso del plan escribe aquí, en `docs/pasos/<PASO>/`, su `bitacora.md` y su `decisiones.md`. Nada más edita esta carpeta.\n',
-  )
 
   // 5. Sin marcadores.
   const quedan = marcadoresSueltos(

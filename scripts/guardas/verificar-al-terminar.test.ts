@@ -13,8 +13,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
-// El hook Stop (`verificar-al-terminar.sh`) decide por el estado del árbol: sale sin verificar si la sesión es del piloto y no edita
-// (`PILOTO_SESION` = ruteo|decidir|control|en-seco, hasta K04), si queda trabajo en segundo plano, si la
+// El hook Stop (`verificar-al-terminar.sh`) decide por el estado del árbol: sale sin verificar si queda trabajo en segundo plano, si la
 // sesión no escribió en el árbol o si la huella del árbol es la de la última verificación verde; con el árbol sucio corre lo barato
 // (≈ 20 s); con el árbol limpio, typecheck y mapa, y deja la huella. La suite entera y el lint de todo el repo son del commit y del CI
 // (docs/FLUJO.md). Lee `cwd` de la entrada (no `${CLAUDE_PROJECT_DIR}`: no sigue a un worktree) y conserva el tope de 3 intentos. Se
@@ -98,21 +97,6 @@ const ensuciar = () => {
 }
 
 describe('verificar-al-terminar.sh › salir sin verificar', () => {
-  it.each(['ruteo', 'decidir', 'control', 'en-seco'])(
-    'una sesión %s del piloto no edita: sale sin correr nada',
-    (sesion) => {
-      ensuciar()
-      expect(stop({}, { PILOTO_SESION: sesion }).estado).toBe(0)
-      expect(llamadas()).toEqual([])
-    },
-  )
-
-  it('una sesión de paso del piloto sí verifica', () => {
-    ensuciar()
-    stop({}, { PILOTO_SESION: 'paso' })
-    expect(llamadas().length).toBeGreaterThan(0)
-  })
-
   it('con trabajo en segundo plano no verifica', () => {
     ensuciar()
     expect(stop({ background_tasks: [{ id: 'b1', command: 'sleep 100' }] }).estado).toBe(0)

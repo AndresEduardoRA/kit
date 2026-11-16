@@ -47,7 +47,6 @@
     ".next-e2e",
     "supabase/functions",
     ".claude/worktrees",
-    ".piloto",
     ".orquestador"
   ]
 }

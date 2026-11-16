@@ -192,7 +192,7 @@ def main():
     if fm and fm.get("esquema") != "semilla/v1":
         err("Frontmatter: esquema debe ser semilla/v1")
     for campo in ("nombre", "slug", "version", "tamano", "tipo", "plataforma", "arquitectura", "stack", "servicios",
-                  "compuertas_rojas", "agentes", "tope_cuota", "piloto_auto_min", "generada_con"):
+                  "agentes", "tope_cuota", "generada_con"):
         if fm and campo not in fm:
             err(f"Frontmatter: falta «{campo}»")
     for patron in PROHIBIDAS:

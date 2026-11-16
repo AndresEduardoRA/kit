@@ -13,8 +13,7 @@ const config = {
       ERROR,
       'always',
       [
-        // semilla-a-repo reemplaza la línea de abajo con los módulos de la semilla y los ids de los carriles de plan.yaml:
-        // los commits de un paso van con `tipo(<carril>): …` (la skill piloto y el bucle de Codex).
+        // El generador de proyectos (scripts/kit/nuevo-proyecto.mjs) reemplaza la línea de abajo con los módulos de la semilla.
         // {{SCOPES_MODULOS}}
         // Los de todo proyecto del kit.
         'shared',
@@ -24,8 +23,6 @@ const config = {
         'deps',
         'config',
         'docs',
-        'pasos',
-        'piloto',
         'kit',
       ],
     ],

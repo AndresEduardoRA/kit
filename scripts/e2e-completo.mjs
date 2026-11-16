@@ -1,9 +1,10 @@
-// El e2e completo: comprueba que las funciones edge de PILOTO_FUNCIONES (piloto.config) estén servidas, resetea la base local
+// El e2e completo: comprueba que las funciones edge de e2e/funciones.txt estén servidas, resetea la base local
 // (`supabase db reset`: migraciones y seed), corre las carreras (`pnpm db:carreras`, si el proyecto las tiene) y corre TODO con `E2E_COMPLETO=1`, que convierte en error
 // los tests que se saltarían porque la base tiene gente. Borra los datos de desarrollo de la base
 // local: para correr un spec suelto sobre una base con datos, `pnpm test:e2e <spec>`.
 // Uso: pnpm test:e2e:completo [argumentos de playwright, p. ej. --project=movil]
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { readFileSync } from 'node:fs'
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) process.loadEnvFile('.env.local')
@@ -29,9 +30,19 @@ async function servida(nombre) {
   return false
 }
 
+// e2e/funciones.txt: una por línea o separadas por espacio; las líneas con # son comentarios.
+function funcionesExigidas() {
+  return readFileSync('e2e/funciones.txt', 'utf8')
+    .split('\n')
+    .filter((l) => !l.trimStart().startsWith('#'))
+    .join(' ')
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
 async function exigirFunciones(cuando) {
   const caidas = []
-  for (const nombre of (process.env.PILOTO_FUNCIONES ?? '').split(/\s+/).filter(Boolean)) {
+  for (const nombre of funcionesExigidas()) {
     if (!(await servida(nombre))) caidas.push(nombre)
   }
   if (caidas.length > 0) {
