@@ -30,8 +30,8 @@ del PR cuenta qué cambió, por qué y cómo se verificó: es la bitácora. No h
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Al editar (hook)             | ESLint del archivo; en `.sql`, `auth.uid()` envuelto y `security definer` con `search_path`                                                                                                  |
 | Al parar (hook `Stop`)       | Árbol sucio: typecheck, ESLint y `vitest related` de lo cambiado, `scripts/guardas`, mapa. Árbol limpio: typecheck y mapa                                                                    |
-| Al commitear (lefthook)      | ESLint y Prettier de lo que va en el commit, typecheck, `mapa.sh --check`, commitlint y, con SQL en el commit, `db:probar`                                                                   |
-| Antes de publicar (la skill) | `pnpm lint`, `pnpm typecheck`, `pnpm test`; con `supabase/` tocado: `pnpm db:reset`, `pnpm db:types`, `pnpm db:probar`; los e2e dirigidos a lo tocado (`pnpm test:e2e <spec>`)               |
+| Al commitear (lefthook)      | ESLint y Prettier de lo que va en el commit, typecheck, `mapa.sh --check`, commitlint; al empujar SQL, `db:probar:rapido`                                                                    |
+| Antes de publicar (la skill) | `pnpm lint`, `pnpm typecheck`, `pnpm test`; con `supabase/` tocado: `pnpm db:reset`, `pnpm db:types`, `pnpm db:probar:rapido`; los e2e dirigidos a lo tocado (`pnpm test:e2e <spec>`)        |
 | CI del PR (la autoridad)     | Nivel 1 (lint, tipos, mapa, título, orden de migraciones, `pnpm test` en 3 partes); «Base» si cambia código (reset, tipos sin diff, `db:probar` completo, privilegios, `db:lint`, advisors); |
 |                              | los e2e dirigidos a lo tocado, o el completo de escritorio en 4 bloques si toca un disparador del Nivel 2 (`.claude/rules/e2e.md`). `Listo · todo en verde` los resume                       |
 |                              | En el kit, además, «kit · proyecto de ejemplo»: genera un proyecto desde una semilla y le corre `install`, `lint`, `typecheck`, `test` y `db:probar`                                         |
@@ -85,6 +85,6 @@ Ningún doc lleva historia («se encontró X y se arregló»): eso es el PR. Lo 
 
 ## La base
 
-- Una migración nueva por cambio; después `pnpm db:reset`, `pnpm db:types` y `pnpm db:probar` (`.claude/rules/migraciones.md`).
+- Una migración nueva por cambio; después `pnpm db:reset`, `pnpm db:types` y `pnpm db:probar:rapido` (`.claude/rules/migraciones.md`).
 - Producción (variables, secretos, Vercel) y la base remota son de la persona: una sesión no enlaza ni empuja un proyecto remoto
   (`.claude/hooks/bloquear-peligrosos.sh`).

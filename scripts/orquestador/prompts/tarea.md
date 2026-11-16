@@ -26,7 +26,7 @@ otras ramas ni otros worktrees. Hoy es {{FECHA}}.
 ## Verificar (Nivel 1) y publicar
 
 - `pnpm lint`, `pnpm typecheck`, `pnpm test`. Con `supabase/` tocado: migración nueva (`pnpm exec supabase migration new`), `pnpm db:reset`,
-  `pnpm db:types`, `pnpm db:probar`, `pnpm db:lint`; con dinero, RLS o permisos de por medio, también `pnpm db:carreras` (si el
+  `pnpm db:types`, `pnpm db:probar:rapido`, `pnpm db:lint`; con dinero, RLS o permisos de por medio, también `pnpm db:carreras` (si el
   proyecto lo tiene).
 - Los e2e de lo tocado, nombrados: los nuevos de esta tarea y los existentes del módulo (`pnpm test:e2e <specs> --project escritorio`;
   y `--project movil` si tocaste interfaz). No corras `test:e2e:completo`: si la tarea dispara el Nivel 2, lo corre el CI.

@@ -23,7 +23,7 @@ policy que no sale de ahí es una pregunta, no una decisión del paso.
   (la última migración que la toca, no la primera: `definicionSql()`). Renombrar es `alter … rename`.
 - Un dato de catálogo (permiso, estado, bucket, job) va en su migración con `insert … on conflict`:
   la nube no vuelve a correr el seed. `seed.sql` es lo configurable por empresa y los ejemplos.
-- Después de cualquier cambio: `pnpm db:reset`, `pnpm db:types` y `pnpm db:probar`; si tocaste
+- Después de cualquier cambio: `pnpm db:reset`, `pnpm db:types` y `pnpm db:probar:rapido` (el completo, `pnpm db:probar`, lo corre el CI); si tocaste
   policies, un caso en `supabase/tests/` con un usuario simulado por cada rol de la matriz.
 
 ## Privilegios

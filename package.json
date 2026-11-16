@@ -22,6 +22,7 @@
     "db:types": "bash scripts/candado.sh db:types -- sh -c 'supabase gen types typescript --local --schema public > src/shared/types/database.types.ts' && prettier --ignore-path .gitignore --write src/shared/types/database.types.ts",
     "db:diff": "bash scripts/candado.sh db:diff -- supabase db diff -f",
     "db:probar": "node scripts/probar-schema.mjs supabase",
+    "db:probar:rapido": "PROBAR_RAPIDO=1 node scripts/probar-schema.mjs supabase",
     "db:lint": "bash scripts/candado.sh db:lint -- supabase db lint --fail-on error",
     "mapa": "bash scripts/mapa.sh",
     "env:check": "tsx scripts/env-check.ts",
