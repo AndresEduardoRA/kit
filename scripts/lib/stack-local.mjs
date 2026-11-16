@@ -6,8 +6,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseEnv } from 'node:util'
 import { desfases, leerPlan } from '../coordinador/plan.mjs'
+import { puertosDelRepo, repoDeEsteWorktree } from '../proyecto/manifiesto.mjs'
 
-// Varios proyectos corren a la vez en la misma máquina: cada uno tiene su BLOQUE (1 a 9, en piloto.config) y sus puertos no se cruzan
+// Varios proyectos corren a la vez en la misma máquina: cada uno tiene su BLOQUE (1 a 9, `puertos.bloque` de su manifiesto
+// `.proyecto/proyecto.yaml`; `PILOTO_BLOQUE` de piloto.config si no hay manifiesto) y sus puertos no se cruzan
 // con los de otro. Supabase: 5<bloque>320–5<bloque>329 en la principal; la app, <bloque+3>000 y el e2e, <bloque+3>210. Cada carril
 // suma su desfase (100, 200, … en el orden de plan.yaml; hasta 9 carriles). El bloque 4 choca con los puertos por defecto de Supabase
 // (54321) y con importadora (546xx): no se usa.
@@ -32,6 +34,44 @@ export function baseDelBloque(bloque) {
     PUERTO_APP: app,
     E2E_PORT: app + 210,
   }
+}
+
+/**
+ * Los puertos de un repo que ya tenía los suyos y no los mueve (`puertos.heredado` del manifiesto: calesa-app, en 546xx), con las
+ * mismas claves que `baseDelBloque`. El resto sale de los tres que el manifiesto da, con el desfase de Supabase de siempre
+ * (`supabase/config.toml` de calesa-app: shadow 54620, API 54621, base 54622, studio 54623, mailpit 54624, analytics 54627); el
+ * inspector de edge se queda en 8083 y el e2e va 210 sobre la app (3210).
+ * @param {{ api: number, base: number, app: number }} heredado
+ */
+export function baseHeredada({ api, base, app }) {
+  return {
+    SUPABASE_DB_SHADOW_PORT: api - 1,
+    SUPABASE_API_PORT: api,
+    SUPABASE_DB_PORT: base,
+    SUPABASE_STUDIO_PORT: api + 2,
+    SUPABASE_LOCAL_SMTP_PORT: api + 3,
+    SUPABASE_ANALYTICS_PORT: api + 6,
+    SUPABASE_EDGE_RUNTIME_INSPECTOR_PORT: 8083,
+    PUERTO_APP: app,
+    E2E_PORT: app + 210,
+  }
+}
+
+/**
+ * Los puertos de la principal de este repo: los de su manifiesto (el bloque o los heredados) y, sin manifiesto, los del bloque de
+ * respaldo (`PILOTO_BLOQUE` de piloto.config, hasta K04). Un manifiesto inválido falla diciendo qué campo.
+ * @param {string} [raiz]  @param {number | string | undefined} [respaldo]
+ */
+export function baseDelRepo(raiz = process.cwd(), respaldo = process.env.PILOTO_BLOQUE) {
+  const propio = repoDeEsteWorktree(raiz)
+  if (!propio) return baseDelBloque(respaldo)
+  const p = puertosDelRepo(propio.repo)
+  return 'bloque' in p ? baseDelBloque(p.bloque) : baseHeredada(p.heredado)
+}
+
+/** El nombre del proyecto: el del manifiesto o, sin manifiesto, el que se da (`PROYECTO` de piloto.config). @param {string} [raiz] */
+export function proyectoDelRepo(raiz = process.cwd(), respaldo = process.env.PROYECTO) {
+  return repoDeEsteWorktree(raiz)?.manifiesto.proyecto ?? respaldo
 }
 
 // Los carriles del orquestador (scripts/orquestador): un worktree por tarea, en una rama `<tipo>/<tema>`, que toma la primera letra
@@ -65,10 +105,11 @@ export function desfasesDelRepo(raiz = process.cwd()) {
 /**
  * El `.env.carril` de un carril: el project_id, los puertos y lo que leen los e2e y el piloto. Puro: sin I/O.
  * @param {string} proyecto  @param {string} carril  @param {Record<string, number>} tabla  los desfases (`desfasesDelRepo`)
- * @param {number} bloque  PILOTO_BLOQUE del proyecto
+ * @param {number | string | Record<string, number>} bloque  el bloque del proyecto, o ya sus puertos (`baseDelRepo`: un repo con
+ *   puertos heredados no tiene bloque)
  */
 export function variablesDelCarril(proyecto, carril, tabla, bloque) {
-  const base = baseDelBloque(bloque)
+  const base = typeof bloque === 'object' ? bloque : baseDelBloque(bloque)
   const desfase = tabla[carril]
   if (desfase === undefined)
     throw new Error(`carril desconocido: «${carril}» (son: ${Object.keys(tabla).join(', ')})`)
