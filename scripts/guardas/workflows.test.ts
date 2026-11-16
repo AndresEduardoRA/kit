@@ -110,10 +110,10 @@ describe('ci.yml por niveles y carriles', () => {
 
   it('los jobs de proyecto se saltan en la plantilla (.kit/plantilla) y listo los espera a todos', () => {
     for (const nombre of ['base', 'carriles', 'e2e-build', 'e2e']) {
-      expect(job(nombre), nombre).toContain("hashFiles('.kit/plantilla') == ''")
+      expect(job(nombre), nombre).toContain("needs.cambios.outputs.plantilla != 'true'")
     }
-    for (const nombre of ['nivel-1', 'cambios']) {
-      expect(job(nombre), nombre).not.toContain('.kit/plantilla')
+    for (const nombre of ['nivel-1']) {
+      expect(job(nombre), nombre).not.toContain('outputs.plantilla')
     }
     const listo = job('listo')
     expect(listo).toContain('if: always()')
