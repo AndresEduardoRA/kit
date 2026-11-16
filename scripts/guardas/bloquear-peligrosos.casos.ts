@@ -139,10 +139,6 @@ export const BLOQUEA = [
   'git -C ENOTRA push origin otra tercera',
   'cd ENOTRA && git push',
   'cd ENOTRA && git push origin otra',
-  // el merge a main es de la persona
-  'gh pr merge 1 --squash',
-  'gh pr merge --auto --merge',
-  'gh api -X PUT repos/o/r/pulls/1/merge',
 ]
 
 export const PASA = [
@@ -215,7 +211,7 @@ export const PASA = [
   'supabase start',
   'supabase status',
   'npx supabase functions serve',
-  // lectura del proyecto remoto (etapa 0 de docs/PREPARACION.md)
+  // del proyecto remoto, la sesión sólo lee (en calesa-app también lo cambia; aquí no)
   'supabase db dump --linked -f respaldos/a/esquema.sql',
   'npx supabase db dump --linked --data-only --use-copy -f respaldos/a/datos.sql',
   'pnpm exec supabase migration list --linked',
@@ -230,14 +226,29 @@ export const PASA = [
   'gh api -X GET repos/o/r/actions/runs',
   'grep -rn vercel docs/',
   'grep -n "git push" docs/PILOTO.md',
+  'grep -n "git push" docs/FLUJO.md',
+  // el flujo de un PR (docs/FLUJO.md): una etiqueta nueva, abrir el PR, encenderle el auto-merge y volver a correr lo que cayó
+  'git push origin refs/tags/v1.2.0',
+  'git -C ENMAIN push origin refs/tags/v1',
+  'gh pr create --fill',
+  'gh pr merge --auto --squash',
+  'gh run rerun 1',
+  'bash scripts/flujo/publicar.sh --sin-esperar',
+  'bash scripts/flujo/estado.sh',
   'ls -la',
   'node scripts/mapa.mjs',
   'cat package.json | jq .scripts',
   'echo "listo" > .piloto/registro.md',
+  'echo "listo" > test-salidas/nota.md',
   '',
 ]
 
 export const BLOQUEA_PILOTO = [
+  // un paso no se publica solo con el flujo de un PR: publica el bucle
+  'bash scripts/flujo/publicar.sh --sin-esperar',
+  'bash scripts/flujo/publicar.sh',
+  'node scripts/flujo/limpiar-ramas.mjs',
+  'git push origin refs/tags/v1',
   'git -C ENOTRA push origin otra',
   'git -C ENOTRA push',
   'git push origin main',
@@ -265,6 +276,7 @@ export const BLOQUEA_PILOTO = [
 ]
 
 export const PASA_PILOTO = [
+  'bash scripts/flujo/estado.sh',
   'git status',
   'git commit -m "feat(config): algo"',
   'git log --oneline -3',

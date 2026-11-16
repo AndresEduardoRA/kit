@@ -13,15 +13,15 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
-// El hook Stop (`verificar-al-terminar.sh`) verificaba todo en cada fin de turno (≈ 160 s: mapa, typecheck, lint, test). Ahora decide
-// por el estado del árbol (medido en `docs/PILOTO.md`): sale sin verificar si la sesión no edita (`PILOTO_SESION` = ruteo|decidir|
-// control|en-seco), si queda trabajo en segundo plano o si la huella del árbol es la de la última verificación verde; con el árbol sucio
-// (un turno a mitad de paso) corre lo barato (≈ 20 s); con el árbol limpio (un paso cerrado), la suite completa una vez y deja la
-// huella. Lee `cwd` de la entrada (no `${CLAUDE_PROJECT_DIR}`: no sigue a un worktree) y conserva el tope de 3 intentos. Se prueba con
-// `pnpm`, `npx` y `mapa.sh` falsos que registran lo que se les pide, en un repo temporal.
+// El hook Stop (`verificar-al-terminar.sh`) decide por el estado del árbol: sale sin verificar si la sesión es del piloto y no edita
+// (`PILOTO_SESION` = ruteo|decidir|control|en-seco, hasta K04), si queda trabajo en segundo plano, si la
+// sesión no escribió en el árbol o si la huella del árbol es la de la última verificación verde; con el árbol sucio corre lo barato
+// (≈ 20 s); con el árbol limpio, typecheck y mapa, y deja la huella. La suite entera y el lint de todo el repo son del commit y del CI
+// (docs/FLUJO.md). Lee `cwd` de la entrada (no `${CLAUDE_PROJECT_DIR}`: no sigue a un worktree) y conserva el tope de 3 intentos. Se
+// prueba con `pnpm`, `npx` y `mapa.sh` falsos que registran lo que se les pide, en un repo temporal.
 const HOOK = resolve('.claude/hooks/verificar-al-terminar.sh')
 const LINT = resolve('.claude/hooks/lint-archivo.sh')
-const HUELLA = resolve('scripts/piloto/huella.sh')
+const HUELLA = resolve('scripts/huella.sh')
 
 let raiz = ''
 let repo = ''
@@ -49,8 +49,7 @@ beforeEach(() => {
   escribir('src/a.ts', 'export const a = 1\n')
   escribir('docs/ESTADO.md', 'estado\n')
   escribir('scripts/mapa.sh', `echo "mapa $*" >> "${join(raiz, 'llamadas.txt')}"\n`)
-  mkdirSync(join(repo, 'scripts/piloto'))
-  copyFileSync(HUELLA, join(repo, 'scripts/piloto/huella.sh'))
+  copyFileSync(HUELLA, join(repo, 'scripts/huella.sh'))
   git('add', '.')
   git('commit', '-q', '-m', 'inicio')
   // `pnpm` y `npx` falsos: registran, y fallan si lo que se les pidió empieza como $FAKE_FALLA.
@@ -100,7 +99,7 @@ const ensuciar = () => {
 
 describe('verificar-al-terminar.sh › salir sin verificar', () => {
   it.each(['ruteo', 'decidir', 'control', 'en-seco'])(
-    'una sesión %s no edita: sale sin correr nada',
+    'una sesión %s del piloto no edita: sale sin correr nada',
     (sesion) => {
       ensuciar()
       expect(stop({}, { PILOTO_SESION: sesion }).estado).toBe(0)
@@ -108,13 +107,13 @@ describe('verificar-al-terminar.sh › salir sin verificar', () => {
     },
   )
 
-  it('una sesión de paso sí verifica', () => {
+  it('una sesión de paso del piloto sí verifica', () => {
     ensuciar()
     stop({}, { PILOTO_SESION: 'paso' })
     expect(llamadas().length).toBeGreaterThan(0)
   })
 
-  it('con trabajo en segundo plano (el `-p` sigue esperando) no verifica', () => {
+  it('con trabajo en segundo plano no verifica', () => {
     ensuciar()
     expect(stop({ background_tasks: [{ id: 'b1', command: 'sleep 100' }] }).estado).toBe(0)
     expect(llamadas()).toEqual([])
@@ -140,7 +139,7 @@ describe('verificar-al-terminar.sh › salir sin verificar', () => {
   })
 })
 
-describe('verificar-al-terminar.sh › con el árbol sucio (a mitad de un paso)', () => {
+describe('verificar-al-terminar.sh › con el árbol sucio (a mitad de una tarea)', () => {
   beforeEach(ensuciar)
 
   it('corre lo barato: mapa, typecheck, eslint --cache de los cambiados, vitest related, las guardas y el mapa', () => {
@@ -188,17 +187,17 @@ describe('verificar-al-terminar.sh › con el árbol sucio (a mitad de un paso)'
   )
 })
 
-describe('verificar-al-terminar.sh › con el árbol limpio (un paso cerrado)', () => {
-  it('corre la suite completa una vez y deja la huella verde', () => {
+describe('verificar-al-terminar.sh › con el árbol limpio (todo commiteado)', () => {
+  it('sólo typecheck y mapa (la suite y el lint son del commit y del CI), y deja la huella verde', () => {
     const r = stop()
     expect(r.estado, r.stderr).toBe(0)
-    expect(llamadas()).toEqual(['mapa', 'pnpm typecheck', 'pnpm lint', 'pnpm test', 'mapa --check'])
+    expect(llamadas()).toEqual(['mapa', 'pnpm typecheck', 'mapa --check'])
     expect(readFileSync(huellaGuardada(), 'utf8').trim()).toBe(
       execFileSync('bash', [HUELLA], { cwd: repo, encoding: 'utf8' }).trim(),
     )
   })
 
-  it('el siguiente Stop con el árbol igual no repite la suite', () => {
+  it('el siguiente Stop con el árbol igual no repite nada', () => {
     stop()
     const antes = llamadas().length
     expect(stop().estado).toBe(0)
@@ -206,10 +205,60 @@ describe('verificar-al-terminar.sh › con el árbol limpio (un paso cerrado)', 
   })
 
   it('un rojo no deja la huella: el siguiente Stop vuelve a verificar', () => {
-    expect(stop({}, { FAKE_FALLA: 'pnpm lint' }).estado).toBe(2)
+    expect(stop({}, { FAKE_FALLA: 'pnpm typecheck' }).estado).toBe(2)
     expect(existsSync(huellaGuardada())).toBe(false)
     stop()
-    expect(llamadas().filter((l) => l === 'pnpm lint')).toHaveLength(2)
+    expect(llamadas().filter((l) => l === 'pnpm typecheck')).toHaveLength(2)
+  })
+})
+
+// Si la sesión no escribió en este árbol, lo que haya sucio es de otra sesión: no se verifica.
+describe('verificar-al-terminar.sh › una sesión que no escribió en el árbol', () => {
+  type Uso = { name: string; input: Record<string, unknown> }
+  const transcript = (usos: Uso[]) => {
+    const ruta = join(raiz, 'sesion.jsonl')
+    writeFileSync(
+      ruta,
+      usos
+        .map((u) =>
+          JSON.stringify({
+            type: 'assistant',
+            message: { content: [{ type: 'tool_use', id: 'x', ...u }] },
+          }),
+        )
+        .join('\n') + '\n',
+    )
+    return ruta
+  }
+  const bash = (command: string): Uso => ({ name: 'Bash', input: { command } })
+
+  const dentro = { name: 'Edit', input: { file_path: '/RAIZ/src/a.ts' } }
+  const casos: [string, Uso[], boolean][] = [
+    [
+      'sólo leyó',
+      [{ name: 'Read', input: { file_path: '/RAIZ/src/a.ts' } }, bash('git status')],
+      false,
+    ],
+    ['editó un archivo del árbol', [dentro], true],
+    [
+      'editó un archivo de otro árbol',
+      [{ name: 'Write', input: { file_path: '/tmp/otro/a.ts' } }],
+      false,
+    ],
+    ['un cp aquí', [bash('cp a.ts src/b.ts')], true],
+    ['una redirección aquí', [bash('echo x > src/a.ts')], true],
+    ['un git commit aquí', [bash('git commit -q -m x')], true],
+    [
+      'un Bash que escribe tras cd a otro árbol',
+      [bash('cd /tmp/otro && cp a.ts b.ts && git add -A')],
+      false,
+    ],
+  ]
+  it.each(casos)('%s', (_nombre, usos, verifica) => {
+    ensuciar()
+    const crudo = JSON.stringify(usos).replaceAll('/RAIZ', repo)
+    stop({ transcript_path: transcript(JSON.parse(crudo) as Uso[]) })
+    expect(llamadas().includes('pnpm typecheck')).toBe(verifica)
   })
 })
 
