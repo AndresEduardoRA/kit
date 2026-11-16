@@ -5,15 +5,15 @@ allá avanza de a un paso se rediseña para que **varios carriles trabajen a la 
 
 ## Qué cambia respecto de importadora
 
-|                      | Importadora                                                | El kit                                                                                                                                |
-| -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Carriles             | Dos escritos a mano (A con piloto, B a mano con Sonnet)    | Los de `plan.yaml`, todos con piloto, hasta `CARRILES_MAX`                                                                            |
-| Qué hace cada carril | El ruteo (Sonnet) lee `PLAN.md` y elige                    | El coordinador entrega el paso cuyas dependencias ya están en `main`; el ruteo ya viene escrito en `plan.yaml` (sin llamada a Sonnet) |
-| PR                   | Uno largo por carril; lo integras tú                       | Uno por paso (rama `<carril>/<paso>`): lo que depende de él se desbloquea apenas entra                                                |
-| Integrar             | Siempre tú                                                 | El coordinador integra los verdes y ámbar con el CI en verde; **los rojos tú** (salvo `rojo` en `COORD_MERGE_AUTO`)                   |
-| Docs compartidos     | Sólo el carril A edita ESTADO, PLAN, DECISIONES y BITACORA | Nadie los edita: cada paso escribe `docs/pasos/<PASO>/`; el tablero lo genera el coordinador                                          |
-| Puertos              | 546xx; carriles +100 y +200                                | Un **bloque** por proyecto (`PILOTO_BLOQUE`) y +100 por carril: varios proyectos a la vez sin chocar                                  |
-| Cuota                | Tope de USD por paso                                       | Además, la ventana de 5 h compartida entre **todos** los proyectos, con un tope por proyecto                                          |
+|                      | Importadora                                                | El kit                                                                                                                                             |
+| -------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Carriles             | Dos escritos a mano (A con piloto, B a mano con Sonnet)    | Los de `plan.yaml`, todos con piloto, hasta `CARRILES_MAX`                                                                                         |
+| Qué hace cada carril | El ruteo (Sonnet) lee `PLAN.md` y elige                    | El coordinador entrega el paso cuyas dependencias ya están en `main`; el ruteo ya viene escrito en `plan.yaml` (sin llamada a Sonnet)              |
+| PR                   | Uno largo por carril; lo integras tú                       | Uno por paso (rama `<carril>/<paso>`): lo que depende de él se desbloquea apenas entra                                                             |
+| Integrar             | Siempre tú                                                 | El coordinador integra los verdes y ámbar con el CI en verde; **los rojos tú** (salvo `rojo` en `COORD_MERGE_AUTO`)                                |
+| Docs compartidos     | Sólo el carril A edita ESTADO, PLAN, DECISIONES y BITACORA | Nadie los edita: cada paso escribe `docs/pasos/<PASO>/`; el tablero lo genera el coordinador                                                       |
+| Puertos              | 546xx; carriles +100 y +200                                | Un **bloque** por proyecto (`puertos.bloque` del manifiesto; `PILOTO_BLOQUE`, de respaldo) y +100 por carril: varios proyectos a la vez sin chocar |
+| Cuota                | Tope de USD por paso                                       | Además, la ventana de 5 h compartida entre **todos** los proyectos, con un tope por proyecto                                                       |
 
 ## Lo que vino de calesa-app (K02)
 
@@ -53,13 +53,34 @@ paso a la semilla v2 es de K09.
 | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `scripts/coordinador/plan.mjs`                                                        | Lee y valida `plan.yaml`; decide el siguiente paso de un carril (camino crítico primero, cuota); transiciones; tablero                                      | 15 pruebas                                                                                                 |
 | `scripts/coordinador/coordinador.mjs`                                                 | La CLI: `validar`, `siguiente`, `publicado`, `liberar`, `integrado`, `sincronizar`, `cuota`, `tablero`. Estado en `<común de git>/coordinador/` con candado | 6 pruebas con un repo real y un `gh` falso, incluidos pedidos simultáneos                                  |
-| `scripts/lib/stack-local.mjs`                                                         | Puertos por bloque y por carril                                                                                                                             | 3 pruebas: dos proyectos con 9 carriles cada uno sin un puerto repetido, y ninguno toca los de importadora |
+| `scripts/lib/stack-local.mjs`                                                         | Puertos por bloque (o heredados) y por carril, leídos del manifiesto                                                                                        | 3 pruebas: dos proyectos con 9 carriles cada uno sin un puerto repetido, y ninguno toca los de importadora |
 | `scripts/guardas/carriles.mjs`                                                        | En CI: un PR sólo toca lo de su paso; orden de migraciones                                                                                                  | 6 pruebas                                                                                                  |
 | `scripts/worktree/preparar.sh`, `quitar.sh`, `con-carril.sh`, `scripts/lib/carril.sh` | El stack de un carril                                                                                                                                       | `bash -n` y shellcheck; **sin correr** (necesitan Docker y Supabase)                                       |
-| `scripts/coordinador/abrir-carriles.sh`                                               | Un worktree por carril, preparado, y el proyecto anotado para la cuota                                                                                      | Igual: **sin correr**                                                                                      |
+| `scripts/coordinador/abrir-carriles.sh`                                               | Un worktree por carril, preparado                                                                                                                           | Igual: **sin correr**                                                                                      |
 | `piloto.config`                                                                       | La configuración del proyecto                                                                                                                               | —                                                                                                          |
 
 `pnpm test:kit` corre estas pruebas junto con las del piloto (abajo).
+
+## El manifiesto del proyecto (K03)
+
+Cada repo sabe quién es leyendo **sólo** su copia `.proyecto/proyecto.yaml` (esquema `proyecto/v1`: la copia es el manifiesto entero).
+El esquema vive fuera del repo, en `_herramientas/semillas/proyecto.plantilla.yaml`, y
+`python3 _herramientas/semillas/validar_semilla.py --manifiesto <archivo>` lo comprueba; `scripts/proyecto/manifiesto.mjs` revisa lo
+que el kit usa y, si algo falla, dice qué campo y ese comando. El kit lleva uno de ejemplo (`proyecto: cambiar-slug`), que el
+generador reemplaza.
+
+| Quién lo lee                                                                    | Qué toma del manifiesto                                                                                                     |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/lib/stack-local.mjs` (`baseDelRepo`) y `scripts/worktree/preparar.sh`  | `puertos.bloque` o `puertos.heredado` (calesa-app, 546xx: no se mueven); sin manifiesto, `PILOTO_BLOQUE` de `piloto.config` |
+| `scripts/flujo/publicar.sh`, `estado.sh` y `scripts/orquestador/orquestador.sh` | La cuenta de `github` para el token de `gh`; sin manifiesto, la del remoto                                                  |
+| `scripts/orquestador/orquestador.sh`                                            | `PROYECTO` (el `nombre` del repo, `<proyecto>-<rol>`) si `config.env` o `config.local.env` no lo fijan                      |
+| `scripts/kit/nuevo-proyecto.mjs`                                                | El bloque libre: el primero de `[5,6,7,8,9,1,2,3]` que no use ningún `<raíz>/z_*/proyecto.yaml` (raíz = `<kit>/../..`)      |
+
+- El repo propio es el que se llama como el remoto `origin` (o como su carpeta); un manifiesto de un solo repo no necesita el nombre.
+- Dos manifiestos con el mismo bloque, o un `--bloque` que otro ya usa, hacen fallar al generador nombrando los archivos.
+- `~/.config/kit/proyectos.txt` ya no se escribe ni lo lee el generador. Lo que nadie escribe todavía: el `z_<slug>/proyecto.yaml` suelto
+  de un proyecto nuevo (K09: el generador de varios repos lo escribe); hasta entonces se crea a mano o el bloque siguiente no lo ve.
+- La cuota entre proyectos (`COORD_PROYECTOS` / `proyectos.txt`) la lee todavía el coordinador del piloto, que se va en K04.
 
 ## Cómo fluye un paso
 
@@ -147,18 +168,19 @@ Verificado en el contenedor el 2026-10-30:
 
 ### Lo que `semilla-a-repo` tiene que reemplazar
 
-| Dónde                                 | Qué                                                                                                                                          |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `piloto.config`                       | `PROYECTO`, `PILOTO_BLOQUE`, `CARRILES_MAX`, `COORD_TOPE_PCT`, `PILOTO_AUTO_MIN` y `PILOTO_FUNCIONES`, desde el frontmatter de la semilla    |
-| `supabase/config.toml`                | `project_id` y los puertos, con `baseDelBloque(PILOTO_BLOQUE)` de `scripts/lib/stack-local.mjs`                                              |
-| `.github/workflows/ci.yml`            | `{{API_PORT}}`, `{{DB_PORT}}` y `{{FUNCIONES}}`                                                                                              |
-| `.github/acciones/pila/action.yml`    | `{{PUERTOS_PILA}}`: los puertos de la principal del bloque (del shadow al inspector; bloque 5: `55320-55329`)                                |
-| Los archivos del flujo (`CON_NOMBRE`) | `{{NOMBRE}}` y `cambiar-slug` en el revisor, las tres skills, `scripts/orquestador/config.env` (`PROYECTO`), su README y sus prompts         |
-| `AGENTS.md`                           | `{{NOMBRE}}`, `{{DESCRIPCION}}` y `{{SCOPES}}`                                                                                               |
-| `commitlint.config.mjs`               | `// {{SCOPES_MODULOS}}`, por los módulos de la semilla **y los ids de los carriles**, porque los commits de un paso van con `tipo(<carril>)` |
-| `design/tokens.css`                   | El bloque entre `semilla:inicio` y `semilla:fin`, por el CSS del sistema de diseño de la semilla                                             |
-| `docs/semilla/`                       | `semilla.md` y `plan.yaml`. También genera `docs/UX.md`, `GLOSARIO.md` y `RENDIMIENTO.md` desde sus secciones                                |
-| `src/shared/types/database.types.ts`  | Hoy está escrito a mano. El primer arranque con Docker corre `pnpm db:types` y lo commitea; si no, el job `base` del CI cae                  |
+| Dónde                                 | Qué                                                                                                                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `piloto.config`                       | `PROYECTO`, `PILOTO_BLOQUE` (respaldo hasta K04), `CARRILES_MAX`, `COORD_TOPE_PCT`, `PILOTO_AUTO_MIN` y `PILOTO_FUNCIONES`, desde el frontmatter de la semilla      |
+| `supabase/config.toml`                | `project_id` y los puertos, con `baseDelBloque(PILOTO_BLOQUE)` de `scripts/lib/stack-local.mjs`                                                                     |
+| `.github/workflows/ci.yml`            | `{{API_PORT}}`, `{{DB_PORT}}` y `{{FUNCIONES}}`                                                                                                                     |
+| `.github/acciones/pila/action.yml`    | `{{PUERTOS_PILA}}`: los puertos de la principal del bloque (del shadow al inspector; bloque 5: `55320-55329`)                                                       |
+| Los archivos del flujo (`CON_NOMBRE`) | `{{NOMBRE}}` y `cambiar-slug` en el revisor, las tres skills, el README del orquestador y sus prompts (`PROYECTO` de su `config.env` va vacío: sale del manifiesto) |
+| `.proyecto/proyecto.yaml`             | La copia del manifiesto: `proyecto`, `nombre`, el repo `<slug>-app`, su cuenta de GitHub (`--cuenta`; si no, la del ejemplo del kit) y el bloque                    |
+| `AGENTS.md`                           | `{{NOMBRE}}`, `{{DESCRIPCION}}` y `{{SCOPES}}`                                                                                                                      |
+| `commitlint.config.mjs`               | `// {{SCOPES_MODULOS}}`, por los módulos de la semilla **y los ids de los carriles**, porque los commits de un paso van con `tipo(<carril>)`                        |
+| `design/tokens.css`                   | El bloque entre `semilla:inicio` y `semilla:fin`, por el CSS del sistema de diseño de la semilla                                                                    |
+| `docs/semilla/`                       | `semilla.md` y `plan.yaml`. También genera `docs/UX.md`, `GLOSARIO.md` y `RENDIMIENTO.md` desde sus secciones                                                       |
+| `src/shared/types/database.types.ts`  | Hoy está escrito a mano. El primer arranque con Docker corre `pnpm db:types` y lo commitea; si no, el job `base` del CI cae                                         |
 
 ## Entregable 2: `semilla-a-repo` (hecho)
 
