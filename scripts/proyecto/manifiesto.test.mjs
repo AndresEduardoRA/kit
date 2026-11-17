@@ -11,6 +11,7 @@ import {
   bloquesUsados,
   contratosDelRepo,
   cuentaDelRepo,
+  githubDeRepo,
   leerManifiesto,
   leerManifiestoDe,
   manifiestosDeLaRaiz,
@@ -235,6 +236,14 @@ test('la CLI da el nombre, la cuenta y el bloque del repo propio (por el remoto)
   ])
   assert.equal(cli('nombre'), 'calesa-app')
   assert.equal(cli('bloque'), '')
+  // El github de un hermano por su nombre (las dependencias <repo>:<rama> del orquestador); uno que no está, nada.
+  const github = (nombre) =>
+    execFileSync('node', [join(AQUI, 'manifiesto.mjs'), 'github', nombre, raiz], {
+      encoding: 'utf8',
+    }).trim()
+  assert.equal(github('calesa-web'), githubDeRepo(leerManifiesto(CALESA), 'calesa-web'))
+  assert.match(github('calesa-web'), /^AndresEduardoRA\/calesa-web$/)
+  assert.equal(github('calesa-crm'), '')
   // Inválido: sale con 1 y dice el campo.
   writeFileSync(
     join(raiz, '.proyecto/proyecto.yaml'),

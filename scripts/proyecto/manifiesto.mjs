@@ -130,6 +130,12 @@ export function puertosDelRepo(repo) {
   return { heredado: p.heredado }
 }
 
+/**
+ * El `cuenta/repo` de GitHub de un repo del manifiesto por su nombre (`<proyecto>-<rol>`), o `null` si no está. Puro.
+ * @param {Manifiesto} m  @param {string} nombre
+ */
+export const githubDeRepo = (m, nombre) => m.repos.find((r) => r.nombre === nombre)?.github ?? null
+
 /** La cuenta de GitHub dueña del repo: la parte de `cuenta/repo`. Puro. @param {Repo} repo */
 export const cuentaDelRepo = (repo) => repo.github.split('/')[0] ?? ''
 
@@ -266,21 +272,31 @@ export function repoDeEsteWorktree(raiz = process.cwd()) {
 // ---------- la CLI, para los guiones de bash ----------
 //
 //   node scripts/proyecto/manifiesto.mjs proyecto|nombre|cuenta|bloque [<raíz del repo>]
+//   node scripts/proyecto/manifiesto.mjs github <nombre de un repo del proyecto> [<raíz del repo>]
 //
 // Imprime el campo (`proyecto`: el slug; `nombre`: el del repo propio, <proyecto>-<rol>; `cuenta`; `bloque`), o nada (y sale con 0) si el repo no tiene manifiesto: el guion cae a lo de antes. Un manifiesto
 // inválido sale con 1 y el motivo.
+// `github` imprime el `cuenta/repo` de ese repo del manifiesto, o nada si no está (las dependencias `<repo>:<rama>` del orquestador).
 function principal(argv) {
-  const [campo, dir] = argv
-  if (!['proyecto', 'nombre', 'cuenta', 'bloque'].includes(campo ?? '')) {
+  const [campo, ...resto] = argv
+  const nombre = campo === 'github' ? resto.shift() : undefined
+  const dir = resto[0]
+  if (
+    !['proyecto', 'nombre', 'cuenta', 'bloque', 'github'].includes(campo ?? '') ||
+    (campo === 'github' && !nombre)
+  ) {
     console.error(
-      'uso: node scripts/proyecto/manifiesto.mjs proyecto|nombre|cuenta|bloque [<raíz del repo>]',
+      'uso: node scripts/proyecto/manifiesto.mjs proyecto|nombre|cuenta|bloque [<raíz del repo>] | github <nombre> [<raíz del repo>]',
     )
     process.exit(64)
   }
   try {
     const propio = repoDeEsteWorktree(resolve(dir ?? process.cwd()))
     if (!propio) return
-    if (campo === 'proyecto') console.log(propio.manifiesto.proyecto)
+    if (campo === 'github') {
+      const g = githubDeRepo(propio.manifiesto, nombre ?? '')
+      if (g) console.log(g)
+    } else if (campo === 'proyecto') console.log(propio.manifiesto.proyecto)
     else if (campo === 'nombre') console.log(propio.repo.nombre)
     else if (campo === 'cuenta') console.log(cuentaDelRepo(propio.repo))
     else {
