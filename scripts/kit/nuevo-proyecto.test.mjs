@@ -143,6 +143,9 @@ conValidador('nuevo-proyecto.mjs sobre el ejemplo turnero', () => {
       for (const f of [
         'scripts/kit',
         'scripts/semilla',
+        'scripts/proyecto/proyecto.sh',
+        'scripts/proyecto/proyecto.mjs',
+        'scripts/proyecto/proyecto-texto.mjs',
         'docs/semillas',
         '.kit/plantilla',
         'node_modules',
