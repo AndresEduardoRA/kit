@@ -87,6 +87,9 @@ source "$ORQ/al-dia.sh"
 # Lo que una tarea pide hacer al integrarse (`al_integrar: etiquetar <nombre>`).
 # shellcheck source=al-integrar.sh
 source "$ORQ/al-integrar.sh"
+# Las mejoras del flujo entre el kit y este proyecto: la tarea semanal y lo que sube al kit al integrar.
+# shellcheck source=kit.sh
+source "$ORQ/kit.sh"
 
 # ------------------------------------------------------------------------------------------------------------------ utilidades
 

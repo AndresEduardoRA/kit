@@ -6,9 +6,10 @@
 
 BOT="🤖 orquestador:"
 ETIQUETAS_COLA="cola cola:borrador cola:corriendo cola:esperando-ci cola:por-arreglar cola:trabada cola:integrada cola:omitida cola:urgente"
-# Las de lo que entra solo a la cola (README.md): un pedido en texto libre y sus preguntas, la tarea mensual de dependencias y el aviso
-# de la noche. No son de estado: sincronizar_etiquetas no las toca (cola:pregunta sólo vive en un `pedido`, que no lleva `cola`).
-ETIQUETAS_ENTRADA="pedido cola:pregunta deps noche-roja"
+# Las de lo que entra solo a la cola (README.md): un pedido en texto libre y sus preguntas, la tarea mensual de dependencias, el aviso
+# de la noche y la tarea semanal del flujo del kit. No son de estado: sincronizar_etiquetas no las toca (cola:pregunta sólo vive en un
+# `pedido`, que no lleva `cola`).
+ETIQUETAS_ENTRADA="pedido cola:pregunta deps noche-roja kit"
 SPEC_ISSUE="$ORQ/spec-issue.mjs"
 : "${REPO:?github.sh lo carga orquestador.sh}"
 # `cuenta/repo` del remoto origin; vacío si no es de GitHub (entonces la cola es sólo local).
@@ -89,6 +90,7 @@ asegurar_etiquetas() { # crea las que falten en el repo (una vez por proceso)
       cola:pregunta) color=c5def5 desc="La redacción del pedido necesita tus respuestas: comenta" ;;
       deps) color=0366d6 desc="La actualización mensual de dependencias" ;;
       noche-roja) color=e11d21 desc="El e2e de la noche cayó (scripts/flujo/noche.mjs)" ;;
+      kit) color=bfd4f2 desc="Traer el flujo del kit (scripts/kit/actualizar.mjs)" ;;
     esac
     ghc api -X POST "repos/{owner}/{repo}/labels" -f name="$e" -f color="$color" -f description="$desc" >/dev/null || return $?
     log "GitHub: etiqueta $e creada en $REPO_GH"

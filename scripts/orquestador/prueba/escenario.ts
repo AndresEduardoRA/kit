@@ -17,8 +17,9 @@ import { afterAll } from 'vitest'
 // El escenario de las pruebas de la cola en los issues (cola-github*.test.ts, dependencias.test.ts, pedidos.test.ts): el guion real en
 // un repo temporal con su manifiesto, y un `gh` y un `claude` falsos primeros en el PATH (gh-falso.mjs guarda un «GitHub» en un JSON y
 // anota cada llamada con su token; claude-falso.sh). Nada sale a la red. Con `conOrigen`, el repo tiene un commit y su origin/main
-// (para la copia de main que lee la redacción de un pedido). Cada llamada al guion ronda un segundo (lanza node varias veces): las
-// pruebas llevan TIEMPO.
+// (para la copia de main que lee la redacción de un pedido). Con `conKit`, el repo trae el flujo del kit (scripts/kit/*.mjs, el
+// flujo.txt de ese kit y `.kit/version`) y el gh falso sirve ese kit de juguete como AndresEduardoRA/kit (kit-semanal.test.ts). Cada
+// llamada al guion ronda un segundo (lanza node varias veces): las pruebas llevan TIEMPO.
 const raices: string[] = []
 afterAll(() => {
   for (const r of raices)
@@ -99,6 +100,7 @@ type Gh = {
       padre?: string
       titulo?: string
       cuerpo?: string
+      archivos?: { filename: string; previous_filename?: string; patch?: string }[]
     }[]
   >
   refs?: { ref: string; sha: string }[]
@@ -107,10 +109,26 @@ type Gh = {
   sinRed?: boolean
   limite?: boolean
   issueEditFalla?: boolean
+  // Los repos nombrados explícitamente (el kit), que atiende gh-falso-git.mjs.
+  git?: Record<
+    string,
+    {
+      dir?: string
+      sinAcceso?: boolean
+      issues?: Record<string, Partial<Issue>>
+      siguiente?: number
+    }
+  >
 }
+/** El kit de juguete del que salió el repo: su carpeta de git y el commit de `.kit/version`. */
+type ConKit = { dir: string; version: string }
+// Lo de scripts/kit/ que necesita `actualizar.mjs --revisar`.
+const DEL_KIT = ['flujo', 'mezcla', 'personalizar', 'kit-gh', 'actualizar'].map(
+  (n) => `scripts/kit/${n}.mjs`,
+)
 
 /** Un repo temporal con el guion, el manifiesto, su `.orquestador/` y el `gh` falso; devuelve sus carpetas. */
-function prepararRepo(local: string, conOrigen: boolean) {
+function prepararRepo(local: string, conOrigen: boolean, conKit?: ConKit) {
   const repo = mkdtempSync(join(tmpdir(), 'orq-issues-'))
   raices.push(repo)
   execFileSync('git', ['init', '-q', '-b', 'main', repo])
@@ -130,8 +148,13 @@ function prepararRepo(local: string, conOrigen: boolean) {
   writeFileSync(join(repo, '.proyecto/proyecto.yaml'), MANIFIESTO)
   const datos = join(repo, '.orquestador')
   mkdirSync(join(datos, 'cola'), { recursive: true })
-  // La tarea mensual de dependencias, apagada: crearía un issue en cada escenario (dependencias.test.ts la enciende).
-  writeFileSync(join(datos, 'config.local.env'), `DEPS_MENSUAL="no"\n${local}`)
+  // Lo que entra solo a la cola, apagado: la tarea de dependencias crearía un issue en cada escenario y las del kit lo llamarían
+  // (dependencias.test.ts, kit-semanal.test.ts y kit-aviso.test.ts las encienden).
+  writeFileSync(
+    join(datos, 'config.local.env'),
+    `DEPS_MENSUAL="no"\nKIT_SEMANAL="no"\nKIT_AVISAR="no"\n${local}`,
+  )
+  if (conKit) traerElKit(repo, conKit)
   const falso = join(repo, '.gh-falso')
   mkdirSync(join(falso, 'bin'), { recursive: true })
   writeFileSync(
@@ -155,8 +178,22 @@ function prepararRepo(local: string, conOrigen: boolean) {
   return { repo, datos, falso }
 }
 
-export function escenario(local = '', { conOrigen = false } = {}) {
-  const { repo, datos, falso } = prepararRepo(local, conOrigen)
+/** Lo del flujo del kit en el repo: los guiones de scripts/kit/, el flujo.txt del kit de juguete en su versión y `.kit/version`. */
+function traerElKit(repo: string, { dir, version }: ConKit) {
+  mkdirSync(join(repo, 'scripts/kit'), { recursive: true })
+  mkdirSync(join(repo, 'scripts/lib'), { recursive: true })
+  mkdirSync(join(repo, '.kit'), { recursive: true })
+  for (const f of [...DEL_KIT, 'scripts/lib/stack-local.mjs']) cpSync(resolve(f), join(repo, f))
+  const flujo = execFileSync('git', ['-C', dir, 'show', `${version}:scripts/kit/flujo.txt`])
+  writeFileSync(join(repo, 'scripts/kit/flujo.txt'), flujo)
+  writeFileSync(join(repo, '.kit/version'), `${version}\n`)
+}
+
+export function escenario(
+  local = '',
+  { conOrigen = false, conKit }: { conOrigen?: boolean; conKit?: ConKit } = {},
+) {
+  const { repo, datos, falso } = prepararRepo(local, conOrigen, conKit)
   const ruta = join(falso, 'estado.json')
   const inicial: Gh = {
     repo: 'Cuenta/tienda-app',
@@ -167,6 +204,7 @@ export function escenario(local = '', { conOrigen = false } = {}) {
     prs: {},
     cuentas: ['Cuenta'],
     issueEditFalla: true,
+    ...(conKit ? { git: { 'AndresEduardoRA/kit': { dir: conKit.dir } } } : {}),
   }
   writeFileSync(ruta, JSON.stringify(inicial))
 
