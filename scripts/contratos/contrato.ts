@@ -1,12 +1,13 @@
 // La CLI de los contratos de base entre repos (`.claude/rules/contratos.md`):
 //
-//   tsx scripts/contratos/contrato.ts generar [<id>] | rol
+//   tsx scripts/contratos/contrato.ts generar [<id>] | probar | rol
 //
 // - generar: escribe `contratos/<id>@<n>.json` (la versión de `provee`) desde la base local, según `contratos/<id>.config.json`.
+// - probar:  la base local cumple cada versión de `vigentes` y la de `provee`.
 // - rol:     `provee=true|false` y `consume=true|false`, para `$GITHUB_OUTPUT` (el job `contrato` levanta la pila sólo si provee).
 //
 // Errores a stderr; sale con 1 si hay problemas y con 64 si el uso está mal. Si no hay nada que hacer lo dice y sale con 0. Por
-// `pnpm contrato:generar` toma el candado de la base (`scripts/candado.sh`).
+// `pnpm contrato:generar` y `pnpm contrato:probar` toma el candado de la base (`scripts/candado.sh`).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -20,6 +21,7 @@ import { textoDelContrato } from './esquemas'
 import { archivoDeConfig, decidirEscritura, generarContrato, leerConfig } from './generar'
 import type { Consultar } from './introspeccion'
 import { contratosQueProvee } from './manifiesto'
+import { cargarVersion, probarVersion, versionesAProbar } from './probar'
 import { baseDePublicados, leerPublicados } from './publicados'
 
 type Propio = NonNullable<ReturnType<typeof repoDeEsteWorktree>>
@@ -85,13 +87,36 @@ const generar: Comando = async (raiz, propio, [id]) => {
   return codigo
 }
 
+const probar: Comando = async (raiz, propio) => {
+  const { contratos, problemas } = contratosQueProvee(propio.manifiesto, propio.repo)
+  if (problemas.length) return fallar(problemas)
+  if (!contratos.length) {
+    decir('Este repo no provee contratos (`provee` del manifiesto está vacío): nada que probar.')
+    return 0
+  }
+  const consultar = consultarConExplicacion(raiz, 'probar')
+  let codigo = 0
+  for (const p of contratos)
+    for (const version of versionesAProbar(p)) {
+      const v = cargarVersion(
+        p,
+        version,
+        leerSiHay(join(raiz, `contratos/${p.id}@${String(version)}.json`)),
+      )
+      const caidas = v.ok ? await probarVersion(v.valor, consultar) : v.problemas
+      if (caidas.length) codigo = fallar(caidas)
+      else decir(`✓ la base local cumple ${p.id}@${String(version)}`)
+    }
+  return codigo
+}
+
 const rol: Comando = (_raiz, propio) => {
   const { provee, consume } = contratosDelRepo(propio.manifiesto, propio.repo)
   decir(`provee=${String(provee.length > 0)}`, `consume=${String(consume.length > 0)}`)
   return Promise.resolve(0)
 }
 
-const COMANDOS: Record<string, Comando> = { generar, rol }
+const COMANDOS: Record<string, Comando> = { generar, probar, rol }
 const USO = `uso: tsx scripts/contratos/contrato.ts ${Object.keys(COMANDOS).join(' | ')} (generar acepta un <id>)`
 
 /** Corre un comando en el repo de `raiz` y devuelve el código de salida. */

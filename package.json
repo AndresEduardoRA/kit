@@ -27,6 +27,7 @@
     "mapa": "bash scripts/mapa.sh",
     "env:check": "tsx scripts/env-check.ts",
     "contrato:generar": "bash scripts/candado.sh contrato:generar -- tsx scripts/contratos/contrato.ts generar",
+    "contrato:probar": "bash scripts/candado.sh contrato:probar -- tsx scripts/contratos/contrato.ts probar",
     "kit:nuevo": "node scripts/kit/nuevo-proyecto.mjs",
     "test:generador": "node --test scripts/kit/*.test.mjs"
   },

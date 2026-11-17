@@ -99,8 +99,8 @@ const scripts = (
     scripts: Record<string, string>
   }
 ).scripts
-// Los del kit; un proyecto que sume `db:medir`, `db:carreras` o `db:sembrar-volumen` los agrega aquí. `contrato:generar` lee
-// la base local (como `db:types`): también.
+// Los del kit; un proyecto que sume `db:medir`, `db:carreras` o `db:sembrar-volumen` los agrega aquí. `contrato:generar` y
+// `contrato:probar` leen la base local (como `db:types`): también.
 const CON_CANDADO = [
   'db:reset',
   'db:types',
@@ -109,6 +109,7 @@ const CON_CANDADO = [
   'test:e2e',
   'test:e2e:completo',
   'contrato:generar',
+  'contrato:probar',
 ]
 
 describe('package.json › el candado de la base', () => {
