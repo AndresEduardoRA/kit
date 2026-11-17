@@ -47,8 +47,8 @@ proyecto desde `scripts/kit/fixtures/semilla-v1/` (con el validador v1 de `scrip
 ## El manifiesto del proyecto
 
 Cada repo sabe quién es leyendo **sólo** su copia `.proyecto/proyecto.yaml` (esquema `proyecto/v1`: la copia es el manifiesto entero).
-El esquema vive fuera del repo, en `_herramientas/semillas/proyecto.plantilla.yaml`, y
-`python3 _herramientas/semillas/validar_semilla.py --manifiesto <archivo>` lo comprueba; `scripts/proyecto/manifiesto.mjs` revisa lo
+El esquema vive en el kit, en `docs/semillas/proyecto.plantilla.yaml`, y
+`python3 _herramientas/kit/scripts/semilla/validar_semilla.py --manifiesto <archivo>` lo comprueba; `scripts/proyecto/manifiesto.mjs` revisa lo
 que el kit usa y, si algo falla, dice qué campo y ese comando. El kit lleva uno de ejemplo (`proyecto: cambiar-slug`), que el
 generador reemplaza.
 

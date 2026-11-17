@@ -1,7 +1,7 @@
 # Copia del manifiesto del proyecto (esquema proyecto/v1): el repo sólo lee ésta, nunca la carpeta de un hermano. La lee
 # scripts/proyecto/manifiesto.mjs (puertos, cuenta de GitHub, nombre del repo y contratos). El generador del kit reemplaza el nombre,
-# el slug y el bloque; el kit la lleva de ejemplo. Reglas: _herramientas/semillas/proyecto.plantilla.yaml; se revisa con
-#   python3 _herramientas/semillas/validar_semilla.py --manifiesto .proyecto/proyecto.yaml
+# el slug y el bloque; el kit la lleva de ejemplo. Reglas: _herramientas/kit/docs/semillas/proyecto.plantilla.yaml; se revisa con
+#   python3 _herramientas/kit/scripts/semilla/validar_semilla.py --manifiesto .proyecto/proyecto.yaml
 esquema: proyecto/v1
 proyecto: cambiar-slug
 nombre: Nombre del proyecto

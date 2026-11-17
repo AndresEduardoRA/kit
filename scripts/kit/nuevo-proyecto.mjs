@@ -43,10 +43,12 @@ import {
 } from '../proyecto/manifiesto.mjs'
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-// Lo que es del kit y no viaja a un proyecto: el generador, su skill, la semilla de ejemplo y lo generado.
+// Lo que es del kit y no viaja a un proyecto: el generador, su skill, el validador y la semilla de ejemplo, las lecciones de las
+// semillas y lo generado.
 const NO_VIAJA = [
   /^scripts\/kit\//,
   /^scripts\/semilla\//,
+  /^docs\/semillas\//,
   /^\.claude\/skills\/semilla-a-repo\//,
   /^docs\/MAPA\.md$/,
   /^\.kit\/plantilla$/,

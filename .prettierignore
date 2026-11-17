@@ -17,9 +17,10 @@ e2e-fallos
 .claude/worktrees
 .orquestador
 docs/semilla
-# copias literales: la semilla de ejemplo (para K09) y la semilla v1 del job «kit · proyecto de ejemplo»
+# copias literales de idea-a-semilla: la semilla de ejemplo (la que genera el job «kit · proyecto de ejemplo»), sus lecciones y la
+# plantilla del manifiesto
 scripts/semilla/ejemplo
-scripts/kit/fixtures
+docs/semillas
 # plantillas con marcadores {{X}}: Prettier los reescribe en el frontmatter como { { X } } y `nueva` deja de reemplazarlos
 scripts/orquestador/plantilla-tarea.md
 scripts/orquestador/plantillas

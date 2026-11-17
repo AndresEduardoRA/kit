@@ -1,7 +1,8 @@
 // El manifiesto del proyecto (esquema proyecto/v1) visto desde un repo: cada repo sabe quién es (nombre `<proyecto>-<rol>`, cuenta de
 // GitHub, puertos, contratos) leyendo sólo su copia `.proyecto/proyecto.yaml`, que es el manifiesto entero; nunca abre la carpeta de
-// un hermano. El esquema y sus reglas: `_herramientas/semillas/proyecto.plantilla.yaml`; lo comprueba, entero,
-// `python3 _herramientas/semillas/validar_semilla.py --manifiesto <archivo>`. Aquí se revisa lo que este kit usa, sin red ni Python.
+// un hermano. El esquema y sus reglas: `_herramientas/kit/docs/semillas/proyecto.plantilla.yaml`; lo comprueba, entero,
+// `python3 _herramientas/kit/scripts/semilla/validar_semilla.py --manifiesto <archivo>`. Aquí se revisa lo que este kit usa, sin red
+// ni Python.
 //
 // Lo de este archivo es puro (texto adentro, datos afuera) salvo `leerManifiestoDe` y `manifiestosDeLaRaiz`, que leen archivos.
 // Sin `.proyecto/proyecto.yaml` el repo funciona con el remoto, el bloque 5 y un aviso (`stack-local.mjs`): `leerManifiestoDe` devuelve `null`.
@@ -13,7 +14,7 @@ import { pathToFileURL } from 'node:url'
 import { parse } from 'yaml'
 
 export const RUTA_MANIFIESTO = '.proyecto/proyecto.yaml'
-export const VALIDADOR = 'python3 _herramientas/semillas/validar_semilla.py --manifiesto'
+export const VALIDADOR = 'python3 _herramientas/kit/scripts/semilla/validar_semilla.py --manifiesto'
 // El orden en que se reparten los bloques: el 5 es el del kit, el 4 no existe (choca con los puertos por defecto de Supabase).
 export const BLOQUES = [5, 6, 7, 8, 9, 1, 2, 3]
 
