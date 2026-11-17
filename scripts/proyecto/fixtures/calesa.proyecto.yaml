@@ -1,5 +1,5 @@
 # Manifiesto de Calesa (proyecto/v1). Suelto, sin versionar: las copias de cada repo (.proyecto/proyecto.yaml) son el respaldo.
-# Plantilla y reglas: _herramientas/semillas/proyecto.plantilla.yaml.
+# Plantilla y reglas: _herramientas/kit/docs/semillas/proyecto.plantilla.yaml.
 esquema: proyecto/v1
 proyecto: calesa
 nombre: Calesa

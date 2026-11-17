@@ -75,12 +75,14 @@ export function baseDelRepo(raiz = process.cwd(), aviso = (texto) => console.err
 }
 
 /**
- * El nombre del proyecto: el del manifiesto o, sin manifiesto, el `project_id` de supabase/config.toml (con un aviso por `aviso`).
- * Sin ninguno de los dos falla.
+ * El nombre de la pila de este repo, el que llevan sus carriles (`<nombre>-<carril>`): el `nombre` del repo en el manifiesto
+ * (`<proyecto>-<rol>`), nunca el slug del proyecto, porque dos repos de un proyecto en la misma máquina chocarían (el carril «a» de
+ * app y el de web serían los dos `<proyecto>-a`: mismos contenedores). Sin manifiesto, el `project_id` de supabase/config.toml (con un
+ * aviso por `aviso`). Sin ninguno de los dos falla.
  * @param {string} [raiz]  @param {(texto: string) => void} [aviso]
  */
 export function proyectoDelRepo(raiz = process.cwd(), aviso = (texto) => console.error(texto)) {
-  const delManifiesto = repoDeEsteWorktree(raiz)?.manifiesto.proyecto
+  const delManifiesto = repoDeEsteWorktree(raiz)?.repo.nombre
   if (delManifiesto) return delManifiesto
   const delConfig = deConfig(raiz).SUPABASE_PROJECT_ID
   if (!delConfig)

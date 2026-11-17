@@ -201,7 +201,7 @@ test('sin manifiesto el bloque es el 5 y lo dice un aviso; el proyecto sale de c
   )
   assert.equal(
     proyectoDelRepo(con, (a) => callado.push(a)),
-    'tienda',
+    'tienda-app',
   )
   assert.deepEqual(callado, [])
 })
@@ -212,4 +212,43 @@ test('un manifiesto inválido corta con el campo y el comando del validador', ()
     () => baseDelRepo(raiz),
     /puertos\.bloque: 1 a 9, nunca 4[\s\S]*validar_semilla\.py --manifiesto/,
   )
+})
+
+test('app y web de un mismo proyecto: sus carriles «a» no comparten pila ni puertos', () => {
+  // Las dos copias del manifiesto son iguales (el proyecto entero); cada repo se elige por el nombre de su remoto.
+  const manifiesto = `esquema: proyecto/v1
+proyecto: turnero
+nombre: Turnero
+semilla: null
+repos:
+  - {rol: app, nombre: turnero-app, github: Cuenta/turnero-app, etapa: construccion, semilla: null, puertos: {bloque: 5}, provee: [], consume: []}
+  - {rol: web, nombre: turnero-web, github: Cuenta/turnero-web, etapa: construccion, semilla: null, puertos: {bloque: 6}, provee: [], consume: []}
+contratos: []
+`
+  const carriles = ['app', 'web'].map((rol) => {
+    const raiz = mkdtempSync(join(tmpdir(), `turnero-${rol}-`))
+    execFileSync('git', ['init', '-q', '-b', 'main', raiz])
+    execFileSync('git', [
+      '-C',
+      raiz,
+      'remote',
+      'add',
+      'origin',
+      `https://github.com/Cuenta/turnero-${rol}.git`,
+    ])
+    mkdirSync(join(raiz, '.proyecto'))
+    writeFileSync(join(raiz, '.proyecto/proyecto.yaml'), manifiesto)
+    return variablesDelCarril(
+      proyectoDelRepo(raiz),
+      'a',
+      DESFASES_DE_LOS_CARRILES,
+      baseDelRepo(raiz),
+    )
+  })
+  const [app, web] = carriles
+  assert.equal(app.SUPABASE_PROJECT_ID, 'turnero-app-a')
+  assert.equal(web.SUPABASE_PROJECT_ID, 'turnero-web-a')
+  const puertos = (v) => Object.values(v).filter((x) => typeof x === 'number')
+  const compartidos = puertos(app).filter((p) => puertos(web).includes(p))
+  assert.deepEqual(compartidos, [])
 })

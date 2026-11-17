@@ -8,7 +8,7 @@
 # Sin carril: el que ya tenía este worktree (su .env.carril); si no, la primera letra libre entre a, b y c (un worktree del
 # orquestador o de Orca, en una rama `<tipo>/<tema>`), como en calesa-app.
 #
-# 1) `pnpm install` si falta. 2) `.env.carril`: project_id `<proyecto>-<carril>` y sus puertos (scripts/lib/stack-local.mjs).
+# 1) `pnpm install` si falta. 2) `.env.carril`: project_id `<proyecto>-<rol>-<carril>` y sus puertos (scripts/lib/stack-local.mjs).
 # 3) `supabase start` del carril, sin Studio, imgproxy ni logs. 4) `.env.local`: lo de Supabase sale de `supabase status`; lo demás, de la
 # `.env.local` de la principal. Nada se imprime. 5) La base: datos de demo si hay `scripts/demo/restaurar.sh` y credenciales; si no,
 # `pnpm db:reset`. 6) El mapa. Quitarlo: scripts/worktree/quitar.sh.

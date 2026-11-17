@@ -284,4 +284,8 @@ Si ya no aplica (cambió la herramienta o el código), se quita.
 - Ancla con `/` en `.prettierignore` una carpeta de la raíz (`/contratos/`): sin la barra, la regla de gitignore vale para toda carpeta con ese nombre y `scripts/contratos/` dejaba de formatearse.
 - Un `.ts` generado dentro del repo pasa por el `typecheck` con `noUnusedLocals`: no declares un ayudante que puede quedar sin uso (el `Json` de los tipos de un contrato) y pruébalo compilando con las opciones de `tsconfig.json`.
 - Con `@types/node` 20, `fs.globSync` (Node 22+) no tipa aunque Node 24 lo tenga: recorre con `readdirSync(dir, { recursive: true })`.
+- Nombra la pila de un carril con el repo (`<proyecto>-<rol>-<carril>`), no con el proyecto: con el slug solo, el carril «a» de app y el de web de un mismo proyecto compartían contenedores.
+- Un repo nuevo no declara `provee` ni `consume` antes del paso que publica o fija el contrato: sin `contratos/<id>@<n>.json` (o sin la copia fijada) los jobs `contrato` y `contrato-uso` caen desde el primer PR.
+- Protege main de un repo nuevo antes de encender su orquestador (`publicar-proyecto.mjs proteger`, tras el primer CI verde): sin protección, el auto-merge integra al instante.
+- Un repo recién creado vive en `z_<proyecto>/<rol>` y todavía no tiene remoto: el repo propio se busca también por su `rol`, o con un manifiesto de varios repos el orquestador no sabe quién es.
 - El hook de Bash parte también por comillas invertidas y paréntesis: un texto que nombre un comando bloqueado entre `` ` `` (un doc, un mensaje de commit) se escribe con Write o va en `git commit -F <archivo>`.

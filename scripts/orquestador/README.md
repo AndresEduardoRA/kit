@@ -36,7 +36,7 @@ Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquest
 | `scripts/orquestador/config.env`         | `PROYECTO` (vacío: el del manifiesto), `KIT_GITHUB`, paralelo, niveles de modelo, límites y lo que entra solo (`DEPS_MENSUAL`, `NIVEL_REDACTAR`, `EFFORT_REDACTAR`, `TIEMPO_MAX_REDACCION`). Sin secretos |
 | `scripts/orquestador/prompts/`           | Lo que recibe cada sesión: `tarea.md`, `planificar.md`, `arreglar.md`, `retomar.md`, `redactar.md`; y lo que se le suma: `cierra-issue.md`, `permite-dependencias.md`                                     |
 | `scripts/orquestador/plantilla-tarea.md` | La forma de una spec (la copia `nueva`)                                                                                                                                                                   |
-| `scripts/orquestador/plantillas/`        | Las specs que crea solo: `dependencias.md`, la tarea mensual                                                                                                                                              |
+| `scripts/orquestador/plantillas/`        | Las specs que nacen de una plantilla: `dependencias.md`, la tarea mensual (la crea el orquestador), y `cerrar-construccion.md`, el cierre de un repo nuevo (lo crea semilla-a-repo)                       |
 | `scripts/orquestador/prueba/`            | El `gh` y el `claude` falsos, y los escenarios de las pruebas: la cola en los issues y varios orquestadores en una máquina                                                                                |
 | `.orquestador/config.local.env`          | Lo de tu máquina, pisa a `config.env`: `NTFY_TEMA`, `PARALELO`, `PATH_EXTRA`, `ORQ_SOLO_LOCAL`                                                                                                            |
 | `~/.config/orquestador/maquina.env`      | De la máquina, para todos sus orquestadores: `TURNOS_MAQUINA` (lo crea `verificar`)                                                                                                                       |
@@ -61,7 +61,8 @@ Los campos: `titulo` y `rama` (única entre las vivas); `depende` (separadas por
 corren a la vez); `planificar: si` para que una sesión del nivel capaz en modo plan escriba el plan antes; `nivel` y `effort` (y
 `nivel_plan`, `effort_plan`) si no valen los de `config.env`; `permite: dependencias` para que la sesión pueda correr `pnpm update`
 y `pnpm dedupe` (abajo, «La tarea mensual de dependencias»; otra palabra deja la spec rota). Un `id` que no es `T<n>` (las specs de
-`../tareas` traen `id: K06`) queda como `origen: K06`: el id es siempre el número del issue.
+`../tareas` traen `id: K06`) queda como `origen: K06`: el id es siempre el número del issue. `paso: P07` (o `paso: cierre`) lo escribe
+semilla-a-repo en los issues que salen del plan de la semilla, para no duplicarlos al volver a correr; el orquestador no lo usa.
 
 **Niveles de modelo.** Una tarea nombra un nivel, `rapido`, `normal` o `capaz`, nunca un modelo: `config.env` dice qué alias es cada
 uno (`NIVEL_RAPIDO="haiku"`, `NIVEL_NORMAL="sonnet"`, `NIVEL_CAPAZ="opus"`) y `verificar` pregunta qué modelo es hoy cada alias. Sin

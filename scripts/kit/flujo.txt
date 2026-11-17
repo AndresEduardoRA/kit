@@ -25,6 +25,7 @@ scripts/guardas/workflows.test.ts
 scripts/guardas/workflows-flujo.test.ts
 scripts/guardas/bloquear-peligrosos.casos.ts
 scripts/guardas/bloquear-peligrosos.test.ts
+scripts/guardas/primer-push-de-main.test.ts
 scripts/guardas/solo-lectura.casos.ts
 scripts/guardas/solo-lectura.test.ts
 scripts/guardas/verificar-al-terminar.test.ts

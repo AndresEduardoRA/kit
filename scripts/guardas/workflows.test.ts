@@ -106,7 +106,8 @@ describe('ci.yml por niveles', () => {
     }
     const ejemplo = job('ejemplo')
     expect(ejemplo).toContain("if: needs.cambios.outputs.plantilla == 'true'")
-    expect(ejemplo).toContain('node scripts/kit/nuevo-proyecto.mjs scripts/kit/fixtures/semilla-v1')
+    expect(ejemplo).toContain('node scripts/kit/nuevo-proyecto.mjs turnero --raiz')
+    for (const rol of ['app', 'web']) expect(ejemplo, rol).toContain(`proyectos/z_turnero/${rol}`)
     for (const paso of [
       'pnpm install --frozen-lockfile',
       'pnpm lint',
