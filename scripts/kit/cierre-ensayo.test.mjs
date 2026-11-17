@@ -195,6 +195,22 @@ conValidador('cierre.mjs sobre el ejemplo turnero', () => {
     assert.match(largo.salida, /^✗ docs\/ESTADO\.md tiene 61 líneas \(máximo 60\)$/m)
   })
 
+  test('una retoma tras un corte (manifiesto cambiado, docs/semilla/ todavía ahí) termina sin duplicar secciones', () => {
+    const r = montar()
+    assert.equal(r.cierre('aplicar', '--etiqueta', 'semilla-v1').estado, 0)
+    execFileSync('git', ['-C', r.app, 'checkout', 'HEAD', '--', 'docs/semilla'])
+    const otra = r.cierre('aplicar', '--etiqueta', 'semilla-v1')
+    assert.equal(otra.estado, 0, otra.salida + otra.error)
+    assert.ok(!existsSync(join(r.app, 'docs/semilla')))
+    assert.equal(r.leer('docs/DECISIONES.md').match(/^## Producto \(A\)$/gm)?.length, 1)
+    assert.equal(r.leer('docs/PENDIENTES.md').match(/^## Riesgos y supuestos/gm)?.length, 1)
+    assert.equal(r.leer('docs/LECCIONES.md').match(/^## Para las semillas$/gm)?.length, 1)
+    execFileSync('git', ['-C', r.app, 'checkout', 'HEAD', '--', 'docs/semilla'])
+    const distinta = r.cierre('aplicar', '--etiqueta', 'semilla-v2')
+    assert.equal(distinta.estado, 1)
+    assert.match(distinta.salida, /ya está en mantenimiento con «semilla: semilla-v1»/)
+  })
+
   test('sin red sale con 2; una etiqueta mal escrita, con 64', () => {
     const r = montar()
     r.editarGh((e) => (e.sinRed = true))

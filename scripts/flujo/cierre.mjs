@@ -114,6 +114,21 @@ export function manifiestoEnMantenimiento(texto, rol, etiqueta) {
   return nuevo
 }
 
+/**
+ * Un doc como está en HEAD: lo que había antes del cierre aunque una pasada cortada ya lo haya reescrito (así repetir `aplicar` no
+ * duplica secciones). Sin git o sin el archivo, null.
+ * @param {string} raiz  @param {string} f
+ */
+function enHead(raiz, f) {
+  try {
+    return execFileSync('git', ['-C', raiz, 'show', `HEAD:${f}`], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+  } catch {
+    return null
+  }
+}
 /** @param {string} raiz  @param {string} f */
 const leer = (raiz, f) => (existsSync(join(raiz, f)) ? readFileSync(join(raiz, f), 'utf8') : null)
 /** @param {string} raiz */
@@ -148,11 +163,12 @@ function aplicar(raiz, etiqueta) {
   }
   const propio = repoDeEsteWorktree(raiz)
   if (!propio) throw new ManifiestoInvalido(`sin ${RUTA_MANIFIESTO}: no sé qué repo cerrar`)
-  if (propio.repo.etapa === 'mantenimiento') {
+  // Una retoma tras un corte entre el manifiesto y el borrado de docs/semilla/ sigue; otra etiqueta ya puesta, no.
+  if (propio.repo.etapa === 'mantenimiento' && propio.repo.semilla !== etiqueta) {
     console.log(
-      `· ${propio.repo.nombre} ya está en mantenimiento en ${RUTA_MANIFIESTO}: no toco nada`,
+      `✗ ${propio.repo.nombre} ya está en mantenimiento con «semilla: ${String(propio.repo.semilla)}» en ${RUTA_MANIFIESTO}: no toco nada`,
     )
-    return 0
+    return 1
   }
   const faltan = ['docs/LECCIONES.md', 'docs/FLUJO.md'].filter((f) => !existsSync(join(raiz, f)))
   if (faltan.length) {
@@ -172,7 +188,7 @@ function aplicar(raiz, etiqueta) {
     textoDecisiones({
       registro: semilla('registro.md'),
       etiqueta,
-      existente: leer(raiz, 'docs/DECISIONES.md'),
+      existente: enHead(raiz, 'docs/DECISIONES.md'),
     }),
   )
   escribir(
@@ -180,7 +196,7 @@ function aplicar(raiz, etiqueta) {
     textoPendientes({
       riesgos: riesgosDeLaSemilla(semilla('comun.md'), semilla('semilla.md')),
       decisiones: decisionesDePrs(prsIntegrados()),
-      existente: leer(raiz, 'docs/PENDIENTES.md'),
+      existente: enHead(raiz, 'docs/PENDIENTES.md'),
     }),
   )
   const fecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz' }).format(new Date())
