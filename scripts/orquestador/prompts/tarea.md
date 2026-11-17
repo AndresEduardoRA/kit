@@ -37,6 +37,7 @@ otras ramas ni otros worktrees. Hoy es {{FECHA}}.
 - Docs según `docs/FLUJO.md` › «Docs: qué se toca» (sin historia en los docs).
 - Publica con la skill `entregar`, pero con **`bash scripts/flujo/publicar.sh --sin-esperar --titulo '<tipo(scope): descripción>' --cuerpo <archivo>`**.
   El cuerpo: qué cambió, por qué, cómo se verificó (comandos y specs), «Decisiones tomadas sin preguntar» y lo que quedó fuera.
+{{CIERRA_ISSUE}}
   No esperes al CI: el orquestador lo vigila, pone la rama al día si otro PR se integró antes y, si cae, abre otra sesión para
   arreglarlo. `gh pr edit` falla en este repo: para editar el PR, `gh api -X PATCH 'repos/{owner}/{repo}/pulls/<n>'`.
 

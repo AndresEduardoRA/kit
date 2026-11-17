@@ -30,7 +30,15 @@ afterAll(() => {
 function orquestador(...args: string[]) {
   const r = spawnSync('bash', [GUION, ...args], {
     encoding: 'utf8',
-    env: { NODE_ENV: 'test', HOME: datos, PATH: process.env['PATH'] ?? '', ORQ_DATOS: datos },
+    // Sólo local: la cola de estas pruebas no toca los issues del repo de verdad (esos se prueban con un gh falso en
+    // cola-github.test.ts).
+    env: {
+      NODE_ENV: 'test',
+      HOME: datos,
+      PATH: process.env['PATH'] ?? '',
+      ORQ_DATOS: datos,
+      ORQ_SOLO_LOCAL: '1',
+    },
   })
   return { estado: r.status, salida: r.stdout + r.stderr }
 }
@@ -53,6 +61,10 @@ describe('orquestador.sh: la cola', () => {
     expect(plan.salida).toContain('T07  LISTA para lanzar')
     expect(plan.salida).not.toContain('✗')
     expect(orquestador('estado').salida).toMatch(/T07\s+pendiente/)
+    // Sólo local no hay issue que cerrar: el prompt no pide «Closes #…».
+    const prompt = orquestador('prompt', 'T07').salida
+    expect(prompt).toContain('# Tarea T07')
+    expect(prompt).not.toMatch(/Closes|\{\{CIERRA_ISSUE\}\}/)
   })
 
   it('«nueva» rechaza un id o un tema mal escritos y un id que ya existe', () => {
