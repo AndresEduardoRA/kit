@@ -61,6 +61,20 @@ it(
 )
 
 it(
+  'un issue kit abierto por alguien sin permiso de escritura › no frena la tarea',
+  () => {
+    const { t } = conKit('A')
+    t.issue(4, cuerpo('chore/otra'), ['kit'])
+    t.cambiarGh((g) => {
+      g.issues[4]!.autor = 'NONE'
+    })
+    t.orq('espejo')
+    expect(t.gh().issues[5]?.labels).toEqual(['cola', 'kit'])
+  },
+  TIEMPO,
+)
+
+it(
   'al día › no crea nada y marca la semana; el kit que sólo avanzó fuera del flujo, tampoco',
   () => {
     const { t } = conKit('B')
