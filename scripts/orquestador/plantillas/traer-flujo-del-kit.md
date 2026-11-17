@@ -29,7 +29,8 @@ El flujo de este repo al día con el main del kit (`.kit/version` en ese commit)
 - Dice «al día»: `RESULTADO: TRABADA — nada que traer: el flujo ya está al día` (la persona cierra el issue).
 - Al retomar con la respuesta de la persona sobre un choque, por cada ruta: `--tomar-kit <ruta>` (la del kit), `--dejar <ruta>` (la de
   aquí, por esta vez) o una línea en `.kit/omitir` (nunca más, con su commit `chore(kit): omitir <ruta> del flujo del kit`). Después
-  vuelve a correr `node scripts/kit/actualizar.mjs` con esas respuestas.
+  vuelve a correr `node scripts/kit/actualizar.mjs` con esas respuestas. Un choque por un marcador suelto o por puertos sin bloque
+  sólo se responde con `--dejar` o `.kit/omitir`; el marcador suelto es un defecto del kit: dilo en el PR.
 - Si la verificación cae por algo propio de este repo, adapta sólo el archivo de flujo que lo causa, en un commit aparte, y dilo en el
   PR. Si hace falta tocar `src/`, `supabase/` o una dependencia (`package.json` no es flujo): `RESULTADO: TRABADA — <qué y por qué>`.
 

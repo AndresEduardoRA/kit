@@ -247,7 +247,8 @@ hace el generador, con el nombre, el slug, el bloque y las funciones del repo) y
 | Caso (b = base, n = nuevo, o = el del repo)   | Qué hace                                                                               |
 | --------------------------------------------- | -------------------------------------------------------------------------------------- |
 | La ruta está en `.kit/omitir`                 | Nada                                                                                   |
-| `--tomar-kit` / `--dejar`                     | Escribe n (o borra si el kit lo borró) / nada                                          |
+| `--dejar`                                     | Nada (responde cualquier choque)                                                       |
+| `--tomar-kit`                                 | Escribe n (o borra si el kit lo borró), salvo en los dos choques de las últimas filas  |
 | El kit no lo cambió (b = n)                   | Nada; si se borró en el repo, lo restaura                                              |
 | El kit lo borró                               | Lo borra si el repo no lo cambió; si lo cambió, choque                                 |
 | El kit lo creó                                | Lo escribe si no está; si está distinto, choque                                        |
@@ -260,7 +261,8 @@ hace el generador, con el nombre, el slug, el bloque y las funciones del repo) y
   choques escribe (con el bit de ejecución del kit), pone `.kit/version` en main y commitea sólo eso, con los hooks:
   `chore(kit): traer el flujo del kit <sha corto>`. Exige el árbol limpio.
 - **Responder una trabada,** por ruta: `--tomar-kit <ruta>` (la del kit), `--dejar <ruta>` (la del repo, esta vez) o una línea en
-  `.kit/omitir` (nunca más).
+  `.kit/omitir` (nunca más). Un marcador suelto o los puertos sin bloque no se resuelven tomando la del kit (dejaría el marcador): sólo
+  `--dejar` u `.kit/omitir`, y el marcador suelto es un defecto del kit.
 - **`docs/LECCIONES.md`** se mezcla con `--union` (las dos partes suman viñetas al final de la misma sección) y pierde la línea `… (kit)`
   del repo que el kit ya absorbió con el sufijo `(<repo>, PR #<n>)`.
 - **`--revisar`** (lo corre la tarea semanal): atrás si el `compare` de GitHub entre `.kit/version` y main cambió algún archivo de flujo

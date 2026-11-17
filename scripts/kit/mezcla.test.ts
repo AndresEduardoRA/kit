@@ -198,18 +198,23 @@ describe('mezcla.mjs › decidir: binarios, personalización y lecciones', () =>
     )
   })
 
-  it('un marcador que quedaría suelto, o un archivo con puertos sin bloque, es un choque', () => {
-    const suelto = d('x', `x ${NOMBRE}`, 'x')
-    expect(suelto.motivo).toBe(`quedaría el marcador ${NOMBRE} en scripts/flujo/x.sh`)
-    const sinBloque = decidir({
-      ruta: '.github/workflows/ci.yml',
-      base: a('a'),
-      nuevo: a('b'),
-      propio: a('a'),
-      valores: { ...valores, bloque: null },
-    })
-    expect(sinBloque.accion).toBe('choque')
-    expect(sinBloque.motivo).toMatch(/puertos heredados/)
+  it('un marcador que quedaría suelto, o un archivo con puertos sin bloque, es un choque que sólo --dejar responde', () => {
+    const sinSalida = ' (--tomar-kit no sirve aquí: --dejar o .kit/omitir)'
+    const suelto = d('x', `x ${NOMBRE}`, 'x', { tomarKit: ['scripts/flujo/x.sh'] })
+    expect(suelto.motivo).toBe(`quedaría el marcador ${NOMBRE} en scripts/flujo/x.sh${sinSalida}`)
+    expect(d('x', `x ${NOMBRE}`, 'x', { dejar: ['scripts/flujo/x.sh'] }).como).toBe('dejado')
+    const ci = (extra = {}) =>
+      decidir({
+        ruta: '.github/workflows/ci.yml',
+        base: a('a'),
+        nuevo: a('b'),
+        propio: a('a'),
+        valores: { ...valores, bloque: null },
+        ...extra,
+      })
+    expect(ci().accion).toBe('choque')
+    expect(ci().motivo).toMatch(/puertos heredados .*--dejar o \.kit\/omitir\)$/)
+    expect(ci({ dejar: ['.github/workflows/ci.yml'] })).toEqual({ accion: 'nada', como: 'dejado' })
   })
 
   it('docs/LECCIONES.md se mezcla por union y pierde la (kit) del proyecto que el kit ya absorbió', () => {

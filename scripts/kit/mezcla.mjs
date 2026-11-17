@@ -113,18 +113,21 @@ export function decidir({
   dejar = [],
 }) {
   if (omitir.some((p) => coincide(ruta, p))) return nada('omitido')
+  // «La del repo, esta vez» responde cualquier choque, también los de abajo.
+  if (dejar.includes(ruta)) return nada('dejado')
+  const sinSalida = ' (--tomar-kit no sirve aquí: --dejar o .kit/omitir)'
   let b, n
   try {
     b = personalizado(ruta, base, valores)
     n = personalizado(ruta, nuevo, valores)
   } catch (e) {
-    if (e instanceof SinBloque) return choque(e.message)
+    if (e instanceof SinBloque) return choque(`${e.message}${sinSalida}`)
     throw e
   }
   if (n && seRevisa(ruta) && !esBinario(n.contenido)) {
     const texto = n.contenido.toString('utf8')
     const suelto = MARCADORES.find((m) => texto.includes(m))
-    if (suelto) return choque(`quedaría el marcador ${suelto} en ${ruta}`)
+    if (suelto) return choque(`quedaría el marcador ${suelto} en ${ruta}${sinSalida}`)
   }
   if (tomarKit.includes(ruta))
     return n
@@ -132,7 +135,6 @@ export function decidir({
       : propio
         ? { accion: 'borrar', como: 'tomado' }
         : nada('tomado')
-  if (dejar.includes(ruta)) return nada('dejado')
   return decidirSinRespuesta(ruta, b, n, propio)
 }
 
