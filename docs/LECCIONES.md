@@ -5,7 +5,8 @@ una prueba o una pantalla. Lo que es regla de construcción de siempre está en 
 diseño, en `docs/DECISIONES.md`.
 
 **Una lección nueva** entra cuando un bug o una trampa costó tiempo y volvería a pasar: una viñeta en su sección, `- Haz/Evita X: porque Y.`
-Si ya no aplica (cambió la herramienta o el código), se quita.
+Si ya no aplica (cambió la herramienta o el código), se quita. Si es un defecto del flujo o del kit, termina en `(kit)`; un hueco de la
+semilla, en `(semilla)`: al integrarse, el orquestador las sube solas al kit (`docs/KIT.md` › «El flujo entre el kit y los proyectos»).
 
 ## Base de datos: SQL, RLS y permisos
 

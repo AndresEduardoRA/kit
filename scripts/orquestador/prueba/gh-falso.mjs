@@ -5,10 +5,12 @@
 // `gh issue edit` falla como en los repos donde GraphQL choca con los proyectos clásicos (y el orquestador cae a la API REST).
 // Lo de una tarea con `al_integrar` (al-integrar.test.ts) y del guion del cierre (scripts/flujo/cierre.mjs): un PR de `prs` puede
 // traer `sha` (su squash), `padre`, `titulo` y `cuerpo`; las etiquetas viven en `refs` (`{ ref, sha }`), y con `refsFalla` crearlas
-// falla con ese texto.
+// falla con ese texto. Un PR puede traer `archivos` (los de `pulls/<n>/files`). Un repo nombrado explícitamente que está en `git` (el
+// kit, otro proyecto) lo atiende gh-falso-git.mjs.
 import { spawnSync } from 'node:child_process'
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { atenderGit } from './gh-falso-git.mjs'
 
 const dir = process.env['GH_FALSO'] ?? ''
 const ruta = join(dir, 'estado.json')
@@ -84,8 +86,11 @@ if (args[0] === 'api') {
   const [base, consulta = ''] = camino.split('?')
   const q = new URLSearchParams(consulta)
   const resto = (base ?? '').replace(/^repos\/[^/]+\/[^/]+\/?/, '')
+  const explicito = /^repos\/([^/{]+\/[^/{]+)/.exec(base ?? '')?.[1] ?? ''
   let m
-  if (resto === 'labels' && metodo === 'GET') imprimir(e.etiquetas.map((name) => ({ name })))
+  if (e.git?.[explicito])
+    atenderGit({ e, repo: explicito, metodo, resto, q, campos, imprimir, salir, guardar })
+  else if (resto === 'labels' && metodo === 'GET') imprimir(e.etiquetas.map((name) => ({ name })))
   else if (resto === 'labels' && metodo === 'POST') {
     e.etiquetas.push(campos['name'])
     guardar()
@@ -135,6 +140,11 @@ if (args[0] === 'api') {
       guardar()
       imprimir(c)
     } else imprimir(i.comentarios)
+  } else if ((m = /^pulls\/(\d+)\/files$/.exec(resto)) && metodo === 'GET') {
+    const p =
+      prDe(e.repo, (x) => String(x.number) === m?.[1]) ??
+      salir(1, `HTTP 404: Not Found (pulls/${m[1]}/files)`)
+    imprimir(p.archivos ?? [])
   } else if ((m = /^pulls\/(\d+)$/.exec(resto)) && metodo === 'GET') {
     const p =
       prDe(e.repo, (x) => String(x.number) === m?.[1]) ??

@@ -19,7 +19,11 @@ import { dirname, join, resolve } from 'node:path'
 import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { leerManifiesto } from '../proyecto/manifiesto.mjs'
+import { coincide, esFlujo, patronesDelKit, rutaProhibida } from './flujo.mjs'
 import { crear, resumen } from './nuevo-proyecto.mjs'
+import { personalizar } from './personalizar.mjs'
+import { reemplazos } from './reemplazos.mjs'
+import { archivosDelKit } from './repo-nuevo.mjs'
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const hayPyYaml = spawnSync('python3', ['-c', 'import yaml']).status === 0
@@ -140,8 +144,22 @@ conValidador('nuevo-proyecto.mjs sobre el ejemplo turnero', () => {
         execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' }),
         '',
       )
+      // De scripts/kit/ viaja sólo lo que es flujo (traer el flujo del kit); el generador, la publicación y su gh falso, no.
       for (const f of [
-        'scripts/kit',
+        'scripts/kit/actualizar.mjs',
+        'scripts/kit/flujo.txt',
+        'scripts/kit/mezcla.mjs',
+      ])
+        assert.ok(existsSync(join(dir, f)), `${rol}: ${f} viaja`)
+      for (const f of [
+        'scripts/kit/nuevo-proyecto.mjs',
+        'scripts/kit/publicar-proyecto.mjs',
+        'scripts/kit/reemplazos.mjs',
+        'scripts/kit/traer-de-proyecto.mjs',
+        'scripts/kit/prueba',
+        '.claude/skills/traer-de-proyecto',
+        '.claude/skills/semilla-a-repo',
+        '.kit/omitir',
         'scripts/semilla',
         'scripts/proyecto/proyecto.sh',
         'scripts/proyecto/proyecto.mjs',
@@ -244,5 +262,55 @@ conValidador('nuevo-proyecto.mjs sobre el ejemplo turnero', () => {
     )
     writeFileSync(join(mediano.z, 'semilla/ESTADO.md'), '- auditoría independiente: hecha\n')
     assert.equal(crear('turnero', { raiz: mediano.raiz, enSeco: true }).repos.length, 2)
+  })
+})
+
+describe('el flujo que viaja (scripts/kit/flujo.txt)', () => {
+  test('todo archivo del kit que es flujo viaja; cada línea nombra un archivo del kit y ninguna es del producto', () => {
+    const patrones = patronesDelKit()
+    const viajan = new Set(archivosDelKit(KIT))
+    const delKit = execFileSync('git', ['-C', KIT, 'ls-files'], { encoding: 'utf8' })
+      .split('\n')
+      .filter(Boolean)
+    const quedan = delKit.filter((f) => esFlujo(f, patrones) && !viajan.has(f))
+    assert.deepEqual(quedan, [], 'lo de flujo.txt que el generador no copia')
+    for (const p of patrones) {
+      assert.ok(
+        delKit.some((f) => coincide(f, p)),
+        `«${p}» no nombra ningún archivo del kit`,
+      )
+      assert.ok(
+        !p.startsWith('*') && !rutaProhibida(p.replaceAll('*', 'x')),
+        `«${p}» es del producto`,
+      )
+    }
+  })
+
+  test('personalizar.mjs (el de actualizar.mjs) da lo mismo que el generador en los archivos del flujo', () => {
+    const valores = {
+      nombre: 'turnero-app',
+      slug: 'turnero',
+      bloque: 6,
+      funciones: 'avisar cobrar',
+    }
+    const r = reemplazos({
+      slug: 'turnero',
+      rol: 'app',
+      nombreProyecto: 'Turnero',
+      descripcion: 'x',
+      bloque: 6,
+      scopes: [],
+      funciones: 'avisar cobrar',
+      cssSemilla: '',
+    })
+    for (const f of [
+      '.claude/agents/revisor.md',
+      'scripts/orquestador/README.md',
+      '.github/workflows/ci.yml',
+      '.github/acciones/pila/action.yml',
+    ]) {
+      const t = readFileSync(join(KIT, f), 'utf8')
+      assert.equal(personalizar(f, t, valores), r[f](t), f)
+    }
   })
 })

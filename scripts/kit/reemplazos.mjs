@@ -2,8 +2,12 @@
 // marcadores, los puertos del bloque, los tokens de la semilla y los docs que nacen de ella. Todo puro: texto adentro, texto afuera.
 // Se prueba en `nuevo-proyecto.test.mjs`.
 import { baseDelBloque } from '../lib/stack-local.mjs'
+import { conNombre, personalizacionesDelFlujo } from './personalizar.mjs'
 import { exigir } from './problema.mjs'
 import { bloqueDe, seccion, valorDe } from './semilla.mjs'
+
+// Lo del flujo vive en personalizar.mjs (viaja a cada proyecto: actualizar.mjs personaliza igual que el generador).
+export { CON_NOMBRE, MARCADORES, marcadoresSueltos, seRevisa } from './personalizar.mjs'
 
 // Los archivos donde están los números del bloque 5 (el del kit) que pasan al bloque del repo.
 export const CON_PUERTOS = [
@@ -11,31 +15,6 @@ export const CON_PUERTOS = [
   'playwright.config.ts',
   '.env.example',
   'README.md',
-]
-export const MARCADORES = [
-  '{{NOMBRE}}',
-  '{{DESCRIPCION}}',
-  '{{SCOPES}}',
-  '{{SCOPES_MODULOS}}',
-  '{{API_PORT}}',
-  '{{DB_PORT}}',
-  '{{FUNCIONES}}',
-  '{{PUERTOS_PILA}}',
-  'cambiar-slug',
-]
-// Los archivos del flujo (vienen de calesa-app) que nombran al repo: `{{NOMBRE}}` en la prosa y `cambiar-slug-app` en lo que es un
-// identificador (el servicio del orquestador, su tema de ntfy; PROYECTO de config.env va vacío: sale del manifiesto). Sólo esos: los
-// `{{ID}}`, `{{RAMA}}`… de los prompts los reemplaza el orquestador.
-export const CON_NOMBRE = [
-  '.claude/agents/revisor.md',
-  '.claude/skills/entregar/SKILL.md',
-  '.claude/skills/feature/SKILL.md',
-  '.claude/skills/revisar/SKILL.md',
-  'scripts/orquestador/README.md',
-  'scripts/orquestador/prompts/tarea.md',
-  'scripts/orquestador/prompts/arreglar.md',
-  'scripts/orquestador/prompts/planificar.md',
-  'scripts/orquestador/prompts/redactar.md',
 ]
 // El ancho de prettier del kit (.prettierrc): DESCRIPCION_APP queda como la dejaría prettier.
 const ANCHO = 100
@@ -81,40 +60,18 @@ export function reemplazos({
   cssSemilla,
 }) {
   const nombre = `${slug}-${rol}`
-  const p = baseDelBloque(bloque)
-  const conNombre = (t) =>
-    t
-      .replaceAll('{{NOMBRE}}', nombre)
-      .replaceAll('cambiar-slug-app', nombre)
-      .replaceAll('cambiar-slug', slug)
+  const nombrar = (t) => conNombre(t, { nombre, slug })
   const r = {
+    // Los archivos del flujo: el nombre del repo y los puertos del bloque en el CI.
+    ...personalizacionesDelFlujo({ nombre, slug, bloque, funciones }),
     // Las funciones edge que los e2e exigen servidas: una por línea, tras los comentarios del archivo.
     'e2e/funciones.txt': (t) =>
       funciones ? `${t.trimEnd()}\n${funciones.split(/\s+/).join('\n')}\n` : t,
     // project_id = el nombre del repo: los contenedores se llaman supabase_*_<project_id> y con el slug solo app y web chocan.
     'supabase/config.toml': (t) =>
       moverPuertos(t, bloque).replace(/^project_id = ".*"$/m, `project_id = "${nombre}"`),
-    '.github/workflows/ci.yml': (t) =>
-      t
-        .replace(
-          / semilla-a-repo reemplaza \{\{API_PORT\}\}[\s\S]*?con e2e\/funciones\.txt\./,
-          ` Puertos del bloque ${bloque}.`,
-        )
-        .replaceAll('{{API_PORT}}', String(p.SUPABASE_API_PORT))
-        .replaceAll('{{DB_PORT}}', String(p.SUPABASE_DB_PORT))
-        .replaceAll('{{FUNCIONES}}', funciones),
-    '.github/acciones/pila/action.yml': (t) =>
-      t
-        .replace(
-          / semilla-a-repo reemplaza \{\{PUERTOS_PILA\}\}[^.]*\./,
-          ` Puertos del bloque ${bloque}.`,
-        )
-        .replaceAll(
-          '{{PUERTOS_PILA}}',
-          `${p.SUPABASE_DB_SHADOW_PORT}-${p.SUPABASE_EDGE_RUNTIME_INSPECTOR_PORT}`,
-        ),
     'AGENTS.md': (t) =>
-      conNombre(t)
+      nombrar(t)
         .replaceAll('{{DESCRIPCION}}', descripcion)
         .replaceAll('{{SCOPES}}', scopes.join(', ') || 'ninguno todavía'),
     'commitlint.config.mjs': (t) =>
@@ -172,29 +129,16 @@ export function reemplazos({
     'package.json': (t) => {
       const j = JSON.parse(t)
       j.name = nombre
-      // Los scripts del generador y de la publicación no viajan (scripts/kit/ tampoco).
+      // Los scripts del generador y de la publicación no viajan (lo de scripts/kit/ que no es flujo, tampoco).
       for (const s of Object.keys(j.scripts ?? {}))
         if (s.startsWith('kit:') || s === 'test:generador') delete j.scripts[s]
       return JSON.stringify(j, null, 2) + '\n'
     },
   }
-  for (const f of CON_NOMBRE) r[f] = conNombre
   for (const f of CON_PUERTOS) if (!r[f]) r[f] = (t) => moverPuertos(t, bloque)
   const readme = r['README.md']
-  r['README.md'] = (t) => conNombre(readme(t)).replaceAll('{{DESCRIPCION}}', descripcion)
+  r['README.md'] = (t) => nombrar(readme(t)).replaceAll('{{DESCRIPCION}}', descripcion)
   return r
-}
-
-/** Lo que se revisa por marcadores sueltos: lo que viaja menos la semilla, docs/KIT.md (que los documenta) y lo binario. */
-export const seRevisa = (f) =>
-  f !== 'docs/KIT.md' && !f.startsWith('docs/semilla/') && !/\.(png|jpg|ico|woff2?|tgz)$/.test(f)
-
-/** Los marcadores que quedarían sin reemplazar, `archivo: marcador`, de un mapa archivo → texto. Puro. */
-export function marcadoresSueltos(textos) {
-  const quedan = []
-  for (const [f, t] of Object.entries(textos))
-    for (const m of MARCADORES) if (t.includes(m)) quedan.push(`${f}: ${m}`)
-  return quedan
 }
 
 /**

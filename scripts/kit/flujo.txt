@@ -1,5 +1,7 @@
-# Lo que es flujo: lo que vino de calesa-app en K02 (docs/KIT.md › «Lo que vino de calesa-app»), una ruta o patrón por línea.
-# K12 lo usa para llevar mejoras entre el kit y los proyectos. Nunca entra aquí nada de src/, supabase/, design/ ni docs de producto.
+# Lo que es flujo: lo que se lleva entre el kit y los proyectos en los dos sentidos (docs/KIT.md › «El flujo entre el kit y los
+# proyectos»), una ruta o patrón por línea (`**` cruza carpetas, `*` no). Nunca entra aquí nada de src/, supabase/, design/ ni de docs/
+# de producto: scripts/kit/flujo.mjs (rutaProhibida) lo descarta igual. Lo de scripts/kit/ listado aquí viaja a cada proyecto; el resto
+# de scripts/kit/ (el generador y la publicación), no. Un proyecto que no quiere un archivo lo anota en .kit/omitir (misma sintaxis).
 # Las líneas que empiezan con # son comentarios.
 scripts/flujo/*
 scripts/orquestador/**
@@ -53,3 +55,19 @@ e2e/soporte/reporter-de-fallos.ts
 vitest.config.mts
 docs/FLUJO.md
 docs/LECCIONES.md
+# Traer el flujo del kit (actualizar.mjs) y lo que usa: el lector del manifiesto, los puertos por bloque y el doc del kit.
+scripts/kit/flujo.txt
+scripts/kit/flujo.mjs
+scripts/kit/personalizar.mjs
+scripts/kit/mezcla.mjs
+scripts/kit/mezcla.test.ts
+scripts/kit/kit-gh.mjs
+scripts/kit/actualizar.mjs
+scripts/kit/actualizar.test.ts
+scripts/kit/juguete.ts
+scripts/lib/stack-local.mjs
+scripts/lib/stack-local.test.mjs
+scripts/proyecto/manifiesto.mjs
+scripts/proyecto/manifiesto.test.mjs
+scripts/proyecto/fixtures/calesa.proyecto.yaml
+docs/KIT.md

@@ -84,15 +84,15 @@ La `## Retro` de ese PR y las líneas `(semilla)` de `docs/LECCIONES.md` aliment
 
 ## Docs: qué se toca en cada actualización
 
-| Doc                             | Cuándo                                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `docs/PENDIENTES.md`            | Se borra la línea de lo que se cerró; se anota en una línea lo que se descubrió y no se hizo                  |
-| La ficha `CLAUDE.md` del módulo | Si cambió su contrato (qué entra, qué sale, una regla, una trampa). Dice lo que es, no cómo se llegó          |
-| `docs/GLOSARIO.md`              | Término nuevo                                                                                                 |
-| `docs/DECISIONES.md`            | Una decisión no obvia: una viñeta en su área. Si reemplaza a otra, se edita la que estaba                     |
-| `docs/LECCIONES.md`             | Una trampa que costó tiempo y volvería a pasar: la regla que la evita, en una línea                           |
-| `docs/UX.md`, `RENDIMIENTO.md`  | Si cambió la pantalla o un presupuesto                                                                        |
-| `docs/ESTADO.md`                | Sólo si cambia el estado del producto (algo nuevo funcionando, un verde que dejó de serlo). No en cada cambio |
+| Doc                             | Cuándo                                                                                                                                                                                                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docs/PENDIENTES.md`            | Se borra la línea de lo que se cerró; se anota en una línea lo que se descubrió y no se hizo                                                                                                                                                                       |
+| La ficha `CLAUDE.md` del módulo | Si cambió su contrato (qué entra, qué sale, una regla, una trampa). Dice lo que es, no cómo se llegó                                                                                                                                                               |
+| `docs/GLOSARIO.md`              | Término nuevo                                                                                                                                                                                                                                                      |
+| `docs/DECISIONES.md`            | Una decisión no obvia: una viñeta en su área. Si reemplaza a otra, se edita la que estaba                                                                                                                                                                          |
+| `docs/LECCIONES.md`             | Una trampa que costó tiempo y volvería a pasar: la regla que la evita, en una línea. Si es un defecto del flujo o del kit, termina en `(kit)` y sube sola al kit; un hueco de la semilla, en `(semilla)` (`docs/KIT.md` › «El flujo entre el kit y los proyectos») |
+| `docs/UX.md`, `RENDIMIENTO.md`  | Si cambió la pantalla o un presupuesto                                                                                                                                                                                                                             |
+| `docs/ESTADO.md`                | Sólo si cambia el estado del producto (algo nuevo funcionando, un verde que dejó de serlo). No en cada cambio                                                                                                                                                      |
 
 Ningún doc lleva historia («se encontró X y se arregló»): eso es el PR. Lo que queda escrito es la regla que resultó.
 

@@ -10,22 +10,23 @@ límite de Claude con turnos de sesión y una pausa compartida (`scripts/orquest
 
 ## Qué trae
 
-| Qué                                                                                        | Para qué                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/flujo/` (`estado.sh`, `publicar.sh`, `limpiar-ramas.mjs`, `cierre.mjs`)           | Mirar el estado, publicar el PR con auto-merge, limpiar las ramas integradas y cerrar la construcción de un repo                                                                                                            |
-| `scripts/orquestador/`                                                                     | La cola de tareas en los issues `cola` (copia en `.orquestador/`): un carril, una sesión de `claude -p` y un PR por tarea                                                                                                   |
-| `.github/workflows/ci.yml`, `.github/acciones/`                                            | El CI por niveles; `Listo · todo en verde` es el único check que `main` exige                                                                                                                                               |
-| `.claude/` (settings, hooks, reglas, skills `entregar`, `feature`, `revisar`)              | Los hooks bloquean lo peligroso, lintean cada archivo y verifican al terminar; el agente `revisor` revisa sin poder editar                                                                                                  |
-| `scripts/guardas/`, `scripts/nivel.mjs`, `scripts/e2e-dirigidos.mjs`                       | Las guardas que corren con `pnpm test` y la elección de qué e2e corre un PR                                                                                                                                                 |
-| `scripts/lib/stack-local.mjs`, `scripts/worktree/`                                         | Los puertos por bloque y por carril (a, b, c), y el worktree con su propio stack de Supabase                                                                                                                                |
-| `.proyecto/proyecto.yaml`, `scripts/proyecto/manifiesto.mjs`                               | Quién es el repo: el manifiesto (abajo)                                                                                                                                                                                     |
-| `scripts/contratos/` (`pnpm contrato:generar`, `probar`, `tipos`, `usar`)                  | Los contratos de base entre repos: el proveedor genera y prueba sus versiones desde su base local; el consumidor fija una copia y revisa su `infra/` (abajo)                                                                |
-| `src/shared`, `design/tokens.css`, `supabase/`, `e2e/`                                     | La app base: entorno con Zod, clientes de Supabase, `safe-action`, paginación, fechas y formato, correo; tokens OKLCH; una migración base y las pruebas de la base (`rls-en-todo`, `privilegios-de-anon`, `escala`, `humo`) |
-| `scripts/proyecto/proyecto.sh` (`proyecto.mjs`, `proyecto-texto.mjs`)                      | El estado de un proyecto entero y su resumen diario al celular (abajo); no viaja a un proyecto                                                                                                                              |
-| `scripts/kit/` (`nuevo-proyecto.mjs`, `publicar-proyecto.mjs`, `flujo.txt`, el `gh` falso) | El generador de los repos de un proyecto, su publicación en GitHub con la cola y la lista de lo que es flujo; no viajan a un proyecto                                                                                       |
-| `scripts/semilla/`, `docs/semillas/`                                                       | De idea-a-semilla: el validador, la semilla de ejemplo v2 (turnero: app y web), las lecciones de las semillas y la plantilla del manifiesto; no viajan                                                                      |
+| Qué                                                                                           | Para qué                                                                                                                                                                                                                    |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/flujo/` (`estado.sh`, `publicar.sh`, `limpiar-ramas.mjs`, `cierre.mjs`)              | Mirar el estado, publicar el PR con auto-merge, limpiar las ramas integradas y cerrar la construcción de un repo                                                                                                            |
+| `scripts/orquestador/`                                                                        | La cola de tareas en los issues `cola` (copia en `.orquestador/`): un carril, una sesión de `claude -p` y un PR por tarea                                                                                                   |
+| `.github/workflows/ci.yml`, `.github/acciones/`                                               | El CI por niveles; `Listo · todo en verde` es el único check que `main` exige                                                                                                                                               |
+| `.claude/` (settings, hooks, reglas, skills `entregar`, `feature`, `revisar`)                 | Los hooks bloquean lo peligroso, lintean cada archivo y verifican al terminar; el agente `revisor` revisa sin poder editar                                                                                                  |
+| `scripts/guardas/`, `scripts/nivel.mjs`, `scripts/e2e-dirigidos.mjs`                          | Las guardas que corren con `pnpm test` y la elección de qué e2e corre un PR                                                                                                                                                 |
+| `scripts/lib/stack-local.mjs`, `scripts/worktree/`                                            | Los puertos por bloque y por carril (a, b, c), y el worktree con su propio stack de Supabase                                                                                                                                |
+| `.proyecto/proyecto.yaml`, `scripts/proyecto/manifiesto.mjs`                                  | Quién es el repo: el manifiesto (abajo)                                                                                                                                                                                     |
+| `scripts/contratos/` (`pnpm contrato:generar`, `probar`, `tipos`, `usar`)                     | Los contratos de base entre repos: el proveedor genera y prueba sus versiones desde su base local; el consumidor fija una copia y revisa su `infra/` (abajo)                                                                |
+| `src/shared`, `design/tokens.css`, `supabase/`, `e2e/`                                        | La app base: entorno con Zod, clientes de Supabase, `safe-action`, paginación, fechas y formato, correo; tokens OKLCH; una migración base y las pruebas de la base (`rls-en-todo`, `privilegios-de-anon`, `escala`, `humo`) |
+| `scripts/proyecto/proyecto.sh` (`proyecto.mjs`, `proyecto-texto.mjs`)                         | El estado de un proyecto entero y su resumen diario al celular (abajo); no viaja a un proyecto                                                                                                                              |
+| `scripts/kit/` (`nuevo-proyecto.mjs`, `publicar-proyecto.mjs`, `flujo.txt`, `actualizar.mjs`) | El generador de los repos de un proyecto y su publicación en GitHub con la cola (no viajan), y lo que es flujo con lo que lo trae del kit (viaja: abajo)                                                                    |
+| `scripts/semilla/`, `docs/semillas/`                                                          | De idea-a-semilla: el validador, la semilla de ejemplo v2 (turnero: app y web), las lecciones de las semillas y la plantilla del manifiesto; no viajan                                                                      |
 
-Lo que es flujo, y por eso se lleva entre el kit y los proyectos (K12), está en `scripts/kit/flujo.txt`.
+Lo que es flujo, y por eso se lleva entre el kit y los proyectos, está en `scripts/kit/flujo.txt` (abajo, «El flujo entre el kit y
+los proyectos»).
 
 ## De dónde sale
 
@@ -142,16 +143,16 @@ node scripts/kit/publicar-proyecto.mjs <slug> secretos|crear|cola|proteger [--ro
 | `e2e/funciones.txt`                           | Las funciones edge que los e2e exigen servidas, desde `funciones_edge` de la semilla del repo (una por línea)                                                                                                                                                                                           |
 | `.github/workflows/ci.yml`                    | `{{API_PORT}}`, `{{DB_PORT}}` y `{{FUNCIONES}}`                                                                                                                                                                                                                                                         |
 | `.github/acciones/pila/action.yml`            | `{{PUERTOS_PILA}}`: los puertos de la principal del bloque (del shadow al inspector; bloque 5: `55320-55329`)                                                                                                                                                                                           |
-| Los archivos del flujo (`CON_NOMBRE`)         | El nombre del repo en el revisor, las tres skills, el README del orquestador y sus prompts (`PROYECTO` de su `config.env` va vacío: sale del manifiesto)                                                                                                                                                |
+| Los archivos del flujo (`CON_NOMBRE`)         | El nombre del repo en el revisor, las tres skills, el README del orquestador y sus prompts (`PROYECTO` de su `config.env` va vacío: sale del manifiesto); lo del flujo vive en `scripts/kit/personalizar.mjs`, que usa también `actualizar.mjs`                                                         |
 | `.proyecto/proyecto.yaml`                     | La copia del manifiesto entero, con su cabecera de copia. `provee` y `consume` nacen vacíos: con `provee: [x@1]` y sin `contratos/x@1.json` el job `contrato` caería desde el primer PR (y `contrato-uso` sin la copia fijada); los escribe el paso que publica o adopta el contrato, como pide su spec |
-| `.kit/version`                                | El commit del kit del que salió (el `HEAD` de la principal; por eso la skill exige el kit en main y limpio)                                                                                                                                                                                             |
+| `.kit/version`                                | El commit del kit del que salió (el `HEAD` de la principal; por eso la skill exige el kit en main y limpio), y lo avanza `actualizar.mjs`                                                                                                                                                               |
 | `AGENTS.md`, `README.md`                      | `{{NOMBRE}}`, `{{DESCRIPCION}}` (la del repo) y `{{SCOPES}}`                                                                                                                                                                                                                                            |
 | `commitlint.config.mjs`                       | `// {{SCOPES_MODULOS}}`, por los módulos (`src/modules/<x>/`) que nombra el `plan.yaml` del repo                                                                                                                                                                                                        |
 | `src/shared/config/app.ts`                    | `NOMBRE_APP` = el nombre del proyecto (el que ve quien usa la app), la descripción del repo y los colores del manifest                                                                                                                                                                                  |
 | `design/tokens.css`                           | El bloque entre `semilla:inicio` y `semilla:fin`, por el CSS de «Marca y sistema de diseño» de `comun.md`                                                                                                                                                                                               |
 | `docs/semilla/`                               | `comun.md`, `registro.md`, y `semilla.md` y `plan.yaml` del repo (aplanados desde `repos/<rol>/`: las referencias del flujo a `docs/semilla/semilla.md` siguen valiendo y cada repo ve sólo lo suyo)                                                                                                    |
 | `docs/UX.md`, `RENDIMIENTO.md`, `GLOSARIO.md` | De «Experiencia» y «Escala y rendimiento» del repo y de «Glosario» de lo común. Nacen de la semilla y se editan con cada cambio, como en cualquier repo: su cabecera nunca dice «no se edita a mano»                                                                                                    |
-| `package.json`                                | Sin los scripts `kit:*` ni `test:generador` (`scripts/kit/` no viaja)                                                                                                                                                                                                                                   |
+| `package.json`                                | Sin los scripts `kit:*` ni `test:generador` (el generador no viaja)                                                                                                                                                                                                                                     |
 | `src/shared/types/database.types.ts`          | Hoy está escrito a mano. La skill corre `pnpm db:types` con Docker y lo commitea; si no, el job `base` del CI cae                                                                                                                                                                                       |
 
 El contrato con idea-a-semilla es el de su validador: los títulos de las secciones exactos; en `comun.md`, un solo bloque ` ```css ` con
@@ -214,6 +215,87 @@ Se prueba en `scripts/proyecto/proyecto.test.mjs` con un `gh` falso de dos cuent
 `systemctl` falso. **Sin verificar con GitHub y systemd reales:** los puntos de entrada de la API (`search/issues` para la retro, el
 `Accept: application/vnd.github.raw` de `contents`) y `OnCalendar` con zona horaria corren de verdad con la primera instalación.
 
+## El flujo entre el kit y los proyectos
+
+Las mejoras del flujo viajan solas en los dos sentidos como tareas de la cola, probadas por el CI de quien las recibe. Nunca tocan
+`src/`, `supabase/` ni nada del producto.
+
+```
+                  kit (AndresEduardoRA/kit · main)
+         tarea semanal │                    ▲ issue «traer de <repo> el PR #n» (cola)
+    actualizar.mjs     │                    │ skill traer-de-proyecto
+    (mezcla de 3 vías) ▼                    │ (al integrar un PR que toca flujo)
+                repo del proyecto · .kit/version · .kit/omitir
+```
+
+- **Qué es flujo:** `scripts/kit/flujo.txt`, una ruta o patrón por línea (`**` cruza carpetas, `*` no), con un solo lector
+  (`scripts/kit/flujo.mjs`). Nunca es flujo `src/`, `supabase/`, `design/` ni `docs/` salvo `FLUJO.md`, `LECCIONES.md` y `KIT.md`
+  (`rutaProhibida`, aunque `flujo.txt` dijera otra cosa). Lo de `scripts/kit/` que está en `flujo.txt` (`actualizar.mjs` y lo que usa)
+  viaja a cada proyecto; el generador y la publicación, no. `nuevo-proyecto.test.mjs` exige que todo lo de `flujo.txt` viaje y que cada
+  línea nombre un archivo del kit.
+- **`.kit/version`:** el commit del kit del que el repo trae el flujo. Lo escribe el generador y lo avanza `actualizar.mjs`.
+- **`.kit/omitir`:** lo que el proyecto no quiere del kit, con la sintaxis de `flujo.txt`. Un archivo de flujo borrado en el proyecto y
+  no anotado ahí vuelve con la actualización siguiente (el resumen lo dice).
+
+### Del kit al proyecto
+
+`node scripts/kit/actualizar.mjs [--revisar] [--tomar-kit <ruta>]… [--dejar <ruta>]…`, desde la raíz del repo del proyecto. Baja por
+GitHub (`gh api repos/<kit>/tarball/<sha>`, nunca la carpeta hermana; con el token del dueño del kit o, sin su sesión, el del entorno)
+el kit en `.kit/version` (base) y en main (nuevo), personaliza los dos para el repo con `scripts/kit/personalizar.mjs` (lo mismo que
+hace el generador, con el nombre, el slug, el bloque y las funciones del repo) y decide cada archivo de flujo (`scripts/kit/mezcla.mjs`):
+
+| Caso (b = base, n = nuevo, o = el del repo)   | Qué hace                                                                               |
+| --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| La ruta está en `.kit/omitir`                 | Nada                                                                                   |
+| `--dejar`                                     | Nada (responde cualquier choque)                                                       |
+| `--tomar-kit`                                 | Escribe n (o borra si el kit lo borró), salvo en los dos choques de las últimas filas  |
+| El kit no lo cambió (b = n)                   | Nada; si se borró en el repo, lo restaura                                              |
+| El kit lo borró                               | Lo borra si el repo no lo cambió; si lo cambió, choque                                 |
+| El kit lo creó                                | Lo escribe si no está; si está distinto, choque                                        |
+| Los tres existen                              | o = b: escribe n · o = n: nada · si no, `git merge-file` (un choque suyo es un choque) |
+| Binario                                       | o = b: escribe n · si no, choque                                                       |
+| n personalizado deja un marcador suelto       | Choque («quedaría el marcador X»)                                                      |
+| `ci.yml` o `action.yml` en un repo sin bloque | Choque (puertos heredados)                                                             |
+
+- **Todo o nada:** decide todos los archivos antes de escribir; con un choque no escribe nada (ni marcas `<<<<<<<`) y sale con 3. Sin
+  choques escribe (con el bit de ejecución del kit), pone `.kit/version` en main y commitea sólo eso, con los hooks:
+  `chore(kit): traer el flujo del kit <sha corto>`. Exige el árbol limpio.
+- **Responder una trabada,** por ruta: `--tomar-kit <ruta>` (la del kit), `--dejar <ruta>` (la del repo, esta vez) o una línea en
+  `.kit/omitir` (nunca más). Un marcador suelto o los puertos sin bloque no se resuelven tomando la del kit (dejaría el marcador): sólo
+  `--dejar` u `.kit/omitir`, y el marcador suelto es un defecto del kit.
+- **`docs/LECCIONES.md`** se mezcla con `--union` (las dos partes suman viñetas al final de la misma sección) y pierde la línea `… (kit)`
+  del repo que el kit ya absorbió con el sufijo `(<repo>, PR #<n>)`.
+- **`--revisar`** (lo corre la tarea semanal): atrás si el `compare` de GitHub entre `.kit/version` y main cambió algún archivo de flujo
+  del `flujo.txt` del repo (menos `.kit/omitir`), o si cortó la lista en 300. Un kit que sólo avanzó fuera del flujo está al día.
+- **Sale con** 0 (hecho o al día), 1 (no pudo: sin acceso al kit, sin `.kit/version` o uno que el kit no tiene, el árbol sucio, el
+  commit que cayó), 3 (choques), 10 (`--revisar`: atrás) o 64 (uso).
+- **Un repo de antes** de esto se pone al día una vez a mano, desde su raíz: `node <kit>/scripts/kit/actualizar.mjs`. Trabaja sobre el
+  repo del directorio actual y baja el kit por GitHub; exige `.kit/version`.
+- La tarea que lo corre cada semana: `scripts/orquestador/README.md` › «La tarea semanal del flujo del kit» (`KIT_SEMANAL`).
+
+### Del proyecto al kit
+
+- Al integrar un PR que toca flujo (o suma una lección `(kit)` o `(semilla)`), el orquestador del proyecto crea en el kit un issue
+  `cola` «traer de <repo> el PR #<n>» con el token del dueño del kit (`scripts/orquestador/README.md` › «Lo que sube al kit»,
+  `KIT_AVISAR`).
+- En el kit la hace la skill `traer-de-proyecto` (`.claude/skills/traer-de-proyecto/SKILL.md`). Lo determinista,
+  `node scripts/kit/traer-de-proyecto.mjs <cuenta/repo> <pr>`: baja el proyecto antes y después del squash del PR y aplica cada cambio
+  de flujo con una mezcla doble (el cambio del PR sobre el kit personalizado, y de ahí sobre el kit genérico: lo que el PR no tocó
+  conserva sus marcadores). Un cambio pegado a una línea con marcador choca y lo aplica la sesión, con las tres versiones guardadas; un
+  borrado queda por decidir. `traer-de-proyecto.mjs comprobar --nombre <repo> --slug <slug>` falla si quedó un nombre del proyecto.
+- **Lecciones:** una línea nueva del `docs/LECCIONES.md` del proyecto que termina en `(kit)` va al `docs/LECCIONES.md` del kit, en su
+  sección; una en `(semilla)`, a `docs/semillas/LECCIONES.md` › «Sugerencias de los proyectos». Las dos con `(<repo>, PR #<n>)` en
+  lugar del sufijo.
+
+### Lo que no hace
+
+- `package.json` no es flujo: una mejora del kit que pide una dependencia nueva traba la tarea (las sesiones no pueden sumar
+  dependencias).
+- Sin bucles: el aviso al kit se salta la rama `chore/flujo-del-kit-*`, y el kit (`.kit/plantilla`) no hace ninguno de los dos sentidos.
+- Se prueba en `scripts/kit/mezcla.test.ts` (la tabla), `actualizar.test.ts` (tres repos de juguete: sin choque, con choque y con
+  `.kit/omitir`), `scripts/orquestador/kit-semanal.test.ts` y `kit-aviso.test.ts` (con el `gh` falso, que sirve el kit de juguete
+  desde un repo local: `prueba/gh-falso-git.mjs`) y, en el kit, `traer-de-proyecto.test.ts`.
+
 ## Lo que no está verificado
 
 - **GitHub de verdad:** crear el repo, los ajustes, las etiquetas, la cola, el primer push de main y la protección están probados con un
@@ -237,5 +319,8 @@ Se prueba en `scripts/proyecto/proyecto.test.mjs` con un `gh` falso de dos cuent
 - **El cierre de la construcción contra GitHub real:** la etiqueta de `al_integrar` está probada con el `gh` falso
   (`scripts/orquestador/al-integrar.test.ts`) y `cierre.mjs`, con el ensayo sobre el ejemplo; la primera etiqueta y la primera sesión
   de cierre reales llegan con el último paso del primer proyecto.
+- **El flujo entre el kit y los proyectos contra GitHub real:** el tarball y el `compare` del kit, el primer issue en el kit con el
+  token de su dueño y la primera mezcla de un proyecto real están probados con el `gh` falso y repos de juguete; corren de verdad con la
+  primera tarea semanal y el primer PR de flujo de un proyecto.
 - **La tarea de dependencias en una sesión `auto` real:** el hook con `ORQ_PERMITE` está probado (`bloquear-peligrosos.test.ts`); que el
   clasificador del modo `auto` deje correr la actualización, todavía no.
