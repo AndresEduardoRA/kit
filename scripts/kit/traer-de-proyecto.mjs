@@ -7,7 +7,7 @@
 //   node scripts/kit/traer-de-proyecto.mjs <cuenta/repo> <pr>                         sale con 0, 3 (choques) o 1
 //   node scripts/kit/traer-de-proyecto.mjs comprobar --nombre <repo> --slug <slug>     sale con 1 si quedó un nombre sin generalizar
 //
-// Sólo del kit (no viaja). Se prueba en `traer-de-proyecto.test.ts`.
+// Los nombres sin generalizar los busca traer-nombres.mjs. Sólo del kit (no viaja). Se prueba en `traer-de-proyecto.test.ts`.
 import { spawnSync } from 'node:child_process'
 import {
   chmodSync,
@@ -27,11 +27,10 @@ import { archivoDe, bajarArbol, ghDe, SinAcceso } from './kit-gh.mjs'
 import { mezclar3 } from './mezcla.mjs'
 import { personalizar, SinBloque } from './personalizar.mjs'
 import { conOrigen, leccionesNuevas, SUGERENCIAS, sumarLeccion } from './traer-lecciones.mjs'
+import { nombresDe, nombresSinGeneralizar } from './traer-nombres.mjs'
 
 const USO =
   'uso: node scripts/kit/traer-de-proyecto.mjs <cuenta/repo> <pr> | comprobar --nombre <repo> --slug <slug>'
-// Las lecciones llevan el nombre del repo en su sufijo: `comprobar` no las mira.
-const CON_NOMBRE_A_PROPOSITO = ['docs/LECCIONES.md', 'docs/semillas/LECCIONES.md']
 
 class Fallo extends Error {
   /** @param {string} m  @param {number} [codigo] */
@@ -62,12 +61,6 @@ export function traerArchivo({ ruta, kit, antes, despues, valores }) {
   if (r2.choques)
     return { texto: '', choque: 'el cambio del PR toca líneas con marcadores del kit' }
   return { texto: r2.texto, choque: '' }
-}
-
-/** @param {string} nombre  @param {string} slug */
-const nombresDe = (nombre, slug) => {
-  const esc = (/** @type {string} */ s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`(^|[^A-Za-z0-9_-])(${esc(nombre)}|${esc(slug)})(?![A-Za-z0-9_])`, 'i')
 }
 
 /** @param {string} raiz  @param {string[]} a */
@@ -232,35 +225,14 @@ function traer(repo, pr) {
   }
 }
 
-/** `comprobar`: las líneas agregadas respecto de origin/main (y los archivos sin seguir) que nombran el repo o su slug. */
+/** `comprobar --nombre <repo> --slug <slug>`: 1 y la lista si quedó un nombre del proyecto sin generalizar. */
 function comprobar(argv) {
   const nombre = argv[argv.indexOf('--nombre') + 1]
   const slug = argv[argv.indexOf('--slug') + 1]
   if (!argv.includes('--nombre') || !argv.includes('--slug') || !nombre || !slug)
     throw new Fallo(USO, 64)
   const raiz = git(process.cwd(), 'rev-parse', '--show-toplevel').stdout.trim()
-  const re = nombresDe(nombre, slug)
-  const quedan = []
-  let archivo = ''
-  let n = 0
-  for (const l of git(raiz, 'diff', '-U0', '--no-color', 'origin/main').stdout.split('\n')) {
-    const h = /^@@ -\S+ \+(\d+)/.exec(l)
-    if (l.startsWith('+++ ')) archivo = l.replace(/^\+\+\+ (b\/)?/, '')
-    else if (h) n = Number(h[1])
-    else if (l.startsWith('+')) {
-      if (!CON_NOMBRE_A_PROPOSITO.includes(archivo) && re.test(l))
-        quedan.push(`${archivo}:${n}: ${l.slice(1).trim()}`)
-      n++
-    }
-  }
-  for (const f of git(raiz, 'ls-files', '--others', '--exclude-standard')
-    .stdout.split('\n')
-    .filter(Boolean))
-    readFileSync(join(raiz, f), 'utf8')
-      .split('\n')
-      .forEach((l, i) => {
-        if (re.test(l)) quedan.push(`${f}:${i + 1}: ${l.trim()}`)
-      })
+  const quedan = nombresSinGeneralizar(raiz, nombre, slug)
   if (!quedan.length) {
     console.log(`✓ ningún ${nombre} ni ${slug} sin generalizar`)
     return 0
