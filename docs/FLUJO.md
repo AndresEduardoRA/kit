@@ -74,6 +74,14 @@ Si dos PR tocan lo mismo, el segundo choca: `git merge origin/main` en su rama (
 commitea y se vuelve a publicar. Una migración que quedó antes de una ya integrada se crea de nuevo con
 `pnpm exec supabase migration new` (el CI lo exige).
 
+## Construcción y mantenimiento
+
+Un repo nace **en construcción** (`etapa` en `.proyecto/proyecto.yaml`): manda `docs/semilla/` y la cola son los pasos de su plan. La
+última tarea de esa cola, «cerrar la construcción» (`node scripts/flujo/cierre.mjs`), escribe `docs/ESTADO.md`, `docs/PENDIENTES.md` y
+`docs/DECISIONES.md`, saca `docs/semilla/` y deja el repo **en mantenimiento**: desde ahí mandan ESTADO y PENDIENTES. Al integrarse, el
+orquestador etiqueta `semilla-vN` el último commit de main antes de ese PR: la semilla se lee con `git show semilla-vN:docs/semilla/semilla.md`.
+La `## Retro` de ese PR y las líneas `(semilla)` de `docs/LECCIONES.md` alimentan las lecciones para las semillas siguientes.
+
 ## Docs: qué se toca en cada actualización
 
 | Doc                             | Cuándo                                                                                                        |

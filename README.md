@@ -3,7 +3,8 @@
 {{DESCRIPCION}}
 
 Next 16 + Supabase + Tailwind 4, armado desde el kit de proyecto (`docs/KIT.md`). Antes de tocar código: `AGENTS.md` (o `CLAUDE.md`),
-`docs/semilla/` y `docs/MAPA.md` (si falta: `bash scripts/mapa.sh`).
+lo que manda según la etapa (`docs/semilla/` en construcción; `docs/ESTADO.md` y `docs/PENDIENTES.md` en mantenimiento) y
+`docs/MAPA.md` (si falta: `bash scripts/mapa.sh`).
 
 ## Arrancar en local
 

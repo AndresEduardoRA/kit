@@ -11,11 +11,15 @@ Un cambio es una rama, un PR con auto-merge y el CI que decide (`docs/FLUJO.md`)
 
 ## Al empezar
 
-1. `bash scripts/flujo/estado.sh`: si hay un PR abierto o un CI en rojo, eso va antes que lo pedido. El producto, los permisos, los
-   datos y el diseño están en `docs/semilla/`: `semilla.md` y `plan.yaml` de este repo, y `comun.md` (marca, glosario y contratos
-   del proyecto).
-2. `docs/MAPA.md` (generado: módulos, API, rutas, tablas). **El mapa antes que grep.** Si falta: `bash scripts/mapa.sh`.
-3. La ficha `CLAUDE.md` de un módulo y `.claude/rules/*` rigen al tocar sus archivos. Con grep, bajo demanda: `docs/GLOSARIO.md`,
+1. `bash scripts/flujo/estado.sh`: si hay un PR abierto o un CI en rojo, eso va antes que lo pedido.
+2. Qué manda depende de la `etapa` de este repo en `.proyecto/proyecto.yaml`:
+   - **En construcción**, el producto, los permisos, los datos y el diseño están en
+     `docs/semilla/`: `semilla.md` y `plan.yaml` de este repo, y `comun.md` (marca, glosario y contratos del proyecto).
+   - **En mantenimiento**, `docs/ESTADO.md` (cómo está hoy) y `docs/PENDIENTES.md` (lo que falta). La semilla quedó congelada en la
+     etiqueta de su `semilla:`: lo que una regla cite de `docs/semilla/` se lee con `git show semilla-vN:docs/semilla/semilla.md` (si
+     falta, `git fetch origin tag semilla-vN`). Si el código, la ficha del módulo o `docs/DECISIONES.md` dicen otra cosa, mandan ellos.
+3. `docs/MAPA.md` (generado: módulos, API, rutas, tablas). **El mapa antes que grep.** Si falta: `bash scripts/mapa.sh`.
+4. La ficha `CLAUDE.md` de un módulo y `.claude/rules/*` rigen al tocar sus archivos. Con grep, bajo demanda: `docs/GLOSARIO.md`,
    `docs/UX.md`, `docs/RENDIMIENTO.md`, `docs/LECCIONES.md` (trampas ya pisadas) y `docs/KIT.md` (de dónde sale este repo), los que existan.
 
 ## Comandos
