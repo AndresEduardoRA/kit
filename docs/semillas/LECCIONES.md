@@ -9,7 +9,10 @@ Cuando una lección se puede comprobar con código, pasa a `validar_semilla.py` 
 - una **«decisión tomada sin preguntar»** en el cuerpo de un PR que el dueño habría querido decidir;
 - la **retro del cierre de construcción**: la sección `## Retro` del PR «cerrar la construcción» de cada repo
   (`gh pr list --state merged --search 'cerrar la construcción in:title'`), con cada hallazgo clasificado; los «hueco de la semilla»
-  llegan además como líneas `(semilla)` del `docs/LECCIONES.md` del repo.
+  llegan además como líneas `(semilla)` del `docs/LECCIONES.md` del repo;
+- una línea `(semilla)` del `docs/LECCIONES.md` de un proyecto, que sube sola al kit cuando se integra (`docs/KIT.md` › «El flujo
+  entre el kit y los proyectos») y queda en «Sugerencias de los proyectos», abajo, con `(<repo>, PR #<n>)`: idea-a-semilla la vuelve
+  regla en su sección y la saca de ahí.
 
 Formato: `- Haz/Evita X: porque Y. (proyecto, de dónde salió)`. Si deja de aplicar, se borra.
 
@@ -57,3 +60,7 @@ Formato: `- Haz/Evita X: porque Y. (proyecto, de dónde salió)`. Si deja de apl
   mejora suya integrada seguía sin usarse hasta un pull a mano. (kit, K05)
 - En archivos que el generador copia a un proyecto nuevo, nombra las skills por su función, no por su nombre: la guarda del
   generador rechaza los nombres del flujo viejo y tumbó el primer CI de K05 por «piloto-prompts». (kit, K05)
+
+## Sugerencias de los proyectos
+
+Lo que subió un proyecto como `(semilla)`, todavía sin volver regla en su sección.
