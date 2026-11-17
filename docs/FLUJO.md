@@ -6,8 +6,8 @@ Cómo entra un cambio a `main`. El proyecto vive de **actualizaciones frecuentes
 ## Una actualización
 
 0. **Mirar el estado:** `bash scripts/flujo/estado.sh` (la rama, las ramas locales sin worktree, los cambios apartados con
-   `git stash`, los PR abiertos, el CI de `main` y el e2e completo de la noche). Un PR abierto en rojo o una noche caída van antes
-   que lo pedido: nadie más los mira. Una rama suelta o un stash es trabajo de otra sesión que no llegó a `main`: se publica o se
+   `git stash`, los PR abiertos, el CI de `main`, el e2e completo de la noche y el issue `noche-roja` abierto). Un PR abierto en rojo
+   o una noche caída van antes que lo pedido. Una rama suelta o un stash es trabajo de otra sesión que no llegó a `main`: se publica o se
    le dice a la persona; una sesión no los borra.
 1. **Rama** desde `main` al día: `git switch main && git pull --ff-only && git switch -c <tipo>/<tema>` (`feat/`, `fix/`, `chore/`,
    `docs/`, `refactor/`, `perf/`, `test/`). Una rama, un cambio: si el título necesita «y», son dos actualizaciones.
@@ -35,7 +35,7 @@ del PR cuenta qué cambió, por qué y cómo se verificó: es la bitácora. No h
 | CI del PR (la autoridad)     | Nivel 1 (lint, tipos, mapa, título, orden de migraciones, `pnpm test` en 3 partes); «Base» si cambia código (reset, tipos sin diff, `db:probar` completo, privilegios, `db:lint`, advisors); |
 |                              | los e2e dirigidos a lo tocado, o el completo de escritorio en 4 bloques si toca un disparador del Nivel 2 (`.claude/rules/e2e.md`). `Listo · todo en verde` los resume                       |
 |                              | En el kit, además, «kit · proyecto de ejemplo»: genera un proyecto desde una semilla y le corre `install`, `lint`, `typecheck`, `test` y `db:probar`                                         |
-| Cada noche (CI)              | El e2e completo de escritorio sobre `main`, si hubo commits                                                                                                                                  |
+| Cada noche (CI)              | El e2e completo de escritorio sobre `main`, si hubo commits; si cae dos noches seguidas, el issue `noche-roja` entra a la cola (`scripts/flujo/noche.mjs`)                                   |
 | Antes de desplegar           | El completo con los dos proyectos: Actions › ci › Run workflow, `proyectos: ambos` (lo dispara la persona), o `pnpm test:e2e:completo` en local                                              |
 
 Rigor máximo (mutaciones, carreras, volumen) sólo en fórmulas, dinero, RLS y permisos. La interfaz decide sus
@@ -50,7 +50,8 @@ microdecisiones sola (`.claude/rules/ui.md`).
 - La cuenta es la dueña del repo aunque la activa de la máquina sea otra: `publicar.sh` pide su token (`gh auth token --user <dueña>`)
   y nunca cambia la cuenta activa (`gh auth switch` es de la persona).
 - Un e2e que pasa al reintentar en CI no pone el PR en rojo; queda anotado en el PR (`e2e/soporte/reporter-de-inestables.ts`). Sólo
-  se arregla si cae dos noches seguidas en el completo.
+  se arregla si cae dos noches seguidas en el completo: el job `aviso-noche` lleva la cuenta en el issue `noche-roja` y a la segunda
+  noche lo vuelve una tarea de la cola (`scripts/flujo/noche.mjs`). Es el único job con un permiso de escritura (`issues: write`).
 - Disparar un workflow a mano (`gh workflow run`, el Nivel 3, las carreras) es de la persona.
 
 ## En paralelo
@@ -63,7 +64,9 @@ worktree. La base local y el e2e de una pila son de una sesión a la vez (`scrip
 
 Una tanda de varias actualizaciones que corre sola durante días va con el **orquestador** del proyecto (`scripts/orquestador/README.md`):
 una tarea por issue con la etiqueta `cola` (en espejo con `.orquestador/cola/`), cada una en su carril, su sesión de `claude -p` y su
-PR, que cierra su issue. Desde el celular se cargan tareas y se responde a una trabada comentando. Es de este repo: el de otro
+PR, que cierra su issue. Desde el celular se cargan tareas, se responde a una trabada comentando y se escribe un pedido en texto
+libre (un issue con la etiqueta `pedido`), que una sesión redacta como spec con tus respuestas. Una vez al mes entra sola la
+actualización de dependencias, y el e2e que cae dos noches seguidas entra como tarea urgente. Es de este repo: el de otro
 proyecto corre a la vez sin cruzarse (comparten la RAM y, por máquina, los turnos de sesión y la pausa por el límite del plan).
 
 Si dos PR tocan lo mismo, el segundo choca: `git merge origin/main` en su rama (nunca rebase con push forzado), se resuelve, se

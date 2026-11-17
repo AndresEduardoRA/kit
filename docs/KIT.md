@@ -105,3 +105,10 @@ cumple, el arreglo vuelve a la semilla.
 - **El techo de RAM** con más de 3 carriles: importadora llegó a 19,6 de 30 GB con 3 stacks y un e2e en cada uno.
 - **Dos orquestadores de verdad en una máquina:** los turnos y la pausa compartida están probados con dos bucles y un `claude` falso
   (`scripts/orquestador/maquina.test.ts`); con dos servicios reales a la vez, todavía no.
+- **El aviso de la noche en un `schedule` real:** `scripts/flujo/noche.mjs` está probado con un `gh` falso
+  (`scripts/flujo/noche-gh.test.ts`) y el job `aviso-noche`, con la guarda de workflows; en el kit se salta (no hay e2e), así que corre
+  de verdad recién en la primera noche roja de un proyecto generado.
+- **La redacción de un pedido con un `claude` real:** probada con un `claude` falso que devuelve `SPEC:` o `PREGUNTAS:`
+  (`scripts/orquestador/pedidos.test.ts`); que una sesión real en modo plan termine en una de las dos, todavía no.
+- **La tarea de dependencias en una sesión `auto` real:** el hook con `ORQ_PERMITE` está probado (`bloquear-peligrosos.test.ts`); que el
+  clasificador del modo `auto` deje correr la actualización, todavía no.

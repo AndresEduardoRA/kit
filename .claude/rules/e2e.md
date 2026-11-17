@@ -11,9 +11,9 @@ paths:
 - En local un e2e que falla no se reintenta (`retries: 0`): se busca la causa en `e2e-fallos/<fecha>/` (traza,
   video, captura, reporte), que guarda `e2e/soporte/reporter-de-fallos.ts` en toda corrida que falla. En CI hay un
   reintento: la que pasa al reintentar no pone el PR en rojo y `e2e/soporte/reporter-de-inestables.ts` la anota
-  en el PR y en el resumen de la corrida. Sólo se arregla si cae dos noches seguidas en el completo; no se piden
-  actualizaciones «estabilizar». Un `pnpm test` que cae deja su salida en `test-salidas/<fecha_hora-pid>/`. «La
-  máquina estaba ocupada» no explica nada: se mide.
+  en el PR y en el resumen de la corrida. Sólo se arregla si cae dos noches seguidas en el completo (el aviso de la
+  noche lo vuelve tarea sola: `scripts/flujo/noche.mjs`); no se piden actualizaciones «estabilizar». Un `pnpm test`
+  que cae deja su salida en `test-salidas/<fecha_hora-pid>/`. «La máquina estaba ocupada» no explica nada: se mide.
 - La base local y el servidor de e2e de una pila son de una sola sesión a la vez: `db:reset`, `db:types`,
   `db:diff`, `db:lint`, `test:e2e` y `test:e2e:completo` (y `db:medir*`, `db:carreras` o `db:sembrar-volumen` si el
   proyecto los tiene) toman `scripts/candado.sh` (no `db:probar`, que es PGlite). Hay un candado por pila: la

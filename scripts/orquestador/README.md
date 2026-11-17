@@ -8,6 +8,9 @@ cae, y sigue con la siguiente cuando se integra. Avisa al celular por ntfy.
 tareas y se responde a una trabada comentando. `.orquestador/cola/` es la copia de trabajo, en espejo en cada vuelta (abajo, «La cola
 en los issues»). Con `ORQ_SOLO_LOCAL=1` en `.orquestador/config.local.env` la cola es sólo local, como antes.
 
+**Tres cosas entran solas a la cola:** un pedido en texto libre (un issue con la etiqueta `pedido`, que una sesión en modo plan redacta
+como spec), la tarea mensual de dependencias y el e2e de la noche que cae dos noches seguidas (abajo, «Lo que entra solo a la cola»).
+
 **Uno por proyecto, con turnos por máquina.** El código vive en el repo (`scripts/orquestador/`) y lo de esta máquina en
 `.orquestador/` (ignorada por git). Su cola, su estado, su lock y su servicio (`orquestador-<PROYECTO>`) son propios. Lo que comparten
 los orquestadores de una máquina está en `~/.config/orquestador/maquina.env` y `~/.local/state/orquestador/`: los **turnos de sesión**
@@ -18,27 +21,30 @@ Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquest
 
 ## Qué hay
 
-| Dónde                                    | Qué es                                                                                                                                               |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/orquestador/orquestador.sh`     | El bucle y los comandos (abajo)                                                                                                                      |
-| `scripts/orquestador/al-dia.sh`          | Ponerse al día solo: la principal en main, sin cambios y detrás de `origin/main` avanza con `--ff-only`                                              |
-| `scripts/orquestador/github.sh`          | Lo que le pide a GitHub: etiquetas, comentarios, editar y cerrar issues, dependencias por rama                                                       |
-| `scripts/orquestador/cola-github.sh`     | El espejo entre la cola local y los issues; respuestas a trabadas; issues cerrados a mano                                                            |
-| `scripts/orquestador/cola-entrada.sh`    | La entrada (`.orquestador/entrada/`) y la adopción de las tareas locales de antes                                                                    |
-| `scripts/orquestador/maquina.sh`         | Lo que comparten los orquestadores de la máquina: `maquina.env`, los turnos de sesión y la pausa por el límite del plan                              |
-| `scripts/orquestador/niveles.sh`         | Los niveles de modelo: nivel → alias, qué campos de una spec valen, qué modelo es hoy cada alias                                                     |
-| `scripts/orquestador/spec-issue.mjs`     | Una spec entre archivo e issue, en los dos sentidos (con su forma canónica para comparar)                                                            |
-| `scripts/orquestador/config.env`         | `PROYECTO` (vacío: el del manifiesto), `KIT_GITHUB`, paralelo, niveles de modelo y límites. Sin secretos                                             |
-| `scripts/orquestador/prompts/`           | Lo que recibe cada sesión: `tarea.md`, `planificar.md`, `arreglar.md`, `retomar.md`, `cierra-issue.md`                                               |
-| `scripts/orquestador/plantilla-tarea.md` | La forma de una spec (la copia `nueva`)                                                                                                              |
-| `scripts/orquestador/prueba/`            | El `gh` y el `claude` falsos, y los escenarios de las pruebas: la cola en los issues y varios orquestadores en una máquina                           |
-| `.orquestador/config.local.env`          | Lo de tu máquina, pisa a `config.env`: `NTFY_TEMA`, `PARALELO`, `PATH_EXTRA`, `ORQ_SOLO_LOCAL`                                                       |
-| `~/.config/orquestador/maquina.env`      | De la máquina, para todos sus orquestadores: `TURNOS_MAQUINA` (lo crea `verificar`)                                                                  |
-| `~/.local/state/orquestador/`            | De la máquina: los candados de los turnos (`turno-<k>.lock`; quién lo tiene, en `turno-<k>.quien`) y la pausa por el límite del plan (`pausa-hasta`) |
-| `.orquestador/entrada/`                  | Specs nuevas sin id (`<tema>.md`) y respuestas (`respuesta-T<n>.md`): se publican solas                                                              |
-| `.orquestador/cola/T*.md`                | La copia de trabajo de la cola: una tarea por archivo, frontmatter + la spec                                                                         |
-| `.orquestador/estado/`                   | Lo crea él: el estado de cada tarea, los logs, los prompts y lo que dijo cada sesión                                                                 |
-| `.orquestador/worktrees/`                | Lo crea él: un worktree por tarea en curso                                                                                                           |
+| Dónde                                    | Qué es                                                                                                                                                                                                    |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/orquestador/orquestador.sh`     | El bucle y los comandos (abajo)                                                                                                                                                                           |
+| `scripts/orquestador/al-dia.sh`          | Ponerse al día solo: la principal en main, sin cambios y detrás de `origin/main` avanza con `--ff-only`                                                                                                   |
+| `scripts/orquestador/github.sh`          | Lo que le pide a GitHub: etiquetas, comentarios, editar y cerrar issues, dependencias por rama                                                                                                            |
+| `scripts/orquestador/cola-github.sh`     | El espejo entre la cola local y los issues; respuestas a trabadas; issues cerrados a mano                                                                                                                 |
+| `scripts/orquestador/cola-entrada.sh`    | La entrada (`.orquestador/entrada/`), la tarea mensual de dependencias y la adopción de las tareas locales de antes                                                                                       |
+| `scripts/orquestador/pedidos.sh`         | Un pedido en texto libre (`pedido`): lanzar su redacción, la sesión en modo plan y lo que hace con su `SPEC:` o sus `PREGUNTAS:`                                                                          |
+| `scripts/orquestador/redaccion.mjs`      | Lo puro de la redacción: el hilo del issue (rondas, respuesta, conversación) y la salida de la sesión                                                                                                     |
+| `scripts/orquestador/maquina.sh`         | Lo que comparten los orquestadores de la máquina: `maquina.env`, los turnos de sesión y la pausa por el límite del plan                                                                                   |
+| `scripts/orquestador/niveles.sh`         | Los niveles de modelo: nivel → alias, qué campos de una spec valen, qué modelo es hoy cada alias                                                                                                          |
+| `scripts/orquestador/spec-issue.mjs`     | Una spec entre archivo e issue, en los dos sentidos (con su forma canónica para comparar)                                                                                                                 |
+| `scripts/orquestador/config.env`         | `PROYECTO` (vacío: el del manifiesto), `KIT_GITHUB`, paralelo, niveles de modelo, límites y lo que entra solo (`DEPS_MENSUAL`, `NIVEL_REDACTAR`, `EFFORT_REDACTAR`, `TIEMPO_MAX_REDACCION`). Sin secretos |
+| `scripts/orquestador/prompts/`           | Lo que recibe cada sesión: `tarea.md`, `planificar.md`, `arreglar.md`, `retomar.md`, `redactar.md`; y lo que se le suma: `cierra-issue.md`, `permite-dependencias.md`                                     |
+| `scripts/orquestador/plantilla-tarea.md` | La forma de una spec (la copia `nueva`)                                                                                                                                                                   |
+| `scripts/orquestador/plantillas/`        | Las specs que crea solo: `dependencias.md`, la tarea mensual                                                                                                                                              |
+| `scripts/orquestador/prueba/`            | El `gh` y el `claude` falsos, y los escenarios de las pruebas: la cola en los issues y varios orquestadores en una máquina                                                                                |
+| `.orquestador/config.local.env`          | Lo de tu máquina, pisa a `config.env`: `NTFY_TEMA`, `PARALELO`, `PATH_EXTRA`, `ORQ_SOLO_LOCAL`                                                                                                            |
+| `~/.config/orquestador/maquina.env`      | De la máquina, para todos sus orquestadores: `TURNOS_MAQUINA` (lo crea `verificar`)                                                                                                                       |
+| `~/.local/state/orquestador/`            | De la máquina: los candados de los turnos (`turno-<k>.lock`; quién lo tiene, en `turno-<k>.quien`) y la pausa por el límite del plan (`pausa-hasta`)                                                      |
+| `.orquestador/entrada/`                  | Specs nuevas sin id (`<tema>.md`) y respuestas (`respuesta-T<n>.md`): se publican solas                                                                                                                   |
+| `.orquestador/cola/T*.md`                | La copia de trabajo de la cola: una tarea por archivo, frontmatter + la spec                                                                                                                              |
+| `.orquestador/estado/`                   | Lo crea él: el estado de cada tarea, los logs, los prompts y lo que dijo cada sesión                                                                                                                      |
+| `.orquestador/worktrees/`                | Lo crea él: un worktree por tarea en curso                                                                                                                                                                |
 
 ## Una tarea
 
@@ -53,8 +59,9 @@ issue con la etiqueta `cola` desde el celular, o dejando su spec (sin `id`) en `
 Los campos: `titulo` y `rama` (única entre las vivas); `depende` (separadas por espacio: `T<n>`, una tarea de esta cola, o
 `<repo>:<rama>`, un PR de esa rama integrado en ese repo; abajo); `conflicto` (llaves de área: dos tareas con una llave en común no
 corren a la vez); `planificar: si` para que una sesión del nivel capaz en modo plan escriba el plan antes; `nivel` y `effort` (y
-`nivel_plan`, `effort_plan`) si no valen los de `config.env`. Un `id` que no es `T<n>` (las specs de `../tareas` traen `id: K06`) queda
-como `origen: K06`: el id es siempre el número del issue.
+`nivel_plan`, `effort_plan`) si no valen los de `config.env`; `permite: dependencias` para que la sesión pueda correr `pnpm update`
+y `pnpm dedupe` (abajo, «La tarea mensual de dependencias»; otra palabra deja la spec rota). Un `id` que no es `T<n>` (las specs de
+`../tareas` traen `id: K06`) queda como `origen: K06`: el id es siempre el número del issue.
 
 **Niveles de modelo.** Una tarea nombra un nivel, `rapido`, `normal` o `capaz`, nunca un modelo: `config.env` dice qué alias es cada
 uno (`NIVEL_RAPIDO="haiku"`, `NIVEL_NORMAL="sonnet"`, `NIVEL_CAPAZ="opus"`) y `verificar` pregunta qué modelo es hoy cada alias. Sin
@@ -95,6 +102,15 @@ origen: K06
 | integrada              | `cola:integrada` (y el issue se cierra)                                      |
 | omitida                | `cola:omitida` (y el issue se cierra como «not planned»)                     |
 
+Las de lo que entra solo a la cola no son de estado, y el espejo no las toca:
+
+| Etiqueta        | Qué es                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| `pedido`        | Un pedido en texto libre: una sesión lo redacta como spec (sin `cola` todavía)              |
+| `cola:pregunta` | La redacción del pedido necesita tus respuestas: comenta en el issue                        |
+| `deps`          | La tarea mensual de dependencias                                                            |
+| `noche-roja`    | El e2e de la noche cayó (`scripts/flujo/noche.mjs`); a la segunda noche seguida, en la cola |
+
 **El espejo, en cada vuelta** (o ya, con `espejo`):
 
 - La entrada: cada `entrada/<tema>.md` se vuelve un issue, pasa a la cola como `T<n>` y se borra; una spec rota queda con su motivo
@@ -118,10 +134,53 @@ respuesta: se guarda en `estado/<ID>/respuesta.md`, se suma al cuerpo del issue 
 **El PR cierra el issue:** la sesión pone `Closes #<n>` en su cuerpo; al integrarse, el orquestador pone `cola:integrada` y cierra el
 issue si GitHub no lo hizo.
 
+**Issues que abre un workflow.** El autor de un issue tiene que poder escribir en el repo, o ser `github-actions[bot]`: el issue
+`noche-roja` lo abre el CI con `GITHUB_TOKEN` (un fork no tiene ese token con escritura). Ningún comentario de un bot cuenta como
+respuesta. Un workflow que cree issues con contenido de afuera no les pone `cola` ni `pedido`.
+
 **Dependencias por rama.** `<repo>:<rama>` está lista cuando hay un PR de esa rama integrado en ese repo: `kit` es `KIT_GITHUB`, el
 nombre de este repo es este, y otro nombre, el `github` que le da el manifiesto (`.proyecto/proyecto.yaml`). Se consulta con el token
 de la cuenta de ese repo (`gh auth token --user <cuenta>`). Si la rama es de una tarea de esta misma cola, manda su estado (una omitida
 también libera). Sin token o sin red, espera, y `plan` dice por qué.
+
+## Lo que entra solo a la cola
+
+### Un pedido desde el celular
+
+Un issue con la etiqueta `pedido` (sin `cola`), en texto libre: «quiero que…». Si lo abrió alguien con permiso de escritura, el bucle
+lanza su **redacción**: una sesión de `claude -p` en modo plan (sólo lee; el nivel `NIVEL_REDACTAR`, capaz) sobre una copia de `main`
+(un worktree desprendido en `.orquestador/worktrees/P<n>`, que se borra al terminar). Lee el repo y la cola viva, y termina en una de dos:
+
+- `SPEC:` — el orquestador valida la spec (`spec-issue.mjs`), reemplaza con ella el cuerpo y el título del issue, cambia `pedido` por
+  `cola` y comenta; el espejo siguiente la vuelve `T<n>`. El pedido original queda en `.orquestador/estado/P<n>/pedido-original.md`. Si
+  quieres revisarla antes de que se lance, ponle `cola:borrador`.
+- `PREGUNTAS:` — un comentario con las preguntas numeradas (con su propuesta) y la etiqueta `cola:pregunta`. **Tu comentario de
+  respuesta** vuelve a lanzar la redacción con todo lo hablado. Máximo dos rondas: en la tercera la sesión decide lo conservador, y si
+  aun así pregunta, el pedido queda en `cola:trabada` con las preguntas.
+
+Una salida que no es ni lo uno ni lo otro, o una spec que no se lee, también lo deja en `cola:trabada` con el motivo: escribes tú la
+spec en el cuerpo y cambias `pedido` por `cola`, o cierras el issue. Si el pedido toca otro repo, la redacción lo dice en sus preguntas
+y propone la spec de cada uno: no crea nada en otro repo. Las rondas las cuenta el hilo del issue (una marca oculta en cada comentario
+de preguntas): sobrevive a un reinicio. Sólo cuentan el autor y las respuestas de quien puede escribir en el repo, nunca un bot. Una
+sesión que se cae o se pasa de `TIEMPO_MAX_REDACCION` se reintenta a los 5 minutos; a la tercera, trabado. El límite del plan pausa
+sin gastar nada.
+
+### La tarea mensual de dependencias
+
+Una vez al mes (UTC), si no hay un issue `deps` creado ese mes ni uno abierto de antes, el espejo crea la tarea desde
+`plantillas/dependencias.md` con `cola` y `deps` (`DEPS_MENSUAL="no"` la apaga). Lleva `permite: dependencias`: sus sesiones corren con
+`ORQ_PERMITE=dependencias` y el hook de Bash (`.claude/hooks/bloquear-peligrosos.sh`) les deja correr `pnpm update` dentro de los rangos
+de `package.json` (sin `--latest`, `-g`, `-i` ni una versión) y `pnpm dedupe`; `pnpm add`, `pnpm remove` y `--latest` siguen
+bloqueados. Cada versión mayor disponible queda como una línea en `docs/PENDIENTES.md` › «Decisión de la persona», sin instalarla. Un
+mes sin nada que actualizar, la tarea termina trabada con «nada que actualizar este mes» y la cierras tú.
+
+### La noche roja
+
+El job `aviso-noche` de `.github/workflows/ci.yml` corre después del e2e completo de cada noche (`scripts/flujo/noche.mjs`, sin la
+máquina). En rojo abre el issue `noche-roja` («e2e de la noche en rojo») o le suma la noche, con el enlace de la corrida y los specs
+caídos (`caidos.txt` de los artefactos; si no hay, los jobs caídos), y la cuenta de noches seguidas en `<!-- noches: N -->`. **A la
+segunda noche seguida** reescribe el cuerpo como spec (dejar verdes esos specs) y le pone `cola` y `cola:urgente`: el orquestador la
+toma primero. En verde, cierra el que todavía no está en la cola. Con dos `noche-roja` abiertos manda el más viejo.
 
 ## Arrancar
 
@@ -157,6 +216,8 @@ Si el servicio no encuentra `claude`, `pnpm` o `node`, agrega sus rutas a `PATH_
 
 - **Lanza** una tarea cuando sus `depende` están integradas, ninguna en curso comparte su `conflicto`, hay carril libre y hay turno en
   la máquina. Primero termina lo empezado (arreglos y retomas), después lo nuevo: las `cola:urgente` y luego por número.
+- **Redacta** un pedido después de lanzar las tareas: una redacción a la vez por proyecto, con turno de la máquina pero sin carril ni
+  lugar en `PARALELO`. `plan` dice en qué está cada pedido (`P<n>  pedido: …`).
 - **Turnos de la máquina**: antes de preparar el worktree, el hijo toma un turno (`flock -n` sobre
   `~/.local/state/orquestador/turno-<k>.lock`) y lo sostiene hasta salir; si muere, el kernel lo suelta. Lo que lanza (la sesión,
   `preparar.sh`) no lo hereda: un proceso que quede vivo no lo retiene. Sin turno libre no lanza, `plan` dice «sin turno en la
