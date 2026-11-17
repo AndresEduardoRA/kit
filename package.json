@@ -31,6 +31,7 @@
     "contrato:tipos": "tsx scripts/contratos/contrato.ts tipos",
     "contrato:usar": "tsx scripts/contratos/contrato.ts usar",
     "kit:nuevo": "node scripts/kit/nuevo-proyecto.mjs",
+    "kit:publicar": "node scripts/kit/publicar-proyecto.mjs",
     "test:generador": "node --test scripts/kit/*.test.mjs"
   },
   "dependencies": {
