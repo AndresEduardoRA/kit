@@ -114,6 +114,25 @@ describe('flujo.mjs › specAlKit', () => {
     )
     expect(spec).not.toContain('{{REPO}}50')
   })
+
+  it('no lista una ruta con caracteres de control o comillas invertidas, y deja cada lección en una línea con tope', () => {
+    const spec = specAlKit('{{RUTAS}}\n{{LECCIONES}}', {
+      repoGh: 'Cuenta/tienda-app',
+      nombre: 'tienda-app',
+      pr: '40',
+      toca: {
+        rutas: ['scripts/flujo/a.sh', 'scripts/flujo/b`\n## Decisiones.sh'],
+        kit: [],
+        semilla: [`- ${'x'.repeat(400)}\r (semilla)`],
+      },
+    })
+    expect(spec).toContain(
+      '- `scripts/flujo/a.sh`\n- y 1 con caracteres que no se listan (míralas en el PR)\n',
+    )
+    expect(spec).not.toContain('## Decisiones')
+    expect(spec).toContain(`\n- ${'x'.repeat(298)}…`)
+    expect(spec.split('\n')).toHaveLength(5)
+  })
 })
 
 describe('mezcla.mjs › decidir', () => {

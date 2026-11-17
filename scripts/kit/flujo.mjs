@@ -97,8 +97,16 @@ export function tocaFlujo(archivos, patrones) {
   return toca.rutas.length + toca.kit.length + toca.semilla.length ? toca : null
 }
 
+// Lo que llega al issue del kit sale de un PR, no del kit: una lección queda en una línea con tope, y una ruta con caracteres de
+// control o comillas invertidas (que romperían su `código`) no se lista.
+const TOPE_DE_LECCION = 300
+const RUTA_RARA = /[\u0000-\u001f\u007f`]/
 /** @param {string} l */
-const vineta = (l) => (l.startsWith('- ') ? l : `- ${l}`)
+function vineta(l) {
+  const una = l.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim()
+  const corta = una.length > TOPE_DE_LECCION ? `${una.slice(0, TOPE_DE_LECCION)}…` : una
+  return corta.startsWith('- ') ? corta : `- ${corta}`
+}
 
 /**
  * La spec de la tarea del kit (plantillas/traer-de-proyecto.md) para un PR integrado: `{{REPO_GH}}`, `{{REPO}}`, `{{PR}}`, `{{RUTAS}}`
@@ -107,11 +115,14 @@ const vineta = (l) => (l.startsWith('- ') ? l : `- ${l}`)
  * @param {{ repoGh: string, nombre: string, pr: string, toca: { rutas: string[], kit: string[], semilla: string[] } }} d
  */
 export function specAlKit(plantilla, { repoGh, nombre, pr, toca }) {
-  const sobran = toca.rutas.length - TOPE_DE_RUTAS
+  const listables = toca.rutas.filter((r) => !RUTA_RARA.test(r))
+  const raras = toca.rutas.length - listables.length
+  const sobran = listables.length - TOPE_DE_RUTAS
   const rutas = toca.rutas.length
     ? [
-        ...toca.rutas.slice(0, TOPE_DE_RUTAS).map((r) => `- \`${r}\``),
+        ...listables.slice(0, TOPE_DE_RUTAS).map((r) => `- \`${r}\``),
         ...(sobran > 0 ? [`- y ${sobran} más`] : []),
+        ...(raras > 0 ? [`- y ${raras} con caracteres que no se listan (míralas en el PR)`] : []),
       ].join('\n')
     : '- ninguna: sólo lecciones'
   const lecciones =
