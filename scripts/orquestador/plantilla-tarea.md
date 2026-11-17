@@ -7,7 +7,8 @@ rama: feat/{{TEMA}}
 depende:
 conflicto:
 planificar: no
-modelo: sonnet
+# nivel: rapido | normal | capaz (el modelo de cada uno: NIVEL_* en config.env)
+nivel: normal
 effort: high
 ---
 

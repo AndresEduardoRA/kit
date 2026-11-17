@@ -49,6 +49,9 @@ describe('orquestador.sh: la cola', () => {
     const spec = readFileSync(join(datos, 'cola', 'T07-avisos-nuevos.md'), 'utf8')
     expect(spec).toContain('\nid: T07\n')
     expect(spec).toContain('\nrama: feat/avisos-nuevos\n')
+    // La plantilla nombra el nivel, nunca un modelo (niveles.sh).
+    expect(spec).toContain('\nnivel: normal\n')
+    expect(spec).not.toMatch(/^modelo:/m)
     expect(spec).not.toContain('{{')
     expect(orquestador('plan').salida).toContain('T07  borrador')
   })

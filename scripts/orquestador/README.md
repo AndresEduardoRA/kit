@@ -17,22 +17,23 @@ Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquest
 
 ## Qué hay
 
-| Dónde                                    | Qué es                                                                                                 |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `scripts/orquestador/orquestador.sh`     | El bucle y los comandos (abajo)                                                                        |
-| `scripts/orquestador/github.sh`          | Lo que le pide a GitHub: etiquetas, comentarios, editar y cerrar issues, dependencias por rama         |
-| `scripts/orquestador/cola-github.sh`     | El espejo entre la cola local y los issues; respuestas a trabadas; issues cerrados a mano              |
-| `scripts/orquestador/cola-entrada.sh`    | La entrada (`.orquestador/entrada/`) y la adopción de las tareas locales de antes                      |
-| `scripts/orquestador/spec-issue.mjs`     | Una spec entre archivo e issue, en los dos sentidos (con su forma canónica para comparar)              |
-| `scripts/orquestador/config.env`         | `PROYECTO` (vacío: el del manifiesto), `KIT_GITHUB`, paralelo, modelos y límites. Sin secretos         |
-| `scripts/orquestador/prompts/`           | Lo que recibe cada sesión: `tarea.md`, `planificar.md`, `arreglar.md`, `retomar.md`, `cierra-issue.md` |
-| `scripts/orquestador/plantilla-tarea.md` | La forma de una spec (la copia `nueva`)                                                                |
-| `scripts/orquestador/prueba/`            | El `gh` falso y el escenario de las pruebas de la cola en los issues                                   |
-| `.orquestador/config.local.env`          | Lo de tu máquina, pisa a `config.env`: `NTFY_TEMA`, `PARALELO`, `PATH_EXTRA`, `ORQ_SOLO_LOCAL`         |
-| `.orquestador/entrada/`                  | Specs nuevas sin id (`<tema>.md`) y respuestas (`respuesta-T<n>.md`): se publican solas                |
-| `.orquestador/cola/T*.md`                | La copia de trabajo de la cola: una tarea por archivo, frontmatter + la spec                           |
-| `.orquestador/estado/`                   | Lo crea él: el estado de cada tarea, los logs, los prompts y lo que dijo cada sesión                   |
-| `.orquestador/worktrees/`                | Lo crea él: un worktree por tarea en curso                                                             |
+| Dónde                                    | Qué es                                                                                                   |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `scripts/orquestador/orquestador.sh`     | El bucle y los comandos (abajo)                                                                          |
+| `scripts/orquestador/github.sh`          | Lo que le pide a GitHub: etiquetas, comentarios, editar y cerrar issues, dependencias por rama           |
+| `scripts/orquestador/cola-github.sh`     | El espejo entre la cola local y los issues; respuestas a trabadas; issues cerrados a mano                |
+| `scripts/orquestador/cola-entrada.sh`    | La entrada (`.orquestador/entrada/`) y la adopción de las tareas locales de antes                        |
+| `scripts/orquestador/niveles.sh`         | Los niveles de modelo: nivel → alias, qué campos de una spec valen, qué modelo es hoy cada alias         |
+| `scripts/orquestador/spec-issue.mjs`     | Una spec entre archivo e issue, en los dos sentidos (con su forma canónica para comparar)                |
+| `scripts/orquestador/config.env`         | `PROYECTO` (vacío: el del manifiesto), `KIT_GITHUB`, paralelo, niveles de modelo y límites. Sin secretos |
+| `scripts/orquestador/prompts/`           | Lo que recibe cada sesión: `tarea.md`, `planificar.md`, `arreglar.md`, `retomar.md`, `cierra-issue.md`   |
+| `scripts/orquestador/plantilla-tarea.md` | La forma de una spec (la copia `nueva`)                                                                  |
+| `scripts/orquestador/prueba/`            | El `gh` falso y el escenario de las pruebas de la cola en los issues                                     |
+| `.orquestador/config.local.env`          | Lo de tu máquina, pisa a `config.env`: `NTFY_TEMA`, `PARALELO`, `PATH_EXTRA`, `ORQ_SOLO_LOCAL`           |
+| `.orquestador/entrada/`                  | Specs nuevas sin id (`<tema>.md`) y respuestas (`respuesta-T<n>.md`): se publican solas                  |
+| `.orquestador/cola/T*.md`                | La copia de trabajo de la cola: una tarea por archivo, frontmatter + la spec                             |
+| `.orquestador/estado/`                   | Lo crea él: el estado de cada tarea, los logs, los prompts y lo que dijo cada sesión                     |
+| `.orquestador/worktrees/`                | Lo crea él: un worktree por tarea en curso                                                               |
 
 ## Una tarea
 
@@ -46,9 +47,16 @@ issue con la etiqueta `cola` desde el celular, o dejando su spec (sin `id`) en `
 
 Los campos: `titulo` y `rama` (única entre las vivas); `depende` (separadas por espacio: `T<n>`, una tarea de esta cola, o
 `<repo>:<rama>`, un PR de esa rama integrado en ese repo; abajo); `conflicto` (llaves de área: dos tareas con una llave en común no
-corren a la vez); `planificar: si` para que una sesión de Opus en modo plan escriba el plan antes; `modelo` y `effort` (y `modelo_plan`,
-`effort_plan`) si no valen los de `config.env`. Un `id` que no es `T<n>` (las specs de `../tareas` traen `id: K06`) queda como
-`origen: K06`: el id es siempre el número del issue.
+corren a la vez); `planificar: si` para que una sesión del nivel capaz en modo plan escriba el plan antes; `nivel` y `effort` (y
+`nivel_plan`, `effort_plan`) si no valen los de `config.env`. Un `id` que no es `T<n>` (las specs de `../tareas` traen `id: K06`) queda
+como `origen: K06`: el id es siempre el número del issue.
+
+**Niveles de modelo.** Una tarea nombra un nivel, `rapido`, `normal` o `capaz`, nunca un modelo: `config.env` dice qué alias es cada
+uno (`NIVEL_RAPIDO="haiku"`, `NIVEL_NORMAL="sonnet"`, `NIVEL_CAPAZ="opus"`) y `verificar` pregunta qué modelo es hoy cada alias. Sin
+`nivel`, la sesión usa `NIVEL_EJECUTAR` (y el plan, `NIVEL_PLANIFICAR`). Un `modelo:` con un alias (`sonnet`, `opus[1m]`) se respeta,
+por compatibilidad, pero `nivel` le gana. Una versión fija en `modelo:` (o un nivel que no existe) es un error de la spec: el issue
+queda en `cola:borrador` con un comentario que dice qué poner; en la entrada, en `<tema>.md.error`; sólo local, `plan` dice
+`spec con error`; y una tarea que ya corría queda trabada con el mismo motivo.
 
 ## La cola en los issues
 
@@ -145,7 +153,7 @@ Si el servicio no encuentra `claude`, `pnpm` o `node`, agrega sus rutas a `PATH_
   termina lo empezado (arreglos y retomas), después lo nuevo: las `cola:urgente` y luego por número.
 - **Publica** con `publicar.sh --sin-esperar`: el PR queda con auto-merge y el carril se suelta mientras corre el CI.
 - **Vigila** el PR cada minuto: integrado → borra worktree y rama. CI rojo o choque con main → una sesión de arreglo con el log del job
-  caído (desde el 3.er intento, con `MODELO_ARREGLAR_DIFICIL`). Rama atrasada → la pone al día (merge, nunca fuerza).
+  caído (desde el 3.er intento, con el nivel `NIVEL_ARREGLAR_DIFICIL`). Rama atrasada → la pone al día (merge, nunca fuerza).
 - **Límite del plan** de Claude: pausa `PAUSA_POR_LIMITE_MIN` minutos y retoma, sin gastar intentos.
 - **Trabada**: tras `MAX_RETOMAS` sesiones sin publicar, `MAX_ARREGLOS` arreglos fallidos, o cuando la sesión dice que no puede (falta
   una decisión tuya, una dependencia nueva, un fallo ajeno). Comenta el motivo en el issue y avisa, suelta el carril, deja el worktree

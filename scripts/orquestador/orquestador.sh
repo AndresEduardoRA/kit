@@ -5,7 +5,7 @@
 # La cola vive en los issues del repo con la etiqueta `cola` (el issue 57 es la tarea T57); .orquestador/cola/T*.md es su copia de
 # trabajo, en espejo en cada vuelta (cola-github.sh). Por cada tarea lista (dependencias integradas, área libre, carril libre):
 #   1. crea su worktree desde origin/main (en .orquestador/worktrees/) y lo vuelve un carril (scripts/worktree/preparar.sh);
-#   2. si la spec lo pide, una sesión de `claude -p` en modo plan escribe el plan (Opus);
+#   2. si la spec lo pide, una sesión de `claude -p` en modo plan escribe el plan (el nivel capaz);
 #   3. una sesión nueva de `claude -p` implementa, verifica y publica el PR con auto-merge (`publicar.sh --sin-esperar`);
 #   4. suelta el carril y vigila el PR: integrado → borra el worktree y sigue la cola; CI rojo o choque → sesión de arreglo.
 # Cada sesión arranca desde cero (nada de contexto heredado). Si se corta (límite del plan, reinicio, tiempo), se retoma desde lo
@@ -65,6 +65,9 @@ source "$ORQ/github.sh"
 source "$ORQ/cola-github.sh"
 # shellcheck source=cola-entrada.sh
 source "$ORQ/cola-entrada.sh"
+# Los niveles de modelo (rapido, normal, capaz) y qué alias es cada uno.
+# shellcheck source=niveles.sh
+source "$ORQ/niveles.sh"
 
 # ------------------------------------------------------------------------------------------------------------------ utilidades
 
@@ -145,6 +148,7 @@ deps_listas() { # la spec no es un borrador y sus dependencias están listas (de
   local d
   DEPS_FALTAN=""
   borrador "$1" && return 1
+  error_de_modelo "$1" >/dev/null && return 1
   for d in $(campo "$1" depende); do dep_lista "$d" || DEPS_FALTAN="$DEPS_FALTAN $DEP_MOTIVO"; done
   [ -z "$DEPS_FALTAN" ]
 }
@@ -179,6 +183,13 @@ corriendo_ahora() { local n=0 id; for id in $(ids); do [ "$(estado_de "$id")" = 
 bucle() {
   exec 8>"$EST/.orquestador.lock"
   flock -n 8 || { echo "Ya hay un orquestador corriendo (.orquestador/estado/.orquestador.lock)." >&2; exit 75; }
+  local malos
+  if malos=$(niveles_invalidos); then
+    log "no arranco: los niveles de modelo de la configuración no valen: $(tr '\n' ' ' <<<"$malos")"
+    printf '%s\n' "$malos" >&2
+    exit 78
+  fi
+  while IFS= read -r malos; do [ -n "$malos" ] && log "$malos"; done < <(modelos_heredados)
   token_gh
   log "orquestador arriba · paralelo $PARALELO · $(ids | wc -w) tareas en la cola"
   while :; do
@@ -375,6 +386,10 @@ correr() {
   PREVIO=$(est_get "$ID" previo)
   est_set "$ID" pid "$$"
   token_gh
+  if ! modelos_de_la_tarea; then
+    trabar "$ID" "la spec tiene un error: $MOTIVO_MODELO. Cámbiala (en el issue, el bloque yaml) y responde para retomarla."
+    exit 0
+  fi
   log "$ID: empieza ($PREVIO) en $WT"
   case "$PREVIO" in
     por_arreglar) comentar "$ID" "arreglo el PR #$(est_get "$ID" pr): $(head -n 1 "$EST/$ID/motivo.md" 2>/dev/null)" >/dev/null ;;
@@ -395,6 +410,13 @@ correr() {
       ;;
   esac
   despues_de_la_sesion
+}
+
+modelos_de_la_tarea() { # deja MODELO_PLAN y MODELO_SESION (niveles.sh), o MOTIVO_MODELO y devuelve 1
+  elegir_modelo "$SPEC" _plan "$NIVEL_PLANIFICAR" || return 1
+  MODELO_PLAN=$ELEGIDO
+  elegir_modelo "$SPEC" "" "$NIVEL_EJECUTAR" || return 1
+  MODELO_SESION=$ELEGIDO
 }
 
 volver() { # deja la tarea como estaba antes de lanzarla (sin gastar intentos)
@@ -522,8 +544,7 @@ retomar_luego() {
 }
 
 planificar() {
-  local p="$EST/$ID/prompt-plan.md" modelo effort
-  modelo=$(campo "$SPEC" modelo_plan); modelo=${modelo:-$MODELO_PLANIFICAR}
+  local p="$EST/$ID/prompt-plan.md" modelo=$MODELO_PLAN effort
   effort=$(campo "$SPEC" effort_plan); effort=${effort:-$EFFORT_PLANIFICAR}
   reemplazar "$PROMPTS/planificar.md" >"$p"
   claude_en_el_worktree plan "$modelo" "$effort" plan "$p" --disallowedTools ExitPlanMode || return 1
@@ -549,7 +570,7 @@ sesion() { # tarea | retomar | arreglar
   n=$(($(num "$ID" sesiones) + 1))
   est_set "$ID" sesiones "$n"
   p="$EST/$ID/prompt-$n-$tipo.md"
-  modelo=$(campo "$SPEC" modelo); modelo=${modelo:-$MODELO_EJECUTAR}
+  modelo=$MODELO_SESION
   effort=$(campo "$SPEC" effort); effort=${effort:-$EFFORT_EJECUTAR}
   CONTEXTO=""
   case "$tipo" in
@@ -560,7 +581,10 @@ sesion() { # tarea | retomar | arreglar
       [ -s "$EST/$ID/respuesta.md" ] && mv "$EST/$ID/respuesta.md" "$EST/$ID/respuesta-usada-$n.md"
       ;;
     arreglar)
-      if [ "$(num "$ID" arreglos)" -ge 3 ]; then modelo=$MODELO_ARREGLAR_DIFICIL; effort=$EFFORT_ARREGLAR_DIFICIL; fi
+      if [ "$(num "$ID" arreglos)" -ge 3 ]; then
+        modelo=$(modelo_de_nivel "$NIVEL_ARREGLAR_DIFICIL") || modelo=$MODELO_SESION
+        effort=$EFFORT_ARREGLAR_DIFICIL
+      fi
       reemplazar "$PROMPTS/arreglar.md" >"$p"
       ;;
     *) reemplazar "$PROMPTS/tarea.md" >"$p" ;;
@@ -646,7 +670,7 @@ cmd_estado() {
 }
 
 cmd_plan() {
-  local id s quien
+  local id s quien motivo
   cola_invalida
   for id in $(ids); do
     s=$(estado_de "$id")
@@ -654,12 +678,20 @@ cmd_plan() {
       pendiente)
         if borrador "$(spec_de "$id")"; then
           echo "$id  borrador (quita «borrador: si» o la etiqueta cola:borrador del issue cuando la spec esté lista)"
+        elif motivo=$(error_de_modelo "$(spec_de "$id")"); then echo "$id  spec con error: $motivo"
         elif ! FRESCO=1 deps_listas "$(spec_de "$id")"; then echo "$id  espera dependencias:$DEPS_FALTAN"
         elif quien=$(llave_ocupada_por "$id"); then echo "$id  espera el área que ocupa $quien"
         else echo "$id  LISTA para lanzar"; fi
         ;;
       *) echo "$id  $s" ;;
     esac
+  done
+  # Un issue que nunca se pudo leer no tiene archivo en la cola, pero tampoco se lanza: se nombra igual.
+  local f
+  for f in "$EST"/T*/issue-roto; do
+    [ -e "$f" ] || continue
+    id=$(basename "$(dirname "$f")")
+    spec_de "$id" >/dev/null || echo "$id  borrador (su issue no se lee: el motivo está en el comentario del orquestador)"
   done
 }
 
@@ -757,8 +789,9 @@ cmd_verificar() {
   echo "== Docker"
   if docker info >/dev/null 2>&1; then echo "✓ docker responde"; else echo "✗ docker no responde"; ok=0; fi
   free -g 2>/dev/null | awk '/Mem:/ {print "  RAM: " $2 " GB en total, " $7 " GB disponibles (cada carril con Supabase y un e2e ronda 3-4 GB)"}'
+  verificar_niveles || ok=0
   echo "== Claude (una llamada mínima)"
-  if echo 'Responde exactamente: ok' | claude -p --model sonnet --effort low --permission-mode "${MODO_EJECUTAR:-auto}" --output-format json 2>/dev/null | jq -e '.result | test("ok"; "i")' >/dev/null; then
+  if echo 'Responde exactamente: ok' | claude -p --model "$(modelo_de_nivel normal || echo sonnet)" --effort low --permission-mode "${MODO_EJECUTAR:-auto}" --output-format json 2>/dev/null | jq -e '.result | test("ok"; "i")' >/dev/null; then
     echo "✓ claude -p responde en modo ${MODO_EJECUTAR:-auto}"
   else
     echo "✗ claude -p no respondió en modo ${MODO_EJECUTAR:-auto} (¿sesión iniciada? ¿tu versión tiene ese modo? prueba MODO_EJECUTAR=acceptEdits)"; ok=0
@@ -784,6 +817,18 @@ cmd_verificar() {
   echo "  (mira el celular)"
   echo
   if [ "$ok" = 1 ]; then echo "Todo listo."; else echo "Hay cosas que arreglar arriba."; exit 1; fi
+}
+
+verificar_niveles() { # la sección «Niveles» de verificar; devuelve 1 si algo no vale
+  local ok=0 linea tipo nivel
+  echo "== Niveles de modelo"
+  while IFS= read -r linea; do [ -n "$linea" ] && echo "✗ $linea" && ok=1; done < <(niveles_invalidos)
+  while IFS= read -r linea; do [ -n "$linea" ] && echo "· $linea"; done < <(modelos_heredados)
+  for tipo in EJECUTAR PLANIFICAR ARREGLAR_DIFICIL; do
+    nivel="NIVEL_$tipo"
+    echo "  ${tipo,,}: nivel ${!nivel:-?} → $(modelo_de_nivel "${!nivel:-}" || echo '(sin alias válido)')"
+  done
+  return $ok
 }
 
 cmd_nueva() { # tema (con la cola en issues) | ID tema (ORQ_SOLO_LOCAL=1)

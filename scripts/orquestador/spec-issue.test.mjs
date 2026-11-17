@@ -124,3 +124,26 @@ test('el tema sale de la rama sin el tipo', () => {
   assert.equal(temaDeRama('feat/cola-en-issues'), 'cola-en-issues')
   assert.equal(temaDeRama('fix/a/b_c'), 'a-b-c')
 })
+
+test('los campos de modelo: un nivel o un alias pasan; una versión fija o un nivel desconocido dejan la spec rota', () => {
+  // Armada en tiempo de ejecución: escrita tal cual, la guarda de versiones (scripts/guardas) marcaría este archivo.
+  const version = ['claude', 'opus', '4', '1'].join('-')
+  const archivo = (extra) => `---\ntitulo: x\nrama: feat/x\n${extra}\n---\n`
+  const issue = (extra) => () =>
+    archivoDeIssue({ number: 3, body: `\`\`\`yaml\ntitulo: x\nrama: feat/x\n${extra}\n\`\`\`\n` })
+  assert.throws(
+    () => canonDeArchivo(archivo(`modelo: ${version}`)),
+    /es una versión fija de modelo/,
+  )
+  assert.throws(issue(`modelo: ${version}`), /es una versión fija de modelo/)
+  assert.throws(issue('nivel: turbo'), /«nivel: turbo» no es rapido, normal ni capaz/)
+  assert.throws(
+    () => canonDeArchivo(archivo('modelo_plan: Opus')),
+    /«modelo_plan: Opus» no es un alias/,
+  )
+  // Una versión fija es error aunque venga un nivel que la pisaría.
+  assert.throws(issue(`nivel: capaz\nmodelo: ${version}`), SpecRota)
+  assert.doesNotThrow(issue('nivel: capaz'))
+  assert.doesNotThrow(issue('modelo: opus'))
+  assert.doesNotThrow(() => canonDeArchivo(archivo('modelo: sonnet[1m]\nnivel_plan: rapido')))
+})

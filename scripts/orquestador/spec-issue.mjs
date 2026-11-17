@@ -90,6 +90,27 @@ export function canonico(t) {
 /** @param {{ campos: [string, string][] }} t  @param {string} k */
 const valor = (t, k) => t.campos.find(([c]) => c === k)?.[1] ?? ''
 
+const NIVELES = ['rapido', 'normal', 'capaz']
+const ALIAS_DE_MODELO = /^[a-z]+(\[1m\])?$/
+
+/**
+ * Lo que está mal en un campo de modelo de la spec, o '' (README.md › «Una tarea»): `nivel` y `nivel_plan` son rapido, normal o
+ * capaz; `modelo` y `modelo_plan`, un alias (`sonnet`, `opus[1m]`), nunca una versión fija. Los textos son los de
+ * `problema_de_modelo` en niveles.sh (niveles.test.ts los compara). Puro.
+ * @param {string} clave  @param {string} v
+ */
+export function problemaDeModelo(clave, v) {
+  if (!v) return ''
+  if (clave === 'nivel' || clave === 'nivel_plan')
+    return NIVELES.includes(v) ? '' : `«${clave}: ${v}» no es rapido, normal ni capaz`
+  if (clave !== 'modelo' && clave !== 'modelo_plan') return ''
+  if (ALIAS_DE_MODELO.test(v)) return ''
+  const nivel = clave.replace('modelo', 'nivel')
+  return /[0-9]/.test(v)
+    ? `«${clave}: ${v}» es una versión fija de modelo: va «${nivel}: rapido|normal|capaz» (o un alias, como sonnet)`
+    : `«${clave}: ${v}» no es un alias de modelo (minúsculas, como sonnet): va «${nivel}: rapido|normal|capaz»`
+}
+
 /** @param {{ campos: [string, string][] }} t */
 function exigir(t) {
   if (!valor(t, 'titulo')) throw new SpecRota('falta «titulo»')
@@ -97,6 +118,10 @@ function exigir(t) {
   if (!rama) throw new SpecRota('falta «rama»')
   if (!RAMA.test(rama))
     throw new SpecRota(`«rama: ${rama}» no es <tipo>/<tema> (minúsculas, números y guiones)`)
+  for (const k of ['modelo', 'nivel', 'modelo_plan', 'nivel_plan']) {
+    const problema = problemaDeModelo(k, valor(t, k))
+    if (problema) throw new SpecRota(problema)
+  }
 }
 
 /**
