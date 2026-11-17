@@ -1,11 +1,12 @@
 # shellcheck shell=bash
 # Lo que entra a la cola en los issues desde esta máquina (scripts/orquestador/README.md › «La cola en los issues»): la entrada
-# (.orquestador/entrada/, que escriben piloto-prompts y `nueva`) y la adopción de las tareas locales de antes. Lo carga
-# orquestador.sh con `source`, después de github.sh y cola-github.sh; lo llama `espejo` en cada vuelta y el comando `entrada`.
+# (.orquestador/entrada/, donde dejan sus specs la skill que escribe tareas y `nueva`) y la adopción de las tareas locales de
+# antes. Lo carga orquestador.sh con `source`, después de github.sh y cola-github.sh; lo llaman `espejo` en cada vuelta y el
+# comando `entrada`.
 
 # ------------------------------------------------------------------------------------------------------------------ entrada
 
-# `.orquestador/entrada/<tema>.md` (sin id: lo escribe piloto-prompts o `nueva`) → un issue nuevo; la tarea pasa a la cola con el
+# `.orquestador/entrada/<tema>.md` (sin id: lo escribe la skill de tareas o `nueva`) → un issue nuevo; la tarea pasa a la cola con el
 # número del issue y se borra de la entrada. `entrada/respuesta-T<n>.md` → un comentario en el issue <n> (la respuesta a una trabada).
 procesar_entrada() {
   local f
