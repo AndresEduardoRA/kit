@@ -65,6 +65,10 @@ describe('traer-lecciones.mjs', () => {
     expect(sumarLeccion(kit, 'Sugerencias de los proyectos', '- S. (x, PR #2)')).toBe(
       `${kit}\n## Sugerencias de los proyectos\n\n- S. (x, PR #2)\n`,
     )
+    const conCabecera = '# L\n\n## Sugerencias de los proyectos\n\nLo que subió un proyecto.\n'
+    expect(sumarLeccion(conCabecera, 'Sugerencias de los proyectos', '- S. (x, PR #2)')).toBe(
+      `${conCabecera}\n- S. (x, PR #2)\n`,
+    )
   })
 })
 

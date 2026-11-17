@@ -48,6 +48,8 @@ export function sumarLeccion(md, seccion, linea) {
   if (fin < 0) fin = lineas.length
   // Tras la última línea con texto de la sección (las vacías antes del título siguiente quedan después).
   while (fin > i + 1 && !lineas[fin - 1]?.trim()) fin--
-  lineas.splice(fin, 0, ...(fin === i + 1 ? ['', linea] : [linea]))
+  // Tras un párrafo (la cabecera de la sección) va una línea vacía; tras una viñeta o su continuación, no.
+  const parrafo = fin === i + 1 || !/^(\s|- )/.test(lineas[fin - 1] ?? '')
+  lineas.splice(fin, 0, ...(parrafo ? ['', linea] : [linea]))
   return `${lineas.join('\n')}\n`
 }
