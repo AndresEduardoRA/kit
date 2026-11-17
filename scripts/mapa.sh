@@ -154,7 +154,7 @@ unidad() {
   exps=$(exports_shell_de "$dir" | lista_corta)
   [ -n "$exps" ] && echo "- API del shell (\`shell.ts\`, sólo el layout \`(app)\`): $exps"
   exps=$(pantallas_de "$dir")
-  [ -n "$exps" ] && printf -- '- Pantallas (\`pantallas/<pantalla>\`, sólo \`src/app\`):\n%s\n' "$exps"
+  [ -n "$exps" ] && printf -- "- Pantallas (\`pantallas/<pantalla>\`, sólo \`src/app\`):\n%s\n" "$exps"
   if [ "$NIVEL" = 2 ]; then
     deps=$(dependencias "$dir")
     echo "- Depende de: ${deps:-ningún otro módulo}"
@@ -179,18 +179,18 @@ rutas() {
     done | sort
   else
     grep -rhoE "path: *['\"][^'\"]+['\"]" "$RAIZ" 2>/dev/null | sed -E "s/path: *['\"]//; s/['\"]$//" \
-      | sort -u | sed 's/.*/- `&`/' || true
+      | sort -u | sed "s/.*/- \`&\`/" || true
   fi
 }
 
 # Lo transversal (src/shared): qué archivos hay en cada carpeta, sin los tests ni sus ayudantes (`*.soporte.*`).
 compartido() {
   [ "$STACK" = next ] && [ -d "$RAIZ/shared" ] || return 0
-  echo "$(proposito "$RAIZ/shared")"
+  printf '%s\n' "$(proposito "$RAIZ/shared")"
   echo
   find "$RAIZ/shared" -type d | sort | while IFS= read -r d; do
     lista=$(find "$d" -mindepth 1 -maxdepth 1 -type f -name "*.$EXT*" ! -name '*.test.*' ! -name '*.soporte.*' -exec basename {} \; \
-      | sort | sed 's/.*/`&`/' | paste -sd, - | sed 's/,/, /g')
+      | sort | sed "s/.*/\`&\`/" | paste -sd, - | sed 's/,/, /g')
     [ -n "$lista" ] && echo "- \`${d#"$RAIZ"/shared/}/\`: $lista"
   done
   return 0
@@ -201,8 +201,8 @@ tablas() {
   [ -d supabase/migrations ] || return 0
   find supabase/migrations -type f -name '*.sql' | sort | while IFS= read -r f; do
     t=$(grep -hoiE 'create table( if not exists)? +"?public"?\."?[a-z0-9_]+' "$f" \
-      | sed -E 's/.* //; s/"//g; s/^public\.//' | sort -u | sed 's/.*/`&`/' | paste -sd ',' - | sed 's/,/, /g' || true)
-    if [ -n "$t" ]; then printf -- '- `%s`: %s\n' "$(basename "$f")" "$t"; fi
+      | sed -E 's/.* //; s/"//g; s/^public\.//' | sort -u | sed "s/.*/\`&\`/" | paste -sd ',' - | sed 's/,/, /g' || true)
+    if [ -n "$t" ]; then printf -- "- \`%s\`: %s\n" "$(basename "$f")" "$t"; fi
   done
 }
 
@@ -241,7 +241,7 @@ generar() {
       done
     fi
   fi
-  c=$(compartido); [ -n "$c" ] && printf '## Compartido (`%s/shared/`)\n\n%s\n\n' "$RAIZ" "$c"
+  c=$(compartido); [ -n "$c" ] && printf "## Compartido (\`%s/shared/\`)\n\n%s\n\n" "$RAIZ" "$c"
   r=$(rutas);  [ -n "$r" ] && printf '## Rutas\n\n%s\n\n' "$r"
   t=$(tablas); [ -n "$t" ] && printf '## Tablas (supabase/migrations)\n\n%s\n\n' "$t"
   g=$(reglas); [ -n "$g" ] && printf '## Reglas que se cargan solas (.claude/rules)\n\n%s\n\n' "$g"

@@ -7,7 +7,7 @@ set -uo pipefail
 ENTRADA=$(cat)
 CWD=$(printf '%s' "$ENTRADA" | jq -r '.cwd // empty' 2>/dev/null)
 cd "${CWD:-${CLAUDE_PROJECT_DIR:-.}}" || exit 0
-RAIZ_REPO=$(git rev-parse --show-toplevel 2>/dev/null) && cd "$RAIZ_REPO"
+RAIZ_REPO=$(git rev-parse --show-toplevel 2>/dev/null) && { cd "$RAIZ_REPO" || exit 0; }
 ARCHIVO=$(printf '%s' "$ENTRADA" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 [ -z "$ARCHIVO" ] && exit 0
 [ -f "$ARCHIVO" ] || exit 0
@@ -25,8 +25,7 @@ esac
 case "$ARCHIVO" in
   *.ts|*.tsx|*.mts|*.mjs)
     # --no-warn-ignored: un archivo ignorado a propósito (tipos generados, probar-schema.mjs) no es un fallo.
-    salida=$(npx eslint --max-warnings 0 --no-warn-ignored --fix "$ARCHIVO" 2>&1)
-    if [ $? -ne 0 ]; then
+    if ! salida=$(npx eslint --max-warnings 0 --no-warn-ignored --fix "$ARCHIVO" 2>&1); then
       echo "ESLint falló en $ARCHIVO. Corregilo antes de seguir:" >&2
       printf '%s\n' "$salida" | tail -n 30 >&2
       exit 2

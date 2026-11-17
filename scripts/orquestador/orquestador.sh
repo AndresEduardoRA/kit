@@ -735,7 +735,7 @@ cmd_verificar() {
   claude --version 2>/dev/null | sed 's/^/  claude /'
   claude --help 2>/dev/null | grep -q -- '--effort' || { echo "✗ tu claude no tiene --effort: claude update"; ok=0; }
   echo "== Repo ($PROYECTO)"
-  [ -d "$REPO/.git" ] && echo "✓ $REPO" || { echo "✗ no hay repo en $REPO"; ok=0; }
+  if [ -d "$REPO/.git" ]; then echo "✓ $REPO"; else echo "✗ no hay repo en $REPO"; ok=0; fi
   git -C "$REPO" check-ignore -q "$DATOS/estado" 2>/dev/null || [ "${DATOS#"$REPO"/}" = "$DATOS" ] ||
     { echo "✗ $DATOS está dentro del repo y git no lo ignora (.gitignore)"; ok=0; }
   echo "✓ datos en $DATOS"
@@ -743,7 +743,7 @@ cmd_verificar() {
   echo "== GitHub"
   token_gh
   if ghr api user --jq .login >/dev/null 2>&1; then echo "✓ gh con la cuenta $(ghr api user --jq .login)"; else echo "✗ gh sin sesión para $(dueno_del_repo) (gh auth login)"; ok=0; fi
-  [ "$(ghr api 'repos/{owner}/{repo}' --jq .allow_auto_merge 2>/dev/null)" = true ] && echo "✓ auto-merge permitido en el repo" || { echo "✗ el repo no permite auto-merge"; ok=0; }
+  if [ "$(ghr api 'repos/{owner}/{repo}' --jq .allow_auto_merge 2>/dev/null)" = true ]; then echo "✓ auto-merge permitido en el repo"; else echo "✗ el repo no permite auto-merge"; ok=0; fi
   echo "== Cola en los issues"
   if [ "${ORQ_SOLO_LOCAL:-0}" = 1 ]; then
     echo "· ORQ_SOLO_LOCAL=1: la cola es sólo local (.orquestador/cola/)"
@@ -755,7 +755,7 @@ cmd_verificar() {
     echo "✗ no se pudieron crear las etiquetas de la cola en $REPO_GH: $(cat "$EST/.gh-ultimo-error" 2>/dev/null)"; ok=0
   fi
   echo "== Docker"
-  docker info >/dev/null 2>&1 && echo "✓ docker responde" || { echo "✗ docker no responde"; ok=0; }
+  if docker info >/dev/null 2>&1; then echo "✓ docker responde"; else echo "✗ docker no responde"; ok=0; fi
   free -g 2>/dev/null | awk '/Mem:/ {print "  RAM: " $2 " GB en total, " $7 " GB disponibles (cada carril con Supabase y un e2e ronda 3-4 GB)"}'
   echo "== Claude (una llamada mínima)"
   if echo 'Responde exactamente: ok' | claude -p --model sonnet --effort low --permission-mode "${MODO_EJECUTAR:-auto}" --output-format json 2>/dev/null | jq -e '.result | test("ok"; "i")' >/dev/null; then
@@ -783,7 +783,7 @@ cmd_verificar() {
   avisar "Orquestador $PROYECTO" "Aviso de prueba: si lo ves en el celular, ntfy funciona." low test_tube
   echo "  (mira el celular)"
   echo
-  [ "$ok" = 1 ] && echo "Todo listo." || { echo "Hay cosas que arreglar arriba."; exit 1; }
+  if [ "$ok" = 1 ]; then echo "Todo listo."; else echo "Hay cosas que arreglar arriba."; exit 1; fi
 }
 
 cmd_nueva() { # tema (con la cola en issues) | ID tema (ORQ_SOLO_LOCAL=1)

@@ -73,7 +73,7 @@ publicar_respuesta() { # entrada/respuesta-T<n>.md → comentario (sin el prefij
 adoptar() {
   local f id s j n nuevo cuerpo etiquetas texto g
   for f in "$COLA"/T*.md; do
-    [ -e "$f" ] && id_valido "$f" || continue
+    { [ -e "$f" ] && id_valido "$f"; } || continue
     id=$(campo "$f" id)
     [ -n "$(est_get "$id" issue)" ] && continue
     s=$(estado_de "$id")
