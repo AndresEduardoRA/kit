@@ -80,6 +80,7 @@ const CON_NOMBRE = [
   'scripts/orquestador/prompts/tarea.md',
   'scripts/orquestador/prompts/arreglar.md',
   'scripts/orquestador/prompts/planificar.md',
+  'scripts/orquestador/prompts/redactar.md',
 ]
 const ANCHO = (() => {
   try {

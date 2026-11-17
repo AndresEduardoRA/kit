@@ -3,7 +3,9 @@
 # Cada proyecto lleva el suyo dentro de su repo y no sabe de los otros: su cola, su estado, su servicio y su lock son propios.
 #
 # La cola vive en los issues del repo con la etiqueta `cola` (el issue 57 es la tarea T57); .orquestador/cola/T*.md es su copia de
-# trabajo, en espejo en cada vuelta (cola-github.sh). Por cada tarea lista (dependencias integradas, área libre, carril libre):
+# trabajo, en espejo en cada vuelta (cola-github.sh). Entran solas la tarea mensual de dependencias, el aviso de la noche y un pedido en
+# texto libre (`pedido`), que una sesión en modo plan redacta como spec (pedidos.sh). Por cada tarea lista (dependencias integradas,
+# área libre, carril libre):
 #   1. crea su worktree desde origin/main (en .orquestador/worktrees/) y lo vuelve un carril (scripts/worktree/preparar.sh);
 #   2. si la spec lo pide, una sesión de `claude -p` en modo plan escribe el plan (el nivel capaz);
 #   3. una sesión nueva de `claude -p` implementa, verifica y publica el PR con auto-merge (`publicar.sh --sin-esperar`);
@@ -67,6 +69,9 @@ source "$ORQ/github.sh"
 source "$ORQ/cola-github.sh"
 # shellcheck source=cola-entrada.sh
 source "$ORQ/cola-entrada.sh"
+# Un pedido en texto libre (un issue con `pedido`), redactado como spec por una sesión en modo plan.
+# shellcheck source=pedidos.sh
+source "$ORQ/pedidos.sh"
 # Los niveles de modelo (rapido, normal, capaz) y qué alias es cada uno.
 # shellcheck source=niveles.sh
 source "$ORQ/niveles.sh"
@@ -212,6 +217,7 @@ bucle() {
     espejo
     if ! pausado; then
       lanzar
+      lanzar_redaccion
       cola_terminada
     fi
     sleep "${INTERVALO:-60}"
@@ -553,16 +559,11 @@ claude_en_el_worktree() { # nombre modelo effort modo prompt_archivo [args extra
     retomar_luego "La sesión anterior ($nombre) se pasó de ${TIEMPO_MAX_SESION} y se cortó."
     return 1
   fi
-  if { [ "$rc" != 0 ] || [ "$es_error" = true ] || [ -z "$RESULTADO_JSON" ]; } &&
-    grep -qiE 'usage limit|limit reached|hit your limit|limit will reset|resets at|out of (extra )?usage|rate[ _-]?limit' "$salida.err" <(tail -n 5 "$salida"); then
+  if { [ "$rc" != 0 ] || [ "$es_error" = true ] || [ -z "$RESULTADO_JSON" ]; } && es_limite_del_plan "$salida"; then
     soltar_carril
-    local hasta=$(($(date +%s) + ${PAUSA_POR_LIMITE_MIN:-30} * 60))
-    # El límite es de la cuenta: la pausa es de todos los orquestadores de la máquina (si otro puso una más tardía, queda ésa).
-    fijar_pausa_compartida "$hasta" || log "no se pudo escribir la pausa compartida ($PAUSA_COMPARTIDA)"
-    hasta=$(pausa_compartida_hasta) || hasta=$(($(date +%s) + ${PAUSA_POR_LIMITE_MIN:-30} * 60))
     est_set "$ID" motivo_retomar "La sesión anterior ($nombre) se cortó por el límite del plan de Claude."
     est_set "$ID" estado "$([ "$PREVIO" = por_arreglar ] && echo por_arreglar || echo por_retomar)"
-    avisar "Pausa: límite del plan" "$ID se cortó por el límite de Claude. Reintento a las $(date -d "@$hasta" '+%H:%M') (vale para todos los orquestadores de la máquina)." low hourglass
+    pausar_por_limite "$ID"
     return 1
   fi
   if [ "$rc" != 0 ] && [ -z "$RESULTADO_JSON" ]; then
@@ -571,6 +572,20 @@ claude_en_el_worktree() { # nombre modelo effort modo prompt_archivo [args extra
     return 1
   fi
   return 0
+}
+
+# La salida de una sesión (el stream-json y su .err) dice que llegó al límite del plan de Claude. La usan esta sesión y la redacción
+# de un pedido (pedidos.sh).
+es_limite_del_plan() { # salida
+  grep -qiE 'usage limit|limit reached|hit your limit|limit will reset|resets at|out of (extra )?usage|rate[ _-]?limit' "$1.err" <(tail -n 5 "$1")
+}
+
+# El límite es de la cuenta: la pausa es de todos los orquestadores de la máquina (si otro puso una más tardía, queda ésa).
+pausar_por_limite() { # quien (lo que se cortó, para el aviso)
+  local hasta=$(($(date +%s) + ${PAUSA_POR_LIMITE_MIN:-30} * 60))
+  fijar_pausa_compartida "$hasta" || log "no se pudo escribir la pausa compartida ($PAUSA_COMPARTIDA)"
+  hasta=$(pausa_compartida_hasta) || hasta=$(($(date +%s) + ${PAUSA_POR_LIMITE_MIN:-30} * 60))
+  avisar "Pausa: límite del plan" "$1 se cortó por el límite de Claude. Reintento a las $(date -d "@$hasta" '+%H:%M') (vale para todos los orquestadores de la máquina)." low hourglass
 }
 
 retomar_luego() {
@@ -747,6 +762,11 @@ cmd_plan() {
     id=$(basename "$(dirname "$f")")
     spec_de "$id" >/dev/null || echo "$id  borrador (su issue no se lee: el motivo está en el comentario del orquestador)"
   done
+  # Los pedidos en texto libre que se están redactando como spec (pedidos.sh).
+  for f in "$EST"/P*/estado; do
+    [ -e "$f" ] && linea_de_pedido "$(basename "$(dirname "$f")")"
+  done
+  return 0
 }
 
 cmd_prompt() { # lo que recibiría ahora la sesión de ejecutar de una tarea (no lanza nada)
@@ -981,6 +1001,7 @@ cmd_desinstalar() {
 case "${1:-bucle}" in
   bucle) bucle ;;
   correr) correr "$2" ;;
+  redactar) redactar "$2" ;;
   estado) cmd_estado ;;
   plan) cmd_plan ;;
   ver) cmd_ver "$2" ;;
@@ -999,5 +1020,5 @@ case "${1:-bucle}" in
   espejo) token_gh && espejo && echo "Espejo hecho (lo que pasó: .orquestador/estado/orquestador.log)." ;;
   instalar) cmd_instalar ;;
   desinstalar) cmd_desinstalar ;;
-  *) sed -n '2,27p' "$0"; exit 64 ;;
+  *) sed -n '2,29p' "$0"; exit 64 ;;
 esac

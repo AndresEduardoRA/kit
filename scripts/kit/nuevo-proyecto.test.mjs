@@ -250,6 +250,10 @@ conValidador(
       leer('scripts/orquestador/prompts/tarea.md'),
       /# Tarea \{\{ID\}\} — \{\{TITULO\}\}/,
     )
+    assert.match(
+      leer('scripts/orquestador/prompts/redactar.md'),
+      /sesión de redacción del orquestador de Turnos del consultorio, en modo plan/,
+    )
     assert.match(leer('design/tokens.css'), /--color-primario: oklch\(0\.6 0\.2 30\);/)
     assert.match(leer('docs/UX.md'), /versión 2[\s\S]*\/turnos: lista/)
     assert.match(leer('docs/GLOSARIO.md'), /\*\*Turno:\*\*/)
