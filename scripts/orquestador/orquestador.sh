@@ -221,6 +221,7 @@ bucle() {
     revisar_procesos
     vigilar_prs
     espejo
+    con_issues || al_integrar_pendientes # sin espejo: una acción que un corte dejó pendiente
     if ! pausado; then
       lanzar
       lanzar_redaccion

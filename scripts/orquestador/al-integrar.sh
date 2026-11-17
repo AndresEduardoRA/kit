@@ -28,6 +28,7 @@ marcar_al_integrar() { # ID — antes de `estado integrado`: si el proceso muere
 hacer_al_integrar() { # ID
   local id=$1 spec accion verbo arg resto
   [ "$(est_get "$id" al_integrar)" = pendiente ] || return 0
+  AL_SHA="" # el «A mano» de un fallo no lleva el sha de otra tarea
   est_set "$id" al_integrar_intento "$(date +%s)"
   spec=$(spec_de "$id") || { al_integrar_fallo "$id" "su spec ya no está en la cola" final; return 0; }
   accion=$(campo "$spec" al_integrar)
@@ -110,12 +111,14 @@ al_integrar_fallo() { # ID motivo [final]
   nombre=$(awk '{print $2}' <<<"$accion")
   pr=$(est_get "$id" pr)
   local a_mano="gh api -X POST repos/${REPO_GH:-<cuenta>/<repo>}/git/refs -f ref=refs/tags/$nombre -f sha=${AL_SHA:-<el padre del commit integrado del PR #$pr>}"
+  # Un nombre que no vale no se ofrece como comando para pegar: va al texto de un issue.
+  [[ "$nombre" =~ $AL_INTEGRAR_NOMBRE ]] || a_mano="corrige «al_integrar» en la spec (etiquetar <nombre>) y crea la etiqueta con gh api"
   echo "A mano: $a_mano" >>"$EST/$id/al_integrar.md"
   comentar "$id" "no pude $accion al integrar: $motivo. A mano: \`$a_mano\`" >/dev/null
   avisar "$id: no pude $accion al integrar" "$motivo. A mano: $a_mano" high warning "$(enlace_issue "$id")"
 }
 
-al_integrar_pendientes() { # lo llama el espejo: las integradas cuya acción quedó pendiente, una vez cada AL_INTEGRAR_ESPERA
+al_integrar_pendientes() { # el espejo (o el bucle, con la cola sólo local): las integradas cuya acción quedó pendiente, una vez cada AL_INTEGRAR_ESPERA
   local id ult ahora
   ahora=$(date +%s)
   for id in $(ids); do
