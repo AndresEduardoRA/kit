@@ -5,8 +5,8 @@ La plantilla de la que se crea cada proyecto nuevo: una app Next 16 + Supabase +
 tanda de tareas que corre sola, el orquestador (`docs/FLUJO.md`, `scripts/orquestador/README.md`).
 
 **Se quitó (K04):** el piloto (`scripts/piloto/`), el coordinador (`scripts/coordinador/`), las compuertas, `piloto.config`, `docs/pasos/`
-y los agentes `planificador` y `auditor`. Un proyecto generado no trae nada de eso. El reparto del límite de Claude entre orquestadores
-es de K06.
+y los agentes `planificador` y `auditor`. Un proyecto generado no trae nada de eso. Los orquestadores de una máquina se reparten el
+límite de Claude con turnos de sesión y una pausa compartida (`scripts/orquestador/README.md` › «Uno por proyecto»).
 
 ## Qué trae
 
@@ -103,4 +103,5 @@ cumple, el arreglo vuelve a la semilla.
 - **`preparar.sh`, `quitar.sh` y el stack de un carril:** pasan `bash -n`; no se corrieron en K04 (necesitan Docker y Supabase).
 - **Los e2e y `db:reset`:** no corren en el contenedor sin Docker; corren en la máquina de la persona y en el CI del proyecto generado.
 - **El techo de RAM** con más de 3 carriles: importadora llegó a 19,6 de 30 GB con 3 stacks y un e2e en cada uno.
-- **El reparto del límite de Claude entre orquestadores:** nadie lo cuenta hasta K06.
+- **Dos orquestadores de verdad en una máquina:** los turnos y la pausa compartida están probados con dos bucles y un `claude` falso
+  (`scripts/orquestador/maquina.test.ts`); con dos servicios reales a la vez, todavía no.
