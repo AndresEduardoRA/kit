@@ -115,6 +115,20 @@ describe('manifiesto › las copias fijadas', () => {
     ])
   })
 
+  it('dos copias con el mismo esquema: contrato:usar no las distinguiría', () => {
+    const pagos = { ...consume[0], id: 'pagos' } as Consumido
+    const leerDos = (a: string) =>
+      a.startsWith('pagos')
+        ? textoDelContrato({ ...AGENDA_1, contrato: 'pagos' })
+        : textoDelContrato(AGENDA_1)
+    expect(
+      problemasDeLasCopias([...consume, pagos], ['agenda@1.json', 'pagos@1.json'], leerDos)
+        .problemas,
+    ).toEqual([
+      'dos copias fijadas usan el esquema `agenda_publica` (agenda@1, pagos@1): `contrato:usar` no podría distinguirlas.',
+    ])
+  })
+
   it('una copia que adentro es otra versión, o que no es un contrato', () => {
     const otra = { ...consume[0], version: 2 } as Consumido
     expect(problemasDeLasCopias([otra], ['agenda@2.json'], leer).problemas).toEqual([

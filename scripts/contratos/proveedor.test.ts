@@ -3,7 +3,13 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { explicarFalloDeLaPila } from './base-local'
 import { textoDelContrato, type ConfigDeContrato } from './esquemas'
 import { AGENDA_1, CONFIG_AGENDA, baseDeEjemplo, type BaseDeEjemplo } from './fixtures/agenda'
-import { decidirEscritura, generarContrato, leerConfig } from './generar'
+import {
+  decidirEscritura,
+  esquemasExpuestos,
+  generarContrato,
+  leerConfig,
+  problemaDeExposicion,
+} from './generar'
 
 // `pnpm contrato:generar` contra la base de ejemplo en PGlite (Postgres 18; la pila real es 17): el mismo SQL de introspección que
 // corre por psql. Cada cambio de la base va en una transacción que se revierte (el DDL de Postgres es transaccional).
@@ -120,6 +126,32 @@ describe('generar › lo que no entra a un contrato', () => {
     ])
   })
 
+  it('una salida sin nombre (el consumidor la lee por nombre)', async () => {
+    const sinNombre =
+      'create function agenda_publica.doble(p_x int, out int) language sql as $$ select p_x * 2 $$'
+    const config = { esquema: 'agenda_publica', objetos: ['doble'] }
+    expect(await base.conCambio(sinNombre, () => problemas(config))).toEqual([
+      '`agenda_publica.doble`: la salida 1 no tiene nombre (el consumidor la lee por nombre).',
+    ])
+  })
+
+  it('una función sin parámetros sí entra', async () => {
+    const ahora =
+      'create function agenda_publica.ahora() returns timestamptz language sql stable as $$ select now() $$'
+    const r = await base.conCambio(ahora, () =>
+      generarContrato({
+        ref: { id: 'agenda', version: 1 },
+        config: { esquema: 'agenda_publica', objetos: ['ahora'] },
+        consultar: base.consultar,
+      }),
+    )
+    expect(r.ok && r.valor.rpc[0]).toMatchObject({
+      nombre: 'ahora',
+      parametros: [],
+      retorno: { conjunto: false, tipo: 'timestamp with time zone' },
+    })
+  })
+
   it('el esquema public', async () => {
     expect((await problemas({ esquema: 'public', objetos: ['turnos_base'] })).join('\n')).toMatch(
       /no puede ser `public`: el consumidor no distinguiría sus RPC/,
@@ -154,7 +186,7 @@ describe('generar › la configuración y la escritura', () => {
       error: false,
     })
     expect(decidirEscritura(AGENDA_1, texto, 'origin/main')).toMatchObject({
-      escribir: true,
+      escribir: false,
       error: false,
       mensaje: expect.stringContaining('sin cambios') as string,
     })
@@ -163,6 +195,29 @@ describe('generar › la configuración y la escritura', () => {
     expect(otra.mensaje).toMatch(
       /contratos\/agenda@1\.json ya está publicada en origin\/main.*Sube `provee` a agenda@2/,
     )
+  })
+})
+
+describe('el esquema expuesto por PostgREST', () => {
+  const TOML =
+    '[db]\nport = 1\n\n[api]\nenabled = true\nschemas = ["public", "graphql_public"]\n\n[auth]\n'
+
+  it('lee [api] schemas de config.toml; sin la clave, los de fábrica; sin config.toml, no revisa', () => {
+    expect(esquemasExpuestos(TOML)).toEqual(['public', 'graphql_public'])
+    expect(esquemasExpuestos('[api]\nschemas = [\n  "public",\n  "agenda_publica",\n]\n')).toEqual([
+      'public',
+      'agenda_publica',
+    ])
+    expect(esquemasExpuestos('[api]\nenabled = true\n')).toEqual(['public', 'graphql_public'])
+    expect(esquemasExpuestos(null)).toBeNull()
+  })
+
+  it('un esquema de contrato que PostgREST no expone cae (todo daría verde y el consumidor, un 404)', () => {
+    expect(problemaDeExposicion('agenda_publica', TOML).join('\n')).toMatch(
+      /^`agenda_publica` no está en `\[api\] schemas` de supabase\/config\.toml \(public, graphql_public\)/,
+    )
+    expect(problemaDeExposicion('public', TOML)).toEqual([])
+    expect(problemaDeExposicion('agenda_publica', null)).toEqual([])
   })
 })
 

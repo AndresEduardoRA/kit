@@ -3,6 +3,7 @@
 import {
   canonico,
   esquemaDeConfig,
+  esquemaDeContrato,
   textoDelContrato,
   type ConfigDeContrato,
   type Contrato,
@@ -62,9 +63,9 @@ export async function generarContrato(e: {
     ...l.problemas,
   ]
   if (problemas.length) return { ok: false, problemas }
-  return {
-    ok: true,
-    valor: canonico({
+  // Lo que se escribe pasa por el mismo Zod que lo lee (`probar`, `tipos`, `usar`): un contrato que no se podría leer no se escribe.
+  const r = esquemaDeContrato.safeParse(
+    canonico({
       contrato: e.ref.id,
       version: e.ref.version,
       tipo: 'base',
@@ -74,7 +75,35 @@ export async function generarContrato(e: {
       rpc: l.rpc,
       tipos: l.tipos,
     }),
+  )
+  if (r.success) return { ok: true, valor: r.data }
+  return {
+    ok: false,
+    problemas: r.error.issues.map(
+      (i) => `el contrato saldría inválido: ${i.path.join('.')}: ${i.message}`,
+    ),
   }
+}
+
+/**
+ * Los esquemas que PostgREST expone según `[api] schemas` de `supabase/config.toml` (`null` si no hay config.toml). Sin la clave,
+ * los de fábrica de Supabase. Puro.
+ */
+export function esquemasExpuestos(toml: string | null): string[] | null {
+  if (toml === null) return null
+  const api = /^\[api\]\s*$([\s\S]*?)(?=^\[|(?![\s\S]))/m.exec(toml)?.[1] ?? ''
+  const lista = /^schemas\s*=\s*\[([^\]]*)\]/m.exec(api)?.[1]
+  if (lista === undefined) return ['public', 'graphql_public']
+  return [...lista.matchAll(/"([^"]+)"/g)].map((m) => m[1] ?? '')
+}
+
+/** Un esquema de contrato que PostgREST no expone: todo daría verde y el consumidor recibiría un 404. Puro. */
+export function problemaDeExposicion(esquema: string, toml: string | null): string[] {
+  const expuestos = esquemasExpuestos(toml)
+  if (expuestos === null || expuestos.includes(esquema)) return []
+  return [
+    `\`${esquema}\` no está en \`[api] schemas\` de supabase/config.toml (${expuestos.join(', ')}): PostgREST no lo expone y el consumidor recibiría un 404. Súmalo ahí y en la nube (API › Exposed schemas).`,
+  ]
 }
 
 /**
@@ -91,7 +120,7 @@ export function decidirEscritura(
   if (publicado === undefined) return { escribir: true, error: false, mensaje: `escribí ${ruta}` }
   if (publicado === texto)
     return {
-      escribir: true,
+      escribir: false,
       error: false,
       mensaje: `${ruta}: sin cambios (ya está publicada así).`,
     }

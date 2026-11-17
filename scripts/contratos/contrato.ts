@@ -20,11 +20,18 @@ import {
 } from '../proyecto/manifiesto.mjs'
 import { consultarPilaLocal, contenedorDeLaPila, explicarFalloDeLaPila } from './base-local'
 import { textoDelContrato } from './esquemas'
-import { archivoDeConfig, decidirEscritura, generarContrato, leerConfig } from './generar'
+import {
+  archivoDeConfig,
+  decidirEscritura,
+  generarContrato,
+  leerConfig,
+  problemaDeExposicion,
+} from './generar'
 import type { Consultar } from './introspeccion'
 import {
   CARPETA_DE_COPIAS,
   archivoDeVersion,
+  type Referencia,
   contratosQueConsume,
   contratosQueProvee,
   problemasDeLasCopias,
@@ -62,6 +69,33 @@ function consultarConExplicacion(raiz: string, comando: string): Consultar {
     })
 }
 
+type Entorno = {
+  raiz: string
+  consultar: Consultar
+  base: string
+  publicados: Map<string, string> | null
+  toml: string | null
+}
+
+// Un contrato: su configuración, el esquema expuesto, la lectura de la base y la escritura (si no está ya publicado con otro texto).
+async function generarUno(e: Entorno, ref: Referencia): Promise<number> {
+  const config = leerConfig(ref.id, leerSiHay(join(e.raiz, archivoDeConfig(ref.id))))
+  if (!config.ok) return fallar(config.problemas)
+  const expuesto = problemaDeExposicion(config.valor.esquema, e.toml)
+  if (expuesto.length) return fallar(expuesto)
+  const r = await generarContrato({ ref, config: config.valor, consultar: e.consultar })
+  if (!r.ok) return fallar(r.problemas)
+  const ruta = `contratos/${ref.id}@${String(ref.version)}.json`
+  const d = decidirEscritura(r.valor, e.publicados?.get(ruta), e.base)
+  if (d.escribir) {
+    mkdirSync(join(e.raiz, 'contratos'), { recursive: true })
+    writeFileSync(join(e.raiz, ruta), textoDelContrato(r.valor))
+  }
+  if (d.error) return fallar([d.mensaje])
+  decir(d.mensaje)
+  return 0
+}
+
 const generar: Comando = async (raiz, propio, [id]) => {
   const { contratos, problemas } = contratosQueProvee(propio.manifiesto, propio.repo)
   if (problemas.length) return fallar(problemas)
@@ -74,26 +108,21 @@ const generar: Comando = async (raiz, propio, [id]) => {
     return fallar([
       `«${id ?? ''}» no está en \`provee\` (provee: ${contratos.map((c) => c.id).join(', ')}).`,
     ])
-  const consultar = consultarConExplicacion(raiz, 'generar')
   const base = baseDePublicados()
-  const publicados = leerPublicados(base, raiz) ?? new Map<string, string>()
-  let codigo = 0
-  for (const ref of elegidos) {
-    const config = leerConfig(ref.id, leerSiHay(join(raiz, archivoDeConfig(ref.id))))
-    const r = config.ok ? await generarContrato({ ref, config: config.valor, consultar }) : config
-    if (!r.ok) {
-      codigo = fallar(r.problemas)
-      continue
-    }
-    const ruta = `contratos/${ref.id}@${String(ref.version)}.json`
-    const d = decidirEscritura(r.valor, publicados.get(ruta), base)
-    if (d.escribir) {
-      mkdirSync(join(raiz, 'contratos'), { recursive: true })
-      writeFileSync(join(raiz, ruta), textoDelContrato(r.valor))
-    }
-    if (d.error) codigo = fallar([d.mensaje])
-    else decir(d.mensaje)
+  const publicados = leerPublicados(base, raiz)
+  if (!publicados)
+    avisar(
+      `aviso: no encuentro ${base}: no puedo comparar con lo publicado (\`git fetch origin main\`). La guarda del CI sí lo hará.`,
+    )
+  const e: Entorno = {
+    raiz,
+    consultar: consultarConExplicacion(raiz, 'generar'),
+    base,
+    publicados,
+    toml: leerSiHay(join(raiz, 'supabase/config.toml')),
   }
+  let codigo = 0
+  for (const ref of elegidos) codigo = Math.max(codigo, await generarUno(e, ref))
   return codigo
 }
 
@@ -105,6 +134,7 @@ const probar: Comando = async (raiz, propio) => {
     return 0
   }
   const consultar = consultarConExplicacion(raiz, 'probar')
+  const toml = leerSiHay(join(raiz, 'supabase/config.toml'))
   let codigo = 0
   for (const p of contratos)
     for (const version of versionesAProbar(p)) {
@@ -113,7 +143,12 @@ const probar: Comando = async (raiz, propio) => {
         version,
         leerSiHay(join(raiz, `contratos/${p.id}@${String(version)}.json`)),
       )
-      const caidas = v.ok ? await probarVersion(v.valor, consultar) : v.problemas
+      const caidas = v.ok
+        ? [
+            ...problemaDeExposicion(v.valor.esquema, toml),
+            ...(await probarVersion(v.valor, consultar)),
+          ]
+        : v.problemas
       if (caidas.length) codigo = fallar(caidas)
       else decir(`✓ la base local cumple ${p.id}@${String(version)}`)
     }

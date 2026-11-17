@@ -155,6 +155,16 @@ describe('diferencias › enums, retorno y tipos', () => {
     ])
   })
 
+  it('el retorno que pasa de un valor a filas, o al revés', () => {
+    const aFilas = con((c) => {
+      const r = c.rpc[1]
+      if (r) r.retorno = { ...r.retorno, columnas: [{ nombre: 'id', tipo: 'uuid' }] }
+    })
+    expect(diferencias(AGENDA_1, aFilas)).toEqual([
+      'rpc reservar: el retorno era un valor y ahora son filas',
+    ])
+  })
+
   it('un campo de compuesto que falta o una clase distinta; los de más pasan', () => {
     const sinCampo = con((c) => {
       c.tipos[1] = {

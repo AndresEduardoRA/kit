@@ -139,5 +139,11 @@ export function problemasDeLasCopias(
       )
     else copias.push(r.contrato)
   }
+  // `contrato:usar` reconoce cada copia por su esquema: dos con el mismo no se distinguirían.
+  for (const [esquema, mismas] of Map.groupBy(copias, (c) => c.esquema))
+    if (mismas.length > 1)
+      problemas.push(
+        `dos copias fijadas usan el esquema \`${esquema}\` (${mismas.map((c) => `${c.contrato}@${String(c.version)}`).join(', ')}): \`contrato:usar\` no podría distinguirlas.`,
+      )
   return { copias, problemas }
 }

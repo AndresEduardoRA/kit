@@ -76,6 +76,10 @@ function retorno(r: Retorno, hoy: Retorno): string[] {
       `el retorno ${r.conjunto ? 'era un conjunto y ahora no' : 'no era un conjunto y ahora sí'}`,
     )
   if (r.tipo !== hoy.tipo) d.push(`el retorno era \`${r.tipo}\` y ahora es \`${hoy.tipo}\``)
+  if (!r.columnas !== !hoy.columnas)
+    d.push(
+      `el retorno ${r.columnas ? 'eran filas y ahora es un valor' : 'era un valor y ahora son filas'}`,
+    )
   return [...d, ...columnas(r.columnas ?? [], hoy.columnas ?? [], 'la columna del retorno')]
 }
 

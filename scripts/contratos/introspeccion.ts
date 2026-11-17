@@ -215,6 +215,13 @@ function rpcDe(ctx: Contexto, f: FuncionCruda): Rpc | null {
   }
   const desde = f.entradas - f.conDefault
   const salidas = f.argumentos.filter((a) => SALIDA.includes(a.modo))
+  const salidaSinNombre = salidas.findIndex((a) => !a.nombre)
+  if (salidaSinNombre >= 0) {
+    ctx.problemas.push(
+      `${donde}: la salida ${salidaSinNombre + 1} no tiene nombre (el consumidor la lee por nombre).`,
+    )
+    return null
+  }
   return {
     nombre: f.nombre,
     parametros: entradas.map((a, i) => ({
