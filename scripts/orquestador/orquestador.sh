@@ -182,14 +182,17 @@ retiene_llaves() {
   esac
 }
 
-llave_ocupada_por() { # imprime la tarea que retiene alguna llave de $1, si hay
-  local id=$1 mias otra s k
+llave_ocupada_por() { # id [retomando] → imprime la tarea que retiene alguna llave de id, si hay
+  local id=$1 retomando=${2:-} mias otra s k despues=no
   mias=$(campo "$(spec_de "$id")" conflicto)
   [ -n "$mias" ] || return 1
   for otra in $(ids); do
-    [ "$otra" = "$id" ] && continue
+    [ "$otra" = "$id" ] && { despues=si; continue; }
     s=$(estado_de "$otra")
     retiene_llaves "$s" || continue
+    # Dos tareas por retomar o arreglar con una llave en común (las dos quedaron trabadas y se reintentaron): pasa primero la de
+    # antes en la cola. Si cada una esperara a la otra, no correría ninguna.
+    if [ -n "$retomando" ] && [ "$despues" = si ] && [[ "$s" == por_* ]]; then continue; fi
     for k in $(campo "$(spec_de "$otra")" conflicto); do
       if [[ " $mias " == *" $k "* ]]; then echo "$otra ($k)"; return 0; fi
     done
@@ -266,7 +269,10 @@ lanzar() {
       [ "$libres" -gt 0 ] || return 0
       s=$(estado_de "$id")
       case "$pasada:$s" in
-        arreglos:por_arreglar | arreglos:por_retomar) ;;
+        arreglos:por_arreglar | arreglos:por_retomar)
+          # Una trabada no retiene sus llaves: al reintentarla, otra tarea de su área puede estar corriendo o esperando al CI.
+          quien=$(llave_ocupada_por "$id" retomando) && continue
+          ;;
         nuevas:pendiente)
           deps_listas "$(spec_de "$id")" || continue
           quien=$(llave_ocupada_por "$id") && continue
@@ -766,6 +772,9 @@ cmd_plan() {
         elif quien=$(llave_ocupada_por "$id"); then echo "$id  espera el área que ocupa $quien"
         elif [ -n "$sin_turno" ]; then echo "$id  $sin_turno"
         else echo "$id  LISTA para lanzar"; fi
+        ;;
+      por_arreglar | por_retomar)
+        if quien=$(llave_ocupada_por "$id" retomando); then echo "$id  $s, espera el área que ocupa $quien"; else echo "$id  $s"; fi
         ;;
       *) echo "$id  $s$(linea_al_integrar "$id")$(linea_aviso_kit "$id")" ;;
     esac
