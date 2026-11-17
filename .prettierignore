@@ -16,4 +16,5 @@ scripts/semilla/ejemplo
 scripts/kit/fixtures
 # plantillas con marcadores {{X}}: Prettier los reescribe en el frontmatter como { { X } } y `nueva` deja de reemplazarlos
 scripts/orquestador/plantilla-tarea.md
+scripts/orquestador/plantillas
 scripts/orquestador/prompts

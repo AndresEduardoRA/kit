@@ -836,7 +836,7 @@ cmd_verificar() {
   elif [ -z "$REPO_GH" ]; then
     echo "✗ el remoto origin no es de GitHub: la cola queda sólo local"; ok=0
   elif asegurar_etiquetas; then
-    echo "✓ issues de $REPO_GH con las etiquetas $ETIQUETAS_COLA"
+    echo "✓ issues de $REPO_GH con las etiquetas $ETIQUETAS_COLA y las de lo que entra solo: $ETIQUETAS_ENTRADA"
   else
     echo "✗ no se pudieron crear las etiquetas de la cola en $REPO_GH: $(cat "$EST/.gh-ultimo-error" 2>/dev/null)"; ok=0
   fi

@@ -69,7 +69,16 @@ type Issue = {
   labels: string[]
   state: string
   autor?: string
-  comentarios: { id: number; body: string; created_at: string; author_association?: string }[]
+  login?: string
+  tipo?: string
+  created_at?: string
+  comentarios: {
+    id: number
+    body: string
+    created_at: string
+    author_association?: string
+    user?: { login: string; type: string }
+  }[]
 }
 type Gh = {
   repo: string
@@ -105,7 +114,8 @@ function prepararRepo(local: string) {
   writeFileSync(join(repo, '.proyecto/proyecto.yaml'), MANIFIESTO)
   const datos = join(repo, '.orquestador')
   mkdirSync(join(datos, 'cola'), { recursive: true })
-  writeFileSync(join(datos, 'config.local.env'), local)
+  // La tarea mensual de dependencias, apagada: crearía un issue en cada escenario (dependencias.test.ts la enciende).
+  writeFileSync(join(datos, 'config.local.env'), `DEPS_MENSUAL="no"\n${local}`)
   const falso = join(repo, '.gh-falso')
   mkdirSync(join(falso, 'bin'), { recursive: true })
   writeFileSync(

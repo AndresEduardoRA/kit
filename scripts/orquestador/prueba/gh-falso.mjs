@@ -42,6 +42,8 @@ const issueDeApi = (i) => ({
   state: i.state,
   state_reason: i.state_reason ?? null,
   author_association: i.autor ?? 'OWNER',
+  user: { login: i.login ?? 'persona', type: i.tipo ?? 'User' },
+  created_at: i.created_at ?? ahora(),
   labels: i.labels.map((/** @type {string} */ name) => ({ name })),
 })
 /** @param {string} n */
@@ -99,6 +101,7 @@ if (args[0] === 'api') {
       body: campos['body'],
       labels: campos['labels'] ?? [],
       state: 'open',
+      created_at: ahora(),
       comentarios: [],
     }
     guardar()
