@@ -7,7 +7,9 @@ Cuando una lección se puede comprobar con código, pasa a `validar_semilla.py` 
 **Cómo entra una lección.** De tres lugares, siempre como regla y no como historia:
 - una tarea que quedó **trabada** porque a la semilla le faltaba una decisión;
 - una **«decisión tomada sin preguntar»** en el cuerpo de un PR que el dueño habría querido decidir;
-- la **retro del cierre de construcción** (`semilla/retro.md`, la escribe la tarea «cerrar construcción»).
+- la **retro del cierre de construcción**: la sección `## Retro` del PR «cerrar la construcción» de cada repo
+  (`gh pr list --state merged --search 'cerrar la construcción in:title'`), con cada hallazgo clasificado; los «hueco de la semilla»
+  llegan además como líneas `(semilla)` del `docs/LECCIONES.md` del repo.
 
 Formato: `- Haz/Evita X: porque Y. (proyecto, de dónde salió)`. Si deja de aplicar, se borra.
 

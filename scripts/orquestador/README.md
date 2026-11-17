@@ -27,6 +27,7 @@ Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquest
 | `scripts/orquestador/al-dia.sh`          | Ponerse al día solo: la principal en main, sin cambios y detrás de `origin/main` avanza con `--ff-only`                                                                                                   |
 | `scripts/orquestador/github.sh`          | Lo que le pide a GitHub: etiquetas, comentarios, editar y cerrar issues, dependencias por rama                                                                                                            |
 | `scripts/orquestador/cola-github.sh`     | El espejo entre la cola local y los issues; respuestas a trabadas; issues cerrados a mano                                                                                                                 |
+| `scripts/orquestador/al-integrar.sh`     | Lo que una tarea pide hacer al integrarse (`al_integrar: etiquetar <nombre>`): crear la etiqueta, sin pisar una que ya exista, y reintentar si GitHub falla                                               |
 | `scripts/orquestador/cola-entrada.sh`    | La entrada (`.orquestador/entrada/`), la tarea mensual de dependencias y la adopción de las tareas locales de antes                                                                                       |
 | `scripts/orquestador/pedidos.sh`         | Un pedido en texto libre (`pedido`): lanzar su redacción y la sesión en modo plan; lo que hace con su `SPEC:` o sus `PREGUNTAS:`, en `pedidos-salida.sh`                                                  |
 | `scripts/orquestador/redaccion.mjs`      | Lo puro de la redacción: el hilo del issue (rondas, respuesta, conversación) y la salida de la sesión                                                                                                     |
@@ -60,7 +61,8 @@ Los campos: `titulo` y `rama` (única entre las vivas); `depende` (separadas por
 `<repo>:<rama>`, un PR de esa rama integrado en ese repo; abajo); `conflicto` (llaves de área: dos tareas con una llave en común no
 corren a la vez); `planificar: si` para que una sesión del nivel capaz en modo plan escriba el plan antes; `nivel` y `effort` (y
 `nivel_plan`, `effort_plan`) si no valen los de `config.env`; `permite: dependencias` para que la sesión pueda correr `pnpm update`
-y `pnpm dedupe` (abajo, «La tarea mensual de dependencias»; otra palabra deja la spec rota). Un `id` que no es `T<n>` (las specs de
+y `pnpm dedupe` (abajo, «La tarea mensual de dependencias»; otra palabra deja la spec rota); `al_integrar: etiquetar <nombre>` para
+que el orquestador cree esa etiqueta al integrarse la tarea (abajo, «Al integrar»; otra acción deja la spec rota). Un `id` que no es `T<n>` (las specs de
 `../tareas` traen `id: K06`) queda como `origen: K06`: el id es siempre el número del issue. `paso: P07` (o `paso: cierre`) lo escribe
 semilla-a-repo en los issues que salen del plan de la semilla, para no duplicarlos al volver a correr; el orquestador no lo usa.
 
@@ -126,7 +128,7 @@ Las de lo que entra solo a la cola no son de estado, y el espejo no las toca:
 - Sin red o con el límite de la API, el espejo se salta y la cola local sigue; la vuelta siguiente lo reintenta. Nada local se pierde.
 
 **Comentarios.** El orquestador comenta en el issue, siempre empezando con `🤖 orquestador:`, al lanzar, al abrir el PR (con el
-enlace), al trabarse (el motivo y «responde en un comentario») y al integrarse. Los avisos de ntfy llevan el enlace del issue.
+enlace), al trabarse (el motivo y «responde en un comentario»), al integrarse y, si la spec lo pide, al etiquetar. Los avisos de ntfy llevan el enlace del issue.
 
 **Una trabada se responde comentando.** El primer comentario posterior al de la trabada que no empieza con `🤖 orquestador:` es tu
 respuesta: se guarda en `estado/<ID>/respuesta.md`, se suma al cuerpo del issue en «Decisiones ya tomadas» como
@@ -137,8 +139,8 @@ issue si GitHub no lo hizo.
 
 **Issues que abre un workflow.** El autor de un issue tiene que poder escribir en el repo, o ser `github-actions[bot]` en un issue
 `noche-roja`: ése lo abre el CI con `GITHUB_TOKEN` (un fork no tiene ese token con escritura). Otro issue de un bot no entra, y
-ningún comentario de un bot cuenta como respuesta. Una spec redactada desde un pedido no puede traer `permite`: un permiso lo da la
-persona.
+ningún comentario de un bot cuenta como respuesta. Una spec redactada desde un pedido no puede traer `permite` ni `al_integrar`: un
+permiso o una escritura en el repo los da la persona.
 
 **Dependencias por rama.** `<repo>:<rama>` está lista cuando hay un PR de esa rama integrado en ese repo: `kit` es `KIT_GITHUB`, el
 nombre de este repo es este, y otro nombre, el `github` que le da el manifiesto (`.proyecto/proyecto.yaml`). Se consulta con el token
@@ -183,6 +185,23 @@ máquina). En rojo abre el issue `noche-roja` («e2e de la noche en rojo») o le
 caídos (`caidos.txt` de los artefactos; si no hay, los jobs caídos), y la cuenta de noches seguidas en `<!-- noches: N -->`. **A la
 segunda noche seguida** reescribe el cuerpo como spec (dejar verdes esos specs) y le pone `cola` y `cola:urgente`: el orquestador la
 toma primero. En verde, cierra el que todavía no está en la cola. Con dos `noche-roja` abiertos manda el más viejo.
+
+## Al integrar
+
+Una spec con `al_integrar: etiquetar <nombre>` (hoy la única acción; el nombre, letras, números y `._-` entre ellos, hasta 100) le
+pide al orquestador crear esa etiqueta cuando la tarea se integra (`al-integrar.sh`). La usa el cierre de la construcción
+(`plantillas/cerrar-construccion.md`, `etiquetar semilla-v<N>`).
+
+- **Sobre qué commit:** el padre del commit integrado (`parents[0]` del squash), o sea main justo antes del PR. El PR del cierre saca
+  `docs/semilla/`, y la etiqueta tiene que conservarla (`git show semilla-vN:docs/semilla/semilla.md`). Para etiquetar el squash
+  mismo, se cambia una línea de `etiquetar_integrada`.
+- **Se repite sin riesgo:** si la etiqueta ya está en ese commit, queda hecha sin aviso. **No pisa** una que existe en otro commit (o
+  una anotada): queda `ya-existia`, con aviso high y un comentario en el issue que dice dónde está y dónde tocaba.
+- **Si GitHub falla:** queda pendiente (se marca antes de dar la tarea por integrada: un reinicio no la pierde) y el espejo la
+  reintenta, una vez cada 5 minutos como mucho; a los 5 fallos queda `fallida`, con aviso high, comentario y el `gh api -X POST …`
+  para hacerla a mano. El límite de la API no cuenta como fallo. Sin cola en los issues no hay espejo: el primer fallo ya avisa.
+- El estado, en `estado/<ID>/al_integrar` (`pendiente`, `hecha`, `ya-existia` o `fallida`) y `al_integrar.md` (lo último que pasó).
+  `plan` lo muestra al lado de la tarea: `integrado · falta al integrar: etiquetar semilla-v1`.
 
 ## Arrancar
 

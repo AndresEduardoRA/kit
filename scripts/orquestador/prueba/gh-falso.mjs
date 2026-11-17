@@ -3,6 +3,9 @@
 // que vive en `$GH_FALSO/estado.json`. Cada llamada queda en `$GH_FALSO/llamadas.log` (una línea JSON con sus argumentos y el
 // GH_TOKEN con que se hizo). Con `sinRed` falla como sin red; con `limite`, como el límite de la API; con `issueEditFalla`,
 // `gh issue edit` falla como en los repos donde GraphQL choca con los proyectos clásicos (y el orquestador cae a la API REST).
+// Lo de una tarea con `al_integrar` (al-integrar.test.ts) y del guion del cierre (scripts/flujo/cierre.mjs): un PR de `prs` puede
+// traer `sha` (su squash), `padre`, `titulo` y `cuerpo`; las etiquetas viven en `refs` (`{ ref, sha }`), y con `refsFalla` crearlas
+// falla con ese texto.
 import { spawnSync } from 'node:child_process'
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -47,6 +50,8 @@ const issueDeApi = (i) => ({
   created_at: i.created_at ?? ahora(),
   labels: i.labels.map((/** @type {string} */ name) => ({ name })),
 })
+/** @param {string} repo  @param {(p: any) => boolean} f */
+const prDe = (repo, f) => (e.prs[repo] ?? []).find(f)
 /** @param {string} n */
 const issue = (n) => e.issues[n] ?? salir(1, `HTTP 404: Not Found (issue ${n})`)
 
@@ -130,6 +135,34 @@ if (args[0] === 'api') {
       guardar()
       imprimir(c)
     } else imprimir(i.comentarios)
+  } else if ((m = /^pulls\/(\d+)$/.exec(resto)) && metodo === 'GET') {
+    const p =
+      prDe(e.repo, (x) => String(x.number) === m?.[1]) ??
+      salir(1, `HTTP 404: Not Found (pulls/${m[1]})`)
+    imprimir({
+      number: p.number,
+      merged: p.estado === 'MERGED',
+      merge_commit_sha: p.sha ?? null,
+      state: p.estado === 'OPEN' ? 'open' : 'closed',
+    })
+  } else if ((m = /^commits\/([0-9a-f]+)$/.exec(resto)) && metodo === 'GET') {
+    const p =
+      prDe(e.repo, (x) => x.sha === m?.[1]) ?? salir(1, `HTTP 404: Not Found (commits/${m[1]})`)
+    imprimir({ sha: p.sha, parents: p.padre ? [{ sha: p.padre }] : [] })
+  } else if ((m = /^git\/matching-refs\/(tags\/.*)$/.exec(resto)) && metodo === 'GET') {
+    const prefijo = `refs/${m[1]}`
+    imprimir(
+      (e.refs ?? [])
+        .filter((/** @type {any} */ r) => r.ref.startsWith(prefijo))
+        .map((/** @type {any} */ r) => ({ ref: r.ref, object: { sha: r.sha, type: 'commit' } })),
+    )
+  } else if (resto === 'git/refs' && metodo === 'POST') {
+    if (e.refsFalla) salir(1, e.refsFalla)
+    if ((e.refs ?? []).some((/** @type {any} */ r) => r.ref === campos['ref']))
+      salir(1, 'HTTP 422: Reference already exists')
+    ;(e.refs ??= []).push({ ref: campos['ref'], sha: campos['sha'] })
+    guardar()
+    imprimir({ ref: campos['ref'], object: { sha: campos['sha'], type: 'commit' } })
   } else if ((m = /^actions\/runs\/(\d+)\/jobs$/.exec(resto))) {
     // Los jobs de una corrida (el aviso de la noche, sin artefactos): `corridas` en el estado; sin ella, como una API que falla.
     const jobs = e.corridas?.[m[1] ?? '']
@@ -155,6 +188,19 @@ if (args[0] === 'api') {
           i.labels = i.labels.filter((/** @type {string} */ l) => !v.split(',').includes(l))
   }
   guardar()
+} else if (args[0] === 'pr' && args[1] === 'list' && !args.includes('--head')) {
+  // Sin rama: los PR del repo por estado (el guion del cierre lee los integrados con su título y su cuerpo).
+  const estado = (valor('--state') ?? 'open').toUpperCase()
+  imprimir(
+    (e.prs[valor('-R') ?? e.repo] ?? [])
+      .filter((/** @type {any} */ p) => estado === 'ALL' || p.estado === estado)
+      .map((/** @type {any} */ p) => ({
+        number: p.number,
+        title: p.titulo ?? '',
+        body: p.cuerpo ?? '',
+        headRefName: p.rama,
+      })),
+  )
 } else if (args[0] === 'pr' && args[1] === 'list') {
   const repo = valor('-R') ?? e.repo
   const rama = valor('--head')

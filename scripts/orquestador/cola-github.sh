@@ -3,8 +3,8 @@
 # verdad): scripts/orquestador/README.md › «La cola en los issues». Lo carga orquestador.sh con `source`, después de github.sh.
 #
 # Una vuelta de `espejo`: la entrada → los issues abiertos → la adopción de lo local sin issue (esas dos, en cola-entrada.sh) → los
-# issues cerrados a mano → las etiquetas de estado → las respuestas a las trabadas → los cierres pendientes → la tarea mensual de
-# dependencias (cola-entrada.sh). Sin red o con el límite de la API, se salta entera y la cola local sigue: nada de lo local se
+# issues cerrados a mano → las etiquetas de estado → las respuestas a las trabadas → los cierres pendientes → lo que quedó pendiente al
+# integrar (al-integrar.sh) → la tarea mensual de dependencias (cola-entrada.sh). Sin red o con el límite de la API, se salta entera y la cola local sigue: nada de lo local se
 # pierde, y la vuelta siguiente lo reintenta.
 #
 # Cada tarea con issue lleva en estado/<ID>/: `issue` (su número), `issue_base` (la huella de la última forma en que archivo e
@@ -25,6 +25,7 @@ espejo() {
   while IFS= read -r j; do sincronizar_etiquetas "$j"; done < <(jq -c '.[]' <<<"$abiertos")
   buscar_respuestas
   cerrar_terminales
+  al_integrar_pendientes
   deps_del_mes || sin_red
 }
 

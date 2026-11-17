@@ -183,7 +183,19 @@ it(
     t.orqCon(conClaude(t, `SPEC:\n${conPermiso}`), 'redactar', '47')
     expect(t.gh().issues[47]!.labels).toEqual(['pedido', 'cola:trabada'])
     expect(t.gh().issues[47]!.comentarios.at(-1)!.body).toContain(
-      'pide «permite: dependencias»: un permiso lo da la persona',
+      'pide «permite: dependencias»: un permiso o una acción al integrar lo da la persona',
+    )
+
+    // Una acción al integrar (crear una etiqueta) también la da la persona.
+    t.issue(48, 'Etiqueta al terminar.', ['pedido'])
+    const conAccion = SPEC.replace(
+      'rama: feat/avisos-celular',
+      'rama: feat/avisos-celular\nal_integrar: etiquetar v1',
+    )
+    t.orqCon(conClaude(t, `SPEC:\n${conAccion}`), 'redactar', '48')
+    expect(t.gh().issues[48]!.labels).toEqual(['pedido', 'cola:trabada'])
+    expect(t.gh().issues[48]!.comentarios.at(-1)!.body).toContain(
+      'pide «al_integrar: etiquetar v1»: un permiso o una acción al integrar lo da la persona',
     )
   },
   TIEMPO,

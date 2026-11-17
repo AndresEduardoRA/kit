@@ -11,7 +11,8 @@
 #   3. una sesión nueva de `claude -p` implementa, verifica y publica el PR con auto-merge (`publicar.sh --sin-esperar`);
 #   4. suelta el carril y vigila el PR: integrado → borra el worktree y sigue la cola; CI rojo o choque → sesión de arreglo.
 # Cada sesión arranca desde cero (nada de contexto heredado). Si se corta (límite del plan, reinicio, tiempo), se retoma desde lo
-# commiteado en la rama. El estado vive en .orquestador/estado/<ID>/ como archivos de texto: sobrevive a reinicios.
+# commiteado en la rama. El estado vive en .orquestador/estado/<ID>/ como archivos de texto: sobrevive a reinicios. Lo que la spec
+# pide hacer al integrarse (`al_integrar: etiquetar <nombre>`) lo hace al integrar y, si GitHub falla, lo reintenta el espejo (al-integrar.sh).
 #
 #   bash scripts/orquestador/orquestador.sh                 el bucle (lo que corre el servicio)
 #   … verificar        comprueba herramientas, cuentas, Docker, la cola y el aviso de prueba; crea las etiquetas cola:*
@@ -83,6 +84,9 @@ source "$ORQ/maquina.sh"
 # Ponerse al día con origin/main sin que nadie lo pida.
 # shellcheck source=al-dia.sh
 source "$ORQ/al-dia.sh"
+# Lo que una tarea pide hacer al integrarse (`al_integrar: etiquetar <nombre>`).
+# shellcheck source=al-integrar.sh
+source "$ORQ/al-integrar.sh"
 
 # ------------------------------------------------------------------------------------------------------------------ utilidades
 
@@ -217,6 +221,7 @@ bucle() {
     revisar_procesos
     vigilar_prs
     espejo
+    con_issues || al_integrar_pendientes # sin espejo: una acción que un corte dejó pendiente
     if ! pausado; then
       lanzar
       lanzar_redaccion
@@ -378,6 +383,7 @@ integrada() {
   fi
   git -C "$REPO" worktree prune >/dev/null 2>&1
   git -C "$REPO" branch -D "$rama" >/dev/null 2>&1 || true
+  marcar_al_integrar "$id"
   est_set "$id" estado integrado
   est_set "$id" integrado_en "$(date '+%F %T')"
   avisar "$id integrada ✓" "PR #$pr en main: $(campo "$(spec_de "$id")" titulo)" default white_check_mark "$(enlace_issue "$id")"
@@ -385,6 +391,7 @@ integrada() {
     comentar "$id" "integrada en main con el PR #$pr ✓" >/dev/null
     cerrar_issue_de "$id" || log "$id: no se pudo cerrar el issue: se reintenta en la vuelta siguiente"
   fi
+  hacer_al_integrar "$id"
 }
 
 trabar() {
@@ -754,7 +761,7 @@ cmd_plan() {
         elif [ -n "$sin_turno" ]; then echo "$id  $sin_turno"
         else echo "$id  LISTA para lanzar"; fi
         ;;
-      *) echo "$id  $s" ;;
+      *) echo "$id  $s$(linea_al_integrar "$id")" ;;
     esac
   done
   # Un issue que nunca se pudo leer no tiene archivo en la cola, pero tampoco se lanza: se nombra igual.

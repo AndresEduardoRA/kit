@@ -12,7 +12,7 @@ límite de Claude con turnos de sesión y una pausa compartida (`scripts/orquest
 
 | Qué                                                                                        | Para qué                                                                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/flujo/` (`estado.sh`, `publicar.sh`, `limpiar-ramas.mjs`)                         | Mirar el estado, publicar el PR con auto-merge y limpiar las ramas integradas                                                                                                                                               |
+| `scripts/flujo/` (`estado.sh`, `publicar.sh`, `limpiar-ramas.mjs`, `cierre.mjs`)           | Mirar el estado, publicar el PR con auto-merge, limpiar las ramas integradas y cerrar la construcción de un repo                                                                                                            |
 | `scripts/orquestador/`                                                                     | La cola de tareas en los issues `cola` (copia en `.orquestador/`): un carril, una sesión de `claude -p` y un PR por tarea                                                                                                   |
 | `.github/workflows/ci.yml`, `.github/acciones/`                                            | El CI por niveles; `Listo · todo en verde` es el único check que `main` exige                                                                                                                                               |
 | `.claude/` (settings, hooks, reglas, skills `entregar`, `feature`, `revisar`)              | Los hooks bloquean lo peligroso, lintean cada archivo y verifican al terminar; el agente `revisor` revisa sin poder editar                                                                                                  |
@@ -157,6 +157,27 @@ El contrato con idea-a-semilla es el de su validador: los títulos de las seccio
 `:root` y `.dark` que incluye todos los nombres de token de `design/tokens.css`; `slug`, `repos[]` (rol, descripción, cuenta, etapa) y
 `contratos[]`. Si la semilla no cumple, el arreglo vuelve a idea-a-semilla.
 
+## El cierre de la construcción
+
+La última tarea de la cola de cada repo nace de `scripts/orquestador/plantillas/cerrar-construccion.md` (la crea `publicar-proyecto.mjs
+cola`). Lo determinista lo hace `node scripts/flujo/cierre.mjs`, que viaja a cada repo con `scripts/flujo/`:
+
+- `pasos --etiqueta semilla-vN`: los issues de pasos (`paso:` en su yaml) que no están integrados ni omitidos; si hay, la tarea se traba.
+- `aplicar --etiqueta semilla-vN`: `docs/DECISIONES.md` desde `registro.md` (por la letra del ID, con las áreas de la plantilla del
+  registro), `docs/PENDIENTES.md` desde «Riesgos y supuestos» y las «Decisiones tomadas sin preguntar» de los PR integrados, el borrador
+  de `docs/ESTADO.md` (el molde de calesa-app, con «completar…» donde va criterio), «Para las semillas» en `docs/LECCIONES.md`, el repo
+  en `etapa: mantenimiento` y `semilla: semilla-vN` (sólo esos dos valores del manifiesto) y fuera `docs/semilla/`. Se repite sin riesgo.
+- `retro`: el borrador de `## Retro` del PR (trabadas con su respuesta, decisiones sin preguntar, pasos omitidos, rehechos o fuera del
+  plan), cada línea por clasificar: hueco de la semilla, defecto del kit u otro.
+- `comprobar --etiqueta semilla-vN --cuerpo <archivo>`: los cinco docs, ESTADO en 60 líneas, ningún «completar», sin `docs/semilla/`, el
+  manifiesto cambiado y la retro clasificada.
+
+La etiqueta la crea el orquestador al integrar (`al_integrar: etiquetar semilla-vN`, `scripts/orquestador/al-integrar.sh`) sobre el padre
+del commit integrado: el PR del cierre saca `docs/semilla/`, y la etiqueta la conserva. El PR se titula
+`chore(docs): cerrar la construcción (semilla-vN)`, para encontrarlo con `gh pr list --state merged --search 'cerrar la construcción in:title'`;
+su `## Retro` la copia K11 a `z_<slug>/semilla/retro.md`. Se prueba con `scripts/flujo/cierre.test.ts`,
+`scripts/orquestador/al-integrar.test.ts` y el ensayo sobre el proyecto de ejemplo, `scripts/kit/cierre-ensayo.test.mjs`.
+
 ## Lo que no está verificado
 
 - **GitHub de verdad:** crear el repo, los ajustes, las etiquetas, la cola, el primer push de main y la protección están probados con un
@@ -177,5 +198,8 @@ El contrato con idea-a-semilla es el de su validador: los títulos de las seccio
   de verdad recién en la primera noche roja de un proyecto generado.
 - **La redacción de un pedido con un `claude` real:** probada con un `claude` falso que devuelve `SPEC:` o `PREGUNTAS:`
   (`scripts/orquestador/pedidos.test.ts`); que una sesión real en modo plan termine en una de las dos, todavía no.
+- **El cierre de la construcción contra GitHub real:** la etiqueta de `al_integrar` está probada con el `gh` falso
+  (`scripts/orquestador/al-integrar.test.ts`) y `cierre.mjs`, con el ensayo sobre el ejemplo; la primera etiqueta y la primera sesión
+  de cierre reales llegan con el último paso del primer proyecto.
 - **La tarea de dependencias en una sesión `auto` real:** el hook con `ORQ_PERMITE` está probado (`bloquear-peligrosos.test.ts`); que el
   clasificador del modo `auto` deje correr la actualización, todavía no.
