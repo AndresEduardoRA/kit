@@ -7,6 +7,7 @@ scripts/orquestador/**
 .github/acciones/pila/action.yml
 .github/pull_request_template.md
 lefthook.yml
+.shellcheckrc
 scripts/mapa.sh
 .claude/skills/entregar/SKILL.md
 .claude/skills/feature/SKILL.md
