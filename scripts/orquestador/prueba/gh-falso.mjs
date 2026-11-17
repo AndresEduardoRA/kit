@@ -1,4 +1,5 @@
-// Un `gh` falso para las pruebas del orquestador (cola-github.test.ts): lo que el orquestador le pide a GitHub, contra un «GitHub»
+// Un `gh` falso para las pruebas del orquestador (cola-github.test.ts) y del aviso de la noche (scripts/flujo/noche-gh.test.ts): lo que
+// le piden a GitHub, contra un «GitHub»
 // que vive en `$GH_FALSO/estado.json`. Cada llamada queda en `$GH_FALSO/llamadas.log` (una línea JSON con sus argumentos y el
 // GH_TOKEN con que se hizo). Con `sinRed` falla como sin red; con `limite`, como el límite de la API; con `issueEditFalla`,
 // `gh issue edit` falla como en los repos donde GraphQL choca con los proyectos clásicos (y el orquestador cae a la API REST).
@@ -129,6 +130,11 @@ if (args[0] === 'api') {
       guardar()
       imprimir(c)
     } else imprimir(i.comentarios)
+  } else if ((m = /^actions\/runs\/(\d+)\/jobs$/.exec(resto))) {
+    // Los jobs de una corrida (el aviso de la noche, sin artefactos): `corridas` en el estado; sin ella, como una API que falla.
+    const jobs = e.corridas?.[m[1] ?? '']
+    if (!jobs) salir(1, `HTTP 404: Not Found (actions/runs/${m[1]}/jobs)`)
+    imprimir({ total_count: jobs.length, jobs })
   } else salir(2, `gh falso: no conozco la API ${metodo} ${camino}`)
 } else if (args[0] === 'issue' && args[1] === 'edit') {
   if (e.issueEditFalla)
