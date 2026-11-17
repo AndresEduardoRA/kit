@@ -89,7 +89,20 @@ type Gh = {
   siguienteComentario: number
   issues: Record<string, Issue>
   etiquetas: string[]
-  prs: Record<string, { number: number; rama: string; estado: string }[]>
+  prs: Record<
+    string,
+    {
+      number: number
+      rama: string
+      estado: string
+      sha?: string
+      padre?: string
+      titulo?: string
+      cuerpo?: string
+    }[]
+  >
+  refs?: { ref: string; sha: string }[]
+  refsFalla?: string
   cuentas: string[]
   sinRed?: boolean
   limite?: boolean
