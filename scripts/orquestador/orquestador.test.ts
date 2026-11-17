@@ -68,6 +68,27 @@ describe('orquestador.sh: la cola', () => {
     expect(orquestador('plan').salida).not.toContain('sin lugar')
   })
 
+  it('una tarea que se retoma espera el área que ocupa otra; entre dos que se retoman pasa la de antes', () => {
+    const tarea = (id: string, estado: string) => {
+      mkdirSync(join(datos, 'cola'), { recursive: true })
+      writeFileSync(
+        join(datos, 'cola', `${id}-x.md`),
+        `---\nid: ${id}\ntitulo: x\nrama: feat/${id}\nconflicto: relacionados\n---\n`,
+      )
+      mkdirSync(join(datos, 'estado', id), { recursive: true })
+      writeFileSync(join(datos, 'estado', id, 'estado'), `${estado}\n`)
+    }
+    tarea('T33', 'corriendo')
+    tarea('T34', 'por_retomar')
+    expect(orquestador('plan').salida).toContain(
+      'T34  por_retomar, espera el área que ocupa T33 (relacionados)',
+    )
+    tarea('T33', 'por_retomar')
+    const plan = orquestador('plan').salida
+    expect(plan).toMatch(/^T33 {2}por_retomar$/m)
+    expect(plan).toContain('T34  por_retomar, espera el área que ocupa T33 (relacionados)')
+  })
+
   it('sin «borrador: si» la tarea queda lista para lanzar', () => {
     orquestador('nueva', 'T07', 'avisos-nuevos')
     const ruta = join(datos, 'cola', 'T07-avisos-nuevos.md')

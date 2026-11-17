@@ -29,6 +29,10 @@ echo "✓ dependencias"
 CARRIL="${1:-}"
 # El carril de un worktree, de su .env.carril (sin archivo, nada: con pipefail, un sed sobre un archivo que falta cortaría el guion).
 carril_de() { [ -f "$1/.env.carril" ] || return 0; sed -n 's/^CARRIL=//p' "$1/.env.carril" | head -n 1; }
+# Elegir la letra y escribir `.env.carril` va bajo un candado común a todos los worktrees del repo: dos preparar.sh a la vez (el
+# orquestador lanza dos tareas en el mismo segundo) verían libre la misma letra y chocarían en `supabase start`.
+exec 9>"$(git rev-parse --path-format=absolute --git-common-dir)/carriles.lock"
+flock -w 120 9 || falta "otro preparar.sh retiene el candado de los carriles hace más de 2 min."
 [ -n "$CARRIL" ] || CARRIL=$(carril_de "$RAIZ")
 if [ -z "$CARRIL" ]; then
   usados=$(git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r dir; do carril_de "$dir"; done)
@@ -48,6 +52,7 @@ const v = variablesDelCarril(proyectoDelRepo(), carril, DESFASES_DE_LOS_CARRILES
 const lineas = Object.entries(v).map(([k, x]) => k + '=' + String(x))
 writeFileSync('.env.carril', '# Carril ' + carril + ': lo escribe scripts/worktree/preparar.sh. No se edita a mano.\nCARRIL=' + carril + '\n' + lineas.join('\n') + '\n')
 " "$CARRIL" || falta "no pude escribir .env.carril (arriba, por qué)."
+flock -u 9 # con `.env.carril` escrito, la letra ya cuenta como usada para el próximo
 # shellcheck source=../lib/carril.sh
 source scripts/lib/carril.sh
 echo "✓ carril $CARRIL: stack $SUPABASE_PROJECT_ID, API $SUPABASE_API_PORT, base $SUPABASE_DB_PORT, app $PUERTO_APP, e2e $E2E_PORT"
