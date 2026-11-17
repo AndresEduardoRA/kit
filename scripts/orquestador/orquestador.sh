@@ -68,6 +68,9 @@ source "$ORQ/cola-entrada.sh"
 # Los niveles de modelo (rapido, normal, capaz) y qué alias es cada uno.
 # shellcheck source=niveles.sh
 source "$ORQ/niveles.sh"
+# Lo que comparten los orquestadores de la máquina: los turnos de sesión.
+# shellcheck source=maquina.sh
+source "$ORQ/maquina.sh"
 
 # ------------------------------------------------------------------------------------------------------------------ utilidades
 
@@ -181,6 +184,8 @@ corriendo_ahora() { local n=0 id; for id in $(ids); do [ "$(estado_de "$id")" = 
 # ------------------------------------------------------------------------------------------------------------------- el bucle
 
 bucle() {
+  # Sin flock, el `flock -n` de abajo fallaría y diría que ya hay otro orquestador.
+  command -v flock >/dev/null || { echo "Falta flock: sudo apt install util-linux" >&2; exit 69; }
   exec 8>"$EST/.orquestador.lock"
   flock -n 8 || { echo "Ya hay un orquestador corriendo (.orquestador/estado/.orquestador.lock)." >&2; exit 75; }
   local malos
@@ -191,8 +196,10 @@ bucle() {
   fi
   while IFS= read -r malos; do [ -n "$malos" ] && log "$malos"; done < <(modelos_heredados)
   token_gh
-  log "orquestador arriba · paralelo $PARALELO · $(ids | wc -w) tareas en la cola"
+  leer_turnos
+  log "orquestador arriba · paralelo $PARALELO · turnos de la máquina $TURNOS · niveles rapido=$NIVEL_RAPIDO normal=$NIVEL_NORMAL capaz=$NIVEL_CAPAZ · $(ids | wc -w) tareas en la cola"
   while :; do
+    avisar_turnos
     revisar_procesos
     vigilar_prs
     espejo
@@ -202,6 +209,14 @@ bucle() {
     fi
     sleep "${INTERVALO:-60}"
   done
+}
+
+avisar_turnos() { # un TURNOS_MAQUINA inválido se avisa una vez por valor (el bucle sigue con 3)
+  leer_turnos
+  if [ -z "$TURNOS_AVISO" ]; then rm -f "$EST/.turnos-avisado"; return 0; fi
+  [ "$(cat "$EST/.turnos-avisado" 2>/dev/null)" = "$TURNOS_AVISO" ] && return 0
+  printf '%s\n' "$TURNOS_AVISO" >"$EST/.turnos-avisado"
+  avisar "Turnos de la máquina" "$TURNOS_AVISO" default warning
 }
 
 # Una tarea «corriendo» cuyo proceso ya no existe (reinicio de la máquina, kill): se retoma.
@@ -217,9 +232,17 @@ revisar_procesos() {
 }
 
 lanzar() {
-  local libres id s quien orden
+  local libres id s quien orden turnos
   libres=$((PARALELO - $(corriendo_ahora)))
   [ "$libres" -gt 0 ] || return 0
+  # El tope del proyecto y el de la máquina: no se lanza un hijo que no va a tener turno.
+  turnos=$(turnos_libres)
+  if [ "$turnos" = 0 ]; then
+    [ -f "$EST/.sin-turno" ] || { touch "$EST/.sin-turno" && log "sin turno en la máquina: espero a que se libere uno"; }
+    return 0
+  fi
+  rm -f "$EST/.sin-turno"
+  [ "$turnos" -lt "$libres" ] && libres=$turnos
   # Primero lo que ya tiene trabajo hecho (arreglar y retomar), después lo nuevo: las urgentes y luego el orden de la cola.
   orden="$(for id in $(ids); do urgente "$(spec_de "$id")" && echo "$id"; done) $(for id in $(ids); do urgente "$(spec_de "$id")" || echo "$id"; done)"
   for pasada in arreglos nuevas; do
@@ -343,7 +366,7 @@ integrada() {
   wt="$WTS/$id"
   rama=$(campo "$(spec_de "$id")" rama)
   if [ -d "$wt" ]; then
-    [ -f "$wt/.env.carril" ] && (cd "$wt" && bash scripts/worktree/quitar.sh >>"$EST/$id/preparar.log" 2>&1)
+    [ -f "$wt/.env.carril" ] && (cd "$wt" && bash scripts/worktree/quitar.sh >>"$EST/$id/preparar.log" 2>&1 9>&-)
     git -C "$REPO" worktree remove --force "$wt" >>"$EST/$id/correr.log" 2>&1 || log "$id: no se pudo borrar el worktree $wt (bórralo a mano)"
   fi
   git -C "$REPO" worktree prune >/dev/null 2>&1
@@ -360,7 +383,7 @@ integrada() {
 trabar() {
   local id=$1 motivo=$2 wt
   wt="$WTS/$id"
-  [ -f "$wt/.env.carril" ] && (cd "$wt" && bash scripts/worktree/quitar.sh >>"$EST/$id/preparar.log" 2>&1)
+  [ -f "$wt/.env.carril" ] && (cd "$wt" && bash scripts/worktree/quitar.sh >>"$EST/$id/preparar.log" 2>&1 9>&-)
   est_set "$id" estado trabada
   printf '%s\n' "$motivo" >"$EST/$id/trabada.md"
   if con_issues && [ -n "$(est_get "$id" issue)" ]; then
@@ -390,6 +413,9 @@ correr() {
     trabar "$ID" "la spec tiene un error: $MOTIVO_MODELO. Cámbiala (en el issue, el bloque yaml) y responde para retomarla."
     exit 0
   fi
+  # El turno se toma antes de preparar nada (un carril de Docker que después no puede correr) y se sostiene hasta salir.
+  tomar_turno || { volver "sin turno en la máquina"; exit 0; }
+  log "$ID: turno $TURNO de $TURNOS de la máquina"
   log "$ID: empieza ($PREVIO) en $WT"
   case "$PREVIO" in
     por_arreglar) comentar "$ID" "arreglo el PR #$(est_get "$ID" pr): $(head -n 1 "$EST/$ID/motivo.md" 2>/dev/null)" >/dev/null ;;
@@ -449,7 +475,8 @@ preparar_worktree() {
 
 preparar_carril() {
   local salida rc
-  salida=$(cd "$WT" && bash scripts/worktree/preparar.sh 2>&1)
+  # `9>&-`: lo que preparar.sh deje corriendo no retiene el turno de la máquina.
+  salida=$(cd "$WT" && bash scripts/worktree/preparar.sh 2>&1 9>&-)
   rc=$?
   printf '%s\n%s\n' "--- $(date '+%F %T')" "$salida" >>"$EST/$ID/preparar.log"
   [ "$rc" = 0 ] && { est_del "$ID" fallos_carril; return 0; }
@@ -468,7 +495,7 @@ preparar_carril() {
   return 1
 }
 
-soltar_carril() { [ -f "$WT/.env.carril" ] && (cd "$WT" && bash scripts/worktree/quitar.sh >>"$EST/$ID/preparar.log" 2>&1); return 0; }
+soltar_carril() { [ -f "$WT/.env.carril" ] && (cd "$WT" && bash scripts/worktree/quitar.sh >>"$EST/$ID/preparar.log" 2>&1 9>&-); return 0; }
 
 reemplazar() { # plantilla → prompt (las llaves {{X}} se reemplazan)
   local t
@@ -502,7 +529,8 @@ claude_en_el_worktree() { # nombre modelo effort modo prompt_archivo [args extra
   log "$ID: sesión $nombre ($modelo · $effort · $modo)"
   (cd "$WT" && timeout --kill-after=120 "${TIEMPO_MAX_SESION:-5h}" \
     claude -p --model "$modelo" --effort "$effort" --permission-mode "$modo" \
-    --output-format stream-json --verbose "$@" <"$prompt") >"$salida" 2>"$salida.err"
+    --output-format stream-json --verbose "$@" <"$prompt") >"$salida" 2>"$salida.err" 9>&-
+  # (`9>&-`: un proceso que la sesión deje vivo no retiene el turno de la máquina.)
   rc=$?
   RESULTADO_JSON=$(jq -c 'select(.type == "result")' "$salida" 2>/dev/null | tail -n 1)
   local rj=${RESULTADO_JSON:-'{}'} es_error
@@ -664,13 +692,20 @@ cmd_estado() {
       "$(campo "$(spec_de "$id")" titulo | cut -c1-70)" "$extra"
   done
   echo
+  leer_turnos
+  echo "Turnos de la máquina: $(turnos_libres) de $TURNOS libres${TURNOS_AVISO:+ ($TURNOS_AVISO)}."
   if [ -f "$EST/.pausa-manual" ]; then echo "⏸  En pausa manual (bash scripts/orquestador/orquestador.sh reanudar)."; fi
   if pausado && [ ! -f "$EST/.pausa-manual" ]; then echo "⏸  En pausa por el límite del plan hasta las $(date -d "@$(cat "$EST/.pausa-hasta")" '+%H:%M')."; fi
   echo "INT = retomas/arreglos. Trabadas: el motivo está en .orquestador/estado/<ID>/trabada.md"
 }
 
 cmd_plan() {
-  local id s quien motivo
+  local id s quien motivo libres sin_turno=""
+  leer_turnos
+  libres=$(turnos_libres)
+  echo "$PROYECTO · turnos de la máquina: $libres de $TURNOS libres · paralelo $PARALELO"
+  [ -n "$TURNOS_AVISO" ] && echo "⚠ $TURNOS_AVISO"
+  [ "$libres" = 0 ] && sin_turno="espera: sin turno en la máquina ($TURNOS de $TURNOS ocupados: $(turnos_ocupados_por))"
   cola_invalida
   for id in $(ids); do
     s=$(estado_de "$id")
@@ -681,6 +716,7 @@ cmd_plan() {
         elif motivo=$(error_de_modelo "$(spec_de "$id")"); then echo "$id  spec con error: $motivo"
         elif ! FRESCO=1 deps_listas "$(spec_de "$id")"; then echo "$id  espera dependencias:$DEPS_FALTAN"
         elif quien=$(llave_ocupada_por "$id"); then echo "$id  espera el área que ocupa $quien"
+        elif [ -n "$sin_turno" ]; then echo "$id  $sin_turno"
         else echo "$id  LISTA para lanzar"; fi
         ;;
       *) echo "$id  $s" ;;
@@ -762,7 +798,7 @@ cmd_verificar() {
   local ok=1 c d id f
   echo "== Herramientas"
   for c in git gh jq claude pnpm node docker flock timeout setsid curl; do
-    if command -v "$c" >/dev/null; then echo "✓ $c"; else echo "✗ falta $c"; ok=0; fi
+    if command -v "$c" >/dev/null; then echo "✓ $c"; else echo "✗ falta $c ($(paquete_de "$c"))"; ok=0; fi
   done
   claude --version 2>/dev/null | sed 's/^/  claude /'
   claude --help 2>/dev/null | grep -q -- '--effort' || { echo "✗ tu claude no tiene --effort: claude update"; ok=0; }
@@ -789,6 +825,7 @@ cmd_verificar() {
   echo "== Docker"
   if docker info >/dev/null 2>&1; then echo "✓ docker responde"; else echo "✗ docker no responde"; ok=0; fi
   free -g 2>/dev/null | awk '/Mem:/ {print "  RAM: " $2 " GB en total, " $7 " GB disponibles (cada carril con Supabase y un e2e ronda 3-4 GB)"}'
+  verificar_maquina || ok=0
   verificar_niveles || ok=0
   echo "== Claude (una llamada mínima)"
   if echo 'Responde exactamente: ok' | claude -p --model "$(modelo_de_nivel normal || echo sonnet)" --effort low --permission-mode "${MODO_EJECUTAR:-auto}" --output-format json 2>/dev/null | jq -e '.result | test("ok"; "i")' >/dev/null; then
@@ -817,6 +854,27 @@ cmd_verificar() {
   echo "  (mira el celular)"
   echo
   if [ "$ok" = 1 ]; then echo "Todo listo."; else echo "Hay cosas que arreglar arriba."; exit 1; fi
+}
+
+paquete_de() { # herramienta → cómo se instala
+  case "$1" in
+    flock | setsid) echo "sudo apt install util-linux" ;;
+    timeout) echo "sudo apt install coreutils" ;;
+    *) echo "instala $1" ;;
+  esac
+}
+
+verificar_maquina() { # la sección «Máquina» de verificar: maquina.env (lo crea si falta) y los turnos; 1 si algo no vale
+  local ok=0 ocupados
+  echo "== Máquina (lo que comparten los orquestadores de esta máquina)"
+  asegurar_maquina_env
+  leer_turnos
+  if [ -n "$TURNOS_AVISO" ]; then echo "✗ $TURNOS_AVISO"; ok=1; fi
+  if command -v flock >/dev/null; then
+    ocupados=$(turnos_ocupados_por)
+    echo "✓ turnos de sesión: $(turnos_libres) de $TURNOS libres${ocupados:+ (ocupados: $ocupados)}"
+  fi
+  return $ok
 }
 
 verificar_niveles() { # la sección «Niveles» de verificar; devuelve 1 si algo no vale

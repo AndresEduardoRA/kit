@@ -8,32 +8,36 @@ cae, y sigue con la siguiente cuando se integra. Avisa al celular por ntfy.
 tareas y se responde a una trabada comentando. `.orquestador/cola/` es la copia de trabajo, en espejo en cada vuelta (abajo, «La cola
 en los issues»). Con `ORQ_SOLO_LOCAL=1` en `.orquestador/config.local.env` la cola es sólo local, como antes.
 
-**Uno por proyecto.** El código vive en el repo (`scripts/orquestador/`) y lo de esta máquina en `.orquestador/` (ignorada por git). Su
-cola, su estado, su lock y su servicio (`orquestador-<PROYECTO>`) son propios: el orquestador de otro proyecto corre a la vez sin
-enterarse. Lo único que comparten es la máquina (RAM, Docker) y la cuenta de Claude (el límite del plan): con dos proyectos a la vez,
-`PARALELO=2` en cada uno.
+**Uno por proyecto, con turnos por máquina.** El código vive en el repo (`scripts/orquestador/`) y lo de esta máquina en
+`.orquestador/` (ignorada por git). Su cola, su estado, su lock y su servicio (`orquestador-<PROYECTO>`) son propios. Lo que comparten
+los orquestadores de una máquina está en `~/.config/orquestador/maquina.env` y `~/.local/state/orquestador/`: los **turnos de sesión**
+(`TURNOS_MAQUINA`, 3 si no se dice: cuántas sesiones de `claude` a la vez entre todos los proyectos, porque la RAM es de la máquina y el
+límite del plan, de la cuenta) y la pausa por el límite del plan. `PARALELO` sigue siendo el tope propio de cada proyecto.
 
 Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquestador/worktrees/` y los borra al integrar.
 
 ## Qué hay
 
-| Dónde                                    | Qué es                                                                                                   |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `scripts/orquestador/orquestador.sh`     | El bucle y los comandos (abajo)                                                                          |
-| `scripts/orquestador/github.sh`          | Lo que le pide a GitHub: etiquetas, comentarios, editar y cerrar issues, dependencias por rama           |
-| `scripts/orquestador/cola-github.sh`     | El espejo entre la cola local y los issues; respuestas a trabadas; issues cerrados a mano                |
-| `scripts/orquestador/cola-entrada.sh`    | La entrada (`.orquestador/entrada/`) y la adopción de las tareas locales de antes                        |
-| `scripts/orquestador/niveles.sh`         | Los niveles de modelo: nivel → alias, qué campos de una spec valen, qué modelo es hoy cada alias         |
-| `scripts/orquestador/spec-issue.mjs`     | Una spec entre archivo e issue, en los dos sentidos (con su forma canónica para comparar)                |
-| `scripts/orquestador/config.env`         | `PROYECTO` (vacío: el del manifiesto), `KIT_GITHUB`, paralelo, niveles de modelo y límites. Sin secretos |
-| `scripts/orquestador/prompts/`           | Lo que recibe cada sesión: `tarea.md`, `planificar.md`, `arreglar.md`, `retomar.md`, `cierra-issue.md`   |
-| `scripts/orquestador/plantilla-tarea.md` | La forma de una spec (la copia `nueva`)                                                                  |
-| `scripts/orquestador/prueba/`            | El `gh` falso y el escenario de las pruebas de la cola en los issues                                     |
-| `.orquestador/config.local.env`          | Lo de tu máquina, pisa a `config.env`: `NTFY_TEMA`, `PARALELO`, `PATH_EXTRA`, `ORQ_SOLO_LOCAL`           |
-| `.orquestador/entrada/`                  | Specs nuevas sin id (`<tema>.md`) y respuestas (`respuesta-T<n>.md`): se publican solas                  |
-| `.orquestador/cola/T*.md`                | La copia de trabajo de la cola: una tarea por archivo, frontmatter + la spec                             |
-| `.orquestador/estado/`                   | Lo crea él: el estado de cada tarea, los logs, los prompts y lo que dijo cada sesión                     |
-| `.orquestador/worktrees/`                | Lo crea él: un worktree por tarea en curso                                                               |
+| Dónde                                    | Qué es                                                                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/orquestador/orquestador.sh`     | El bucle y los comandos (abajo)                                                                                            |
+| `scripts/orquestador/github.sh`          | Lo que le pide a GitHub: etiquetas, comentarios, editar y cerrar issues, dependencias por rama                             |
+| `scripts/orquestador/cola-github.sh`     | El espejo entre la cola local y los issues; respuestas a trabadas; issues cerrados a mano                                  |
+| `scripts/orquestador/cola-entrada.sh`    | La entrada (`.orquestador/entrada/`) y la adopción de las tareas locales de antes                                          |
+| `scripts/orquestador/maquina.sh`         | Lo que comparten los orquestadores de la máquina: `maquina.env` y los turnos de sesión                                     |
+| `scripts/orquestador/niveles.sh`         | Los niveles de modelo: nivel → alias, qué campos de una spec valen, qué modelo es hoy cada alias                           |
+| `scripts/orquestador/spec-issue.mjs`     | Una spec entre archivo e issue, en los dos sentidos (con su forma canónica para comparar)                                  |
+| `scripts/orquestador/config.env`         | `PROYECTO` (vacío: el del manifiesto), `KIT_GITHUB`, paralelo, niveles de modelo y límites. Sin secretos                   |
+| `scripts/orquestador/prompts/`           | Lo que recibe cada sesión: `tarea.md`, `planificar.md`, `arreglar.md`, `retomar.md`, `cierra-issue.md`                     |
+| `scripts/orquestador/plantilla-tarea.md` | La forma de una spec (la copia `nueva`)                                                                                    |
+| `scripts/orquestador/prueba/`            | El `gh` y el `claude` falsos, y los escenarios de las pruebas: la cola en los issues y varios orquestadores en una máquina |
+| `.orquestador/config.local.env`          | Lo de tu máquina, pisa a `config.env`: `NTFY_TEMA`, `PARALELO`, `PATH_EXTRA`, `ORQ_SOLO_LOCAL`                             |
+| `~/.config/orquestador/maquina.env`      | De la máquina, para todos sus orquestadores: `TURNOS_MAQUINA` (lo crea `verificar`)                                        |
+| `~/.local/state/orquestador/`            | De la máquina: los candados de los turnos (`turno-<k>.lock`; quién lo tiene, en `turno-<k>.quien`)                         |
+| `.orquestador/entrada/`                  | Specs nuevas sin id (`<tema>.md`) y respuestas (`respuesta-T<n>.md`): se publican solas                                    |
+| `.orquestador/cola/T*.md`                | La copia de trabajo de la cola: una tarea por archivo, frontmatter + la spec                                               |
+| `.orquestador/estado/`                   | Lo crea él: el estado de cada tarea, los logs, los prompts y lo que dijo cada sesión                                       |
+| `.orquestador/worktrees/`                | Lo crea él: un worktree por tarea en curso                                                                                 |
 
 ## Una tarea
 
@@ -120,7 +124,8 @@ también libera). Sin token o sin red, espera, y `plan` dice por qué.
 
 ## Arrancar
 
-1. `bash scripts/orquestador/orquestador.sh verificar`: herramientas, la cuenta de GitHub dueña del repo, auto-merge, las etiquetas de
+1. `bash scripts/orquestador/orquestador.sh verificar`: herramientas (y el paquete de cada una que falte), `maquina.env` (lo crea) y
+   los turnos de la máquina, el modelo de cada nivel, la cuenta de GitHub dueña del repo, auto-merge, las etiquetas de
    la cola (las crea), Docker, RAM, que `claude -p` responda, la cola, el estado del repo (`scripts/flujo/estado.sh`) y un aviso de
    prueba.
    - Avisos: `echo "NTFY_TEMA=\"cambiar-slug-app-$(openssl rand -hex 8)\"" >> .orquestador/config.local.env` y suscríbete en la app ntfy.
@@ -133,24 +138,29 @@ Si el servicio no encuentra `claude`, `pnpm` o `node`, agrega sus rutas a `PATH_
 
 ## Comandos (`bash scripts/orquestador/orquestador.sh …`)
 
-| Comando               | Qué hace                                                              |
-| --------------------- | --------------------------------------------------------------------- |
-| `estado`              | La tabla: estado, PR y retomas/arreglos de cada tarea                 |
-| `plan`                | Qué lanzaría ahora y qué espera cada una (dependencia o área ocupada) |
-| `nueva <tema>`        | Una spec en borrador, publicada ya como issue                         |
-| `entrada`             | Publica ya lo de `.orquestador/entrada/`                              |
-| `espejo`              | Una vuelta del espejo con los issues, ahora                           |
-| `ver T05`             | Sigue en vivo lo que dice y hace la sesión de T05                     |
-| `prompt T05`          | Lo que recibiría ahora la sesión de T05 (no lanza nada)               |
-| `pausar` / `reanudar` | No lanza nuevas (las que corren terminan) / vuelve a lanzar           |
-| `parar T05`           | Corta la sesión de T05 ahora; queda para retomar                      |
-| `reintentar T05`      | Vuelve a poner en marcha una trabada (retoma desde su rama)           |
-| `omitir T05`          | La da por hecha sin hacerla (sus dependientes siguen)                 |
+| Comando               | Qué hace                                                                                                         |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `estado`              | La tabla: estado, PR y retomas/arreglos de cada tarea                                                            |
+| `plan`                | Turnos libres de la máquina; qué lanzaría ahora y qué espera cada una (dependencia, área, turno, spec con error) |
+| `nueva <tema>`        | Una spec en borrador, publicada ya como issue                                                                    |
+| `entrada`             | Publica ya lo de `.orquestador/entrada/`                                                                         |
+| `espejo`              | Una vuelta del espejo con los issues, ahora                                                                      |
+| `ver T05`             | Sigue en vivo lo que dice y hace la sesión de T05                                                                |
+| `prompt T05`          | Lo que recibiría ahora la sesión de T05 (no lanza nada)                                                          |
+| `pausar` / `reanudar` | No lanza nuevas (las que corren terminan) / vuelve a lanzar                                                      |
+| `parar T05`           | Corta la sesión de T05 ahora; queda para retomar                                                                 |
+| `reintentar T05`      | Vuelve a poner en marcha una trabada (retoma desde su rama)                                                      |
+| `omitir T05`          | La da por hecha sin hacerla (sus dependientes siguen)                                                            |
 
 ## Cómo decide
 
-- **Lanza** una tarea cuando sus `depende` están integradas, ninguna en curso comparte su `conflicto` y hay carril libre. Primero
-  termina lo empezado (arreglos y retomas), después lo nuevo: las `cola:urgente` y luego por número.
+- **Lanza** una tarea cuando sus `depende` están integradas, ninguna en curso comparte su `conflicto`, hay carril libre y hay turno en
+  la máquina. Primero termina lo empezado (arreglos y retomas), después lo nuevo: las `cola:urgente` y luego por número.
+- **Turnos de la máquina**: antes de preparar el worktree, el hijo toma un turno (`flock -n` sobre
+  `~/.local/state/orquestador/turno-<k>.lock`) y lo sostiene hasta salir; si muere, el kernel lo suelta. Lo que lanza (la sesión,
+  `preparar.sh`) no lo hereda: un proceso que quede vivo no lo retiene. Sin turno libre no lanza, `plan` dice «sin turno en la
+  máquina» y quién los ocupa, y el hijo que llegó tarde vuelve a su estado sin gastar intentos. Un `TURNOS_MAQUINA` inválido usa 3 y
+  avisa una vez.
 - **Publica** con `publicar.sh --sin-esperar`: el PR queda con auto-merge y el carril se suelta mientras corre el CI.
 - **Vigila** el PR cada minuto: integrado → borra worktree y rama. CI rojo o choque con main → una sesión de arreglo con el log del job
   caído (desde el 3.er intento, con el nivel `NIVEL_ARREGLAR_DIFICIL`). Rama atrasada → la pone al día (merge, nunca fuerza).
