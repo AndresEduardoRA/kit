@@ -10,7 +10,7 @@ import { leerEstado, llamadas } from './prueba/gh-falso.mjs'
 import { APP, conRepos, conValidador, montar, WEB } from './prueba/montar.mjs'
 
 conValidador('publicar-proyecto.mjs crear, proteger y secretos', () => {
-  test('crear: públicos, con los ajustes de calesa-app, origin y las 13 etiquetas; uno que ya existe no se recrea', () => {
+  test('crear: públicos, con los ajustes de calesa-app, origin y las 14 etiquetas; uno que ya existe no se recrea', () => {
     const p = montar({ cuentas: { AndresEduardoRA: { plan: 'free' } } })
     const r = p.correr('crear')
     assert.equal(r.estado, 0, r.error)
@@ -19,7 +19,7 @@ conValidador('publicar-proyecto.mjs crear, proteger y secretos', () => {
     for (const repo of [APP, WEB]) {
       assert.equal(e.repos[repo].private, false)
       assert.deepEqual(e.repos[repo].ajustes, AJUSTES)
-      assert.equal(e.repos[repo].labels.length, 13)
+      assert.equal(e.repos[repo].labels.length, 14)
     }
     assert.ok(e.repos[APP].labels.some((l) => l.name === 'cola:trabada' && l.color === 'b60205'))
     assert.equal(
