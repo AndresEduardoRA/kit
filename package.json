@@ -26,6 +26,7 @@
     "db:lint": "bash scripts/candado.sh db:lint -- supabase db lint --fail-on error",
     "mapa": "bash scripts/mapa.sh",
     "env:check": "tsx scripts/env-check.ts",
+    "contrato:generar": "bash scripts/candado.sh contrato:generar -- tsx scripts/contratos/contrato.ts generar",
     "kit:nuevo": "node scripts/kit/nuevo-proyecto.mjs",
     "test:generador": "node --test scripts/kit/*.test.mjs"
   },

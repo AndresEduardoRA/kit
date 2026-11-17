@@ -99,8 +99,17 @@ const scripts = (
     scripts: Record<string, string>
   }
 ).scripts
-// Los del kit; un proyecto que sume `db:medir`, `db:carreras` o `db:sembrar-volumen` los agrega aquí.
-const CON_CANDADO = ['db:reset', 'db:types', 'db:diff', 'db:lint', 'test:e2e', 'test:e2e:completo']
+// Los del kit; un proyecto que sume `db:medir`, `db:carreras` o `db:sembrar-volumen` los agrega aquí. `contrato:generar` lee
+// la base local (como `db:types`): también.
+const CON_CANDADO = [
+  'db:reset',
+  'db:types',
+  'db:diff',
+  'db:lint',
+  'test:e2e',
+  'test:e2e:completo',
+  'contrato:generar',
+]
 
 describe('package.json › el candado de la base', () => {
   it.each(CON_CANDADO)('%s toma el candado con su propio nombre', (nombre) => {
