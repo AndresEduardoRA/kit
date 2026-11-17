@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { coincide, esFlujo, leerPatrones, rutaProhibida, tocaFlujo } from './flujo.mjs'
+import { coincide, esFlujo, leerPatrones, rutaProhibida, specAlKit, tocaFlujo } from './flujo.mjs'
 import { KIT_POR_DEFECTO } from './kit-gh.mjs'
 import { decidir, mezclar3, quitarRepetidas } from './mezcla.mjs'
 import { MARCADORES } from './personalizar.mjs'
@@ -95,6 +95,26 @@ const d = (base: string | null, nuevo: string | null, propio: string | null, ext
     valores,
     ...extra,
   })
+
+describe('flujo.mjs › specAlKit', () => {
+  it('lista hasta 50 rutas y «y N más», y reemplaza en una sola pasada', () => {
+    const rutas = Array.from({ length: 52 }, (_, i) => `scripts/flujo/{{REPO}}${i}.sh`)
+    const spec = specAlKit('{{REPO}} #{{PR}} {{REPO_GH}}\n{{RUTAS}}\n{{LECCIONES}}', {
+      repoGh: 'Cuenta/tienda-app',
+      nombre: 'tienda-app',
+      pr: '40',
+      toca: { rutas, kit: ['- Haz X. (kit)'], semilla: [] },
+    })
+    expect(spec.split('\n').slice(0, 2)).toEqual([
+      'tienda-app #40 Cuenta/tienda-app',
+      '- `scripts/flujo/{{REPO}}0.sh`',
+    ])
+    expect(spec).toContain(
+      '- `scripts/flujo/{{REPO}}49.sh`\n- y 2 más\nPara `docs/LECCIONES.md` del kit:\n\n- Haz X. (kit)',
+    )
+    expect(spec).not.toContain('{{REPO}}50')
+  })
+})
 
 describe('mezcla.mjs › decidir', () => {
   it('omitido, --tomar-kit y --dejar mandan sobre lo demás', () => {

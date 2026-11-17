@@ -58,3 +58,113 @@ kit_semanal() {
     log "✗ la tarea de traer el flujo del kit no se publica: plantillas/traer-flujo-del-kit.md no se lee ($(cat "$f.error"))"
   fi
 }
+
+# ------------------------------------------------------------------------------------------------- del proyecto al kit, al integrar
+
+# Al integrar un PR que toca flujo, su tarea en el kit. Como al-integrar.sh: `integrada` la marca pendiente antes de dejar la tarea
+# integrada y la intenta al final; si GitHub falla, el espejo la reintenta cada AL_INTEGRAR_ESPERA segundos, hasta AL_INTEGRAR_MAX_FALLOS.
+# El estado, en estado/<ID>/: `aviso_kit` (pendiente | hecho | nada | fallido), `aviso_kit_fallos`, `aviso_kit_intento` (epoch),
+# `aviso_kit_issue` (la URL del issue del kit), `aviso_kit.md` (lo último que pasó), `al-kit.md` (la spec), y `al-kit-titulo` y
+# `al-kit-cuerpo.md` (el issue). Una tarea de traer el flujo del kit (rama chore/flujo-del-kit-*) no avisa: lo que trae ya es del kit.
+kit_avisa() { [ "${KIT_AVISAR:-si}" = si ] && ! es_el_kit && [ -f "$REPO/scripts/kit/flujo.mjs" ] && [ -n "$REPO_GH" ]; }
+kit_del_kit() { echo "${KIT_GITHUB:-AndresEduardoRA/kit}"; }
+# `gh` con el token del dueño del kit sólo en esta llamada (KIT_TOK, local de quien llama): la cuenta activa no cambia.
+ghk() { local -x GH_TOKEN="$KIT_TOK"; ghc "$@"; }
+
+marcar_aviso_kit() { # ID — antes de `estado integrado`: si el proceso muere entre medio, el aviso queda pendiente
+  local id=$1
+  kit_avisa || return 0
+  [ -n "$(est_get "$id" pr)" ] || return 0
+  [ -z "$(est_get "$id" aviso_kit)" ] || return 0
+  [[ "$(campo "$(spec_de "$id")" rama)" == chore/flujo-del-kit-* ]] && return 0
+  est_set "$id" aviso_kit pendiente
+  est_set "$id" aviso_kit_fallos 0
+}
+
+avisar_al_kit() { # ID
+  local id=$1 pr kit archivos lista j err titulo url rc KIT_TOK
+  [ "$(est_get "$id" aviso_kit)" = pendiente ] || return 0
+  est_set "$id" aviso_kit_intento "$(date +%s)"
+  pr=$(est_get "$id" pr)
+  kit=$(kit_del_kit)
+  archivos=$(ghc api --paginate "repos/{owner}/{repo}/pulls/$pr/files?per_page=100")
+  rc=$?
+  [ "$rc" = 0 ] || { aviso_kit_fallo "$id" "no pude leer los archivos del PR #$pr" "$rc"; return 0; }
+  # --paginate concatena un arreglo por página.
+  lista=$(jq -s 'add // []' <<<"$archivos") || { aviso_kit_fallo "$id" "los archivos del PR #$pr no se leen" final; return 0; }
+  err=$(mktemp)
+  if ! node "$REPO/scripts/kit/flujo.mjs" spec-al-kit "$ORQ/plantillas/traer-de-proyecto.md" "$REPO_GH" "$PROYECTO" "$pr" \
+    <<<"$lista" >"$EST/$id/al-kit.md" 2>"$err"; then
+    aviso_kit_fallo "$id" "no pude armar la tarea del kit: $(head -c 200 "$err")" final
+    rm -f "$err"
+    return 0
+  fi
+  if [ ! -s "$EST/$id/al-kit.md" ]; then
+    rm -f "$err" "$EST/$id/al-kit.md"
+    est_set "$id" aviso_kit nada
+    return 0
+  fi
+  if ! j=$(node "$SPEC_ISSUE" a-issue "$EST/$id/al-kit.md" 2>"$err"); then
+    aviso_kit_fallo "$id" "la tarea del kit no se lee: $(head -c 200 "$err")" final
+    rm -f "$err"
+    return 0
+  fi
+  rm -f "$err"
+  titulo=$(jq -r .titulo <<<"$j")
+  printf '%s\n' "$titulo" >"$EST/$id/al-kit-titulo"
+  jq -r .cuerpo <<<"$j" >"$EST/$id/al-kit-cuerpo.md"
+  KIT_TOK=$(gh auth token --user "${kit%%/*}" 2>/dev/null) || KIT_TOK=""
+  [ -n "$KIT_TOK" ] || { aviso_kit_fallo "$id" "sin sesión de gh de ${kit%%/*} (gh auth login)"; return 0; }
+  url=$(ghk api -X POST "repos/$kit/issues" -f title="$titulo" -F body=@"$EST/$id/al-kit-cuerpo.md" -f 'labels[]=cola' --jq .html_url)
+  rc=$?
+  [ "$rc" = 0 ] || { aviso_kit_fallo "$id" "no pude crear el issue en $kit" "$rc"; return 0; }
+  est_set "$id" aviso_kit hecho
+  est_set "$id" aviso_kit_issue "$url"
+  log "$id: llevé al kit lo de flujo del PR #$pr: $url"
+  comentar "$id" "llevé al kit lo de flujo de este PR: $url" >/dev/null
+}
+
+aviso_kit_fallo() { # ID motivo [final | el código de ghc: 1 GitHub falló, 2 el límite de la API (no cuenta como fallo)]
+  local id=$1 motivo=$2 n pr kit a_mano
+  if [ "${3:-}" = 2 ] && con_issues; then return 0; fi
+  [ "${3:-}" = 1 ] && motivo="$motivo: $(cat "$EST/.gh-ultimo-error" 2>/dev/null)"
+  sumar "$id" aviso_kit_fallos
+  n=$(num "$id" aviso_kit_fallos)
+  printf '%s · intento %s: %s\n' "$(date '+%F %T')" "$n" "$motivo" >"$EST/$id/aviso_kit.md"
+  if [ "${3:-}" != final ] && [ "$n" -lt "$AL_INTEGRAR_MAX_FALLOS" ] && con_issues; then
+    log "$id: no pude llevar al kit el PR (intento $n de $AL_INTEGRAR_MAX_FALLOS): $motivo; se reintenta en el espejo"
+    return 0
+  fi
+  est_set "$id" aviso_kit fallido
+  pr=$(est_get "$id" pr)
+  kit=$(kit_del_kit)
+  a_mano="revisa estado/$id/al-kit.md"
+  if [ -s "$EST/$id/al-kit-cuerpo.md" ]; then
+    a_mano="GH_TOKEN=\$(gh auth token --user ${kit%%/*}) gh api -X POST repos/$kit/issues -f title='$(cat "$EST/$id/al-kit-titulo")'"
+    a_mano="$a_mano -F body=@$EST/$id/al-kit-cuerpo.md -f 'labels[]=cola'"
+  fi
+  echo "A mano: $a_mano" >>"$EST/$id/aviso_kit.md"
+  comentar "$id" "no pude llevar al kit lo de flujo del PR #$pr: $motivo. A mano: \`$a_mano\`" >/dev/null
+  avisar "$id: no pude llevar al kit el PR #$pr" "$motivo. A mano: $a_mano" high warning "$(enlace_issue "$id")"
+}
+
+avisos_kit_pendientes() { # el espejo (o el bucle, con la cola sólo local): los avisos pendientes, una vez cada AL_INTEGRAR_ESPERA
+  local id ult ahora
+  ahora=$(date +%s)
+  for id in $(ids); do
+    [ "$(estado_de "$id")" = integrado ] || continue
+    [ "$(est_get "$id" aviso_kit)" = pendiente ] || continue
+    ult=$(est_get "$id" aviso_kit_intento)
+    [ $((ahora - ${ult:-0})) -ge "$AL_INTEGRAR_ESPERA" ] || continue
+    avisar_al_kit "$id"
+  done
+  return 0
+}
+
+linea_aviso_kit() { # ID → el sufijo que muestra `plan`
+  case "$(est_get "$1" aviso_kit)" in
+    pendiente) echo " · falta llevar al kit" ;;
+    fallido) echo " · no se pudo llevar al kit (estado/$1/aviso_kit.md)" ;;
+  esac
+  return 0
+}

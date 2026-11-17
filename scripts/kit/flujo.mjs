@@ -3,11 +3,14 @@
 // orquestador (`tocaFlujo`, por la CLI de abajo) y `traer-de-proyecto.mjs` (del proyecto al kit). Viaja a cada proyecto. Puro salvo
 // `patronesDelKit` y la CLI. Se prueba en `mezcla.test.ts` y `scripts/orquestador/kit-aviso.test.ts`.
 import { readFileSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 
 // Lo de docs/ que sí puede ser flujo: el resto de docs/ es del producto.
 const DOCS_DEL_FLUJO = ['docs/FLUJO.md', 'docs/LECCIONES.md', 'docs/KIT.md']
 // Una línea de docs/LECCIONES.md que sube al kit: termina en «(kit)» (va a las lecciones del kit) o en «(semilla)» (a las de las semillas).
 const LECCION_QUE_SUBE = /\((kit|semilla)\)\s*$/
+// Las rutas que lista la tarea del kit: las primeras, y «y N más».
+const TOPE_DE_RUTAS = 50
 
 /**
  * Los patrones de un texto con la sintaxis de flujo.txt (y de .kit/omitir): una ruta o patrón por línea, `#` comenta. Puro.
@@ -93,3 +96,62 @@ export function tocaFlujo(archivos, patrones) {
   }
   return toca.rutas.length + toca.kit.length + toca.semilla.length ? toca : null
 }
+
+/** @param {string} l */
+const vineta = (l) => (l.startsWith('- ') ? l : `- ${l}`)
+
+/**
+ * La spec de la tarea del kit (plantillas/traer-de-proyecto.md) para un PR integrado: `{{REPO_GH}}`, `{{REPO}}`, `{{PR}}`, `{{RUTAS}}`
+ * (viñetas, con tope) y `{{LECCIONES}}`, en una sola pasada (un valor con `{{X}}` no se vuelve a reemplazar). Puro.
+ * @param {string} plantilla
+ * @param {{ repoGh: string, nombre: string, pr: string, toca: { rutas: string[], kit: string[], semilla: string[] } }} d
+ */
+export function specAlKit(plantilla, { repoGh, nombre, pr, toca }) {
+  const sobran = toca.rutas.length - TOPE_DE_RUTAS
+  const rutas = toca.rutas.length
+    ? [
+        ...toca.rutas.slice(0, TOPE_DE_RUTAS).map((r) => `- \`${r}\``),
+        ...(sobran > 0 ? [`- y ${sobran} más`] : []),
+      ].join('\n')
+    : '- ninguna: sólo lecciones'
+  const lecciones =
+    [
+      ...(toca.kit.length
+        ? ['Para `docs/LECCIONES.md` del kit:', '', ...toca.kit.map(vineta), '']
+        : []),
+      ...(toca.semilla.length
+        ? [
+            'Para `docs/semillas/LECCIONES.md` › «Sugerencias de los proyectos»:',
+            '',
+            ...toca.semilla.map(vineta),
+          ]
+        : []),
+    ]
+      .join('\n')
+      .trim() || 'Ninguna.'
+  /** @type {Record<string, string>} */
+  const valores = { REPO_GH: repoGh, REPO: nombre, PR: pr, RUTAS: rutas, LECCIONES: lecciones }
+  return plantilla.replace(/\{\{(REPO_GH|REPO|PR|RUTAS|LECCIONES)\}\}/g, (_, k) => valores[k] ?? '')
+}
+
+// ---------- la CLI, para el aviso al kit del orquestador (kit.sh) ----------
+//
+//   node scripts/kit/flujo.mjs spec-al-kit <plantilla> <cuenta/repo> <nombre> <pr>   < los archivos del PR (JSON de pulls/<n>/files)
+//
+// Imprime la spec de la tarea del kit, o nada si el PR no toca flujo (según el flujo.txt de este repo).
+/** @param {string[]} argv */
+function principal(argv) {
+  const [orden, plantilla, repoGh, nombre, pr = ''] = argv
+  if (orden !== 'spec-al-kit' || !plantilla || !repoGh || !nombre || !/^\d+$/.test(pr)) {
+    console.error(
+      'uso: node scripts/kit/flujo.mjs spec-al-kit <plantilla> <cuenta/repo> <nombre> <pr> < archivos.json',
+    )
+    process.exit(64)
+  }
+  const toca = tocaFlujo(JSON.parse(readFileSync(0, 'utf8')), patronesDelKit())
+  if (toca)
+    process.stdout.write(specAlKit(readFileSync(plantilla, 'utf8'), { repoGh, nombre, pr, toca }))
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+  principal(process.argv.slice(2))

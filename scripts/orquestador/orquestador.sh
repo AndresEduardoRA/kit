@@ -13,6 +13,7 @@
 # Cada sesión arranca desde cero (nada de contexto heredado). Si se corta (límite del plan, reinicio, tiempo), se retoma desde lo
 # commiteado en la rama. El estado vive en .orquestador/estado/<ID>/ como archivos de texto: sobrevive a reinicios. Lo que la spec
 # pide hacer al integrarse (`al_integrar: etiquetar <nombre>`) lo hace al integrar y, si GitHub falla, lo reintenta el espejo (al-integrar.sh).
+# Un PR integrado que toca flujo abre su tarea en el kit, y una vez por semana entra la de traer el flujo del kit (kit.sh).
 #
 #   bash scripts/orquestador/orquestador.sh                 el bucle (lo que corre el servicio)
 #   … verificar        comprueba herramientas, cuentas, Docker, la cola y el aviso de prueba; crea las etiquetas cola:*
@@ -224,7 +225,7 @@ bucle() {
     revisar_procesos
     vigilar_prs
     espejo
-    con_issues || al_integrar_pendientes # sin espejo: una acción que un corte dejó pendiente
+    con_issues || { al_integrar_pendientes; avisos_kit_pendientes; } # sin espejo: lo que un corte dejó pendiente
     if ! pausado; then
       lanzar
       lanzar_redaccion
@@ -387,6 +388,7 @@ integrada() {
   git -C "$REPO" worktree prune >/dev/null 2>&1
   git -C "$REPO" branch -D "$rama" >/dev/null 2>&1 || true
   marcar_al_integrar "$id"
+  marcar_aviso_kit "$id"
   est_set "$id" estado integrado
   est_set "$id" integrado_en "$(date '+%F %T')"
   avisar "$id integrada ✓" "PR #$pr en main: $(campo "$(spec_de "$id")" titulo)" default white_check_mark "$(enlace_issue "$id")"
@@ -395,6 +397,7 @@ integrada() {
     cerrar_issue_de "$id" || log "$id: no se pudo cerrar el issue: se reintenta en la vuelta siguiente"
   fi
   hacer_al_integrar "$id"
+  avisar_al_kit "$id"
 }
 
 trabar() {
@@ -764,7 +767,7 @@ cmd_plan() {
         elif [ -n "$sin_turno" ]; then echo "$id  $sin_turno"
         else echo "$id  LISTA para lanzar"; fi
         ;;
-      *) echo "$id  $s$(linea_al_integrar "$id")" ;;
+      *) echo "$id  $s$(linea_al_integrar "$id")$(linea_aviso_kit "$id")" ;;
     esac
   done
   # Un issue que nunca se pudo leer no tiene archivo en la cola, pero tampoco se lanza: se nombra igual.
