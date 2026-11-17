@@ -69,13 +69,16 @@ jobs:
         run: |
           printf '%s\n' "$TITULO" | pnpm exec commitlint
       # Una migración nueva va después de la última de main: un reset aplica por el orden del nombre (.claude/rules/migraciones.md).
-      - name: las migraciones del PR van después de las de main
+      # Y una versión publicada de un contrato (o una copia fijada) no cambia nunca: contra el main recién bajado
+      # (.claude/rules/contratos.md).
+      - name: las migraciones del PR van después de las de main y sus contratos publicados no cambian
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
           git fetch --no-tags --depth=1 origin "$BASE_REF"
           MIGRACIONES_BASE=FETCH_HEAD pnpm exec vitest run scripts/guardas/orden-de-migraciones.test.ts
+          CONTRATOS_BASE=FETCH_HEAD pnpm exec vitest run scripts/guardas/contratos-publicados.test.ts
       - run: pnpm lint
       - run: pnpm typecheck # corre `next typegen` antes de tsc
       # Las pruebas de `node --test` (`pnpm test` las corre después de vitest; vitest va en «pruebas», en 3 partes).
@@ -104,9 +107,9 @@ jobs:
       - uses: ./.github/acciones/preparar
       - run: pnpm exec vitest run --shard=${{ matrix.parte }}/3
 
-  # Decide si corren los jobs pesados (scripts/ci-cambios.sh, probado en scripts/ci-cambios.test.ts) y qué e2e corre un PR: el completo
-  # en 4 bloques, los dirigidos en 1 a 4, o ninguno (scripts/e2e-dirigidos.mjs). Fuera de un PR, el completo. Y si este repo es la
-  # plantilla del kit.
+  # Decide si corren los jobs pesados y los de contratos (scripts/ci-cambios.sh, probado en scripts/ci-cambios.test.ts) y qué e2e corre
+  # un PR: el completo en 4 bloques, los dirigidos en 1 a 4, o ninguno (scripts/e2e-dirigidos.mjs). Fuera de un PR, el completo. Y si
+  # este repo es la plantilla del kit.
   cambios:
     name: Cambios · ¿base y e2e?
     runs-on: ubuntu-24.04
@@ -115,6 +118,8 @@ jobs:
       plantilla: ${{ steps.marca.outputs.plantilla }}
       pesado: ${{ steps.filtro.outputs.pesado }}
       e2e: ${{ steps.filtro.outputs.e2e }}
+      contrato: ${{ steps.filtro.outputs.contrato }}
+      contrato_uso: ${{ steps.filtro.outputs.contrato_uso }}
       e2e_modo: ${{ steps.e2e.outputs.e2e_modo }}
       e2e_specs: ${{ steps.e2e.outputs.e2e_specs }}
       e2e_bloques: ${{ steps.e2e.outputs.e2e_bloques }}
@@ -172,6 +177,47 @@ jobs:
         run: |
           psql "$SUPABASE_DB_LOCAL" -At -v ON_ERROR_STOP=1 -f scripts/splinter.sql > "$RUNNER_TEMP/advisors.txt"
           if grep -i '|ERROR|' "$RUNNER_TEMP/advisors.txt"; then echo "::error::Advisors con nivel ERROR"; exit 1; fi
+
+  # El proveedor de contratos entre repos (.claude/rules/contratos.md): su base local cumple cada versión de `vigentes` y la de `provee`.
+  # Corre si el cambio toca supabase/, contratos/, scripts/contratos/ o el manifiesto, y levanta la pila sólo si el repo provee algo:
+  # lo decide el paso `rol`, porque `cambios` no instala dependencias. Nunca mira la base de otro repo.
+  contrato:
+    name: Contrato · la base cumple sus versiones
+    needs: cambios
+    if: needs.cambios.outputs.contrato == 'true' && needs.cambios.outputs.plantilla != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/acciones/preparar
+      - id: rol
+        run: pnpm exec tsx scripts/contratos/contrato.ts rol >> "$GITHUB_OUTPUT"
+      - if: steps.rol.outputs.provee == 'true'
+        uses: ./.github/acciones/pila
+        with:
+          sin: studio,imgproxy,edge-runtime,logflare,vector
+      - if: steps.rol.outputs.provee == 'true'
+        run: pnpm db:reset
+      - if: steps.rol.outputs.provee == 'true'
+        run: pnpm contrato:probar
+
+  # El consumidor: su `infra/` sólo llama lo que está en las copias fijadas (`.proyecto/contratos/`) y los tipos generados de esas copias
+  # están al día (como `db:types sin diff`; también atrapa uno sin rastrear). Sin base ni pila: sólo archivos.
+  contrato-uso:
+    name: Contrato · el consumidor usa sólo lo fijado
+    needs: cambios
+    if: needs.cambios.outputs.contrato_uso == 'true' && needs.cambios.outputs.plantilla != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/acciones/preparar
+      - run: pnpm contrato:usar
+      - name: tipos de los contratos sin diff
+        run: |
+          pnpm contrato:tipos
+          git status --porcelain -- src/shared/types/contratos/
+          test -z "$(git status --porcelain -- src/shared/types/contratos/)"
 
   # La app se compila una vez y los bloques bajan la misma (factura menos y corre en paralelo con el Nivel 1). Un PR sin e2e que correr
   # (`e2e_modo: ninguno`) no compila. Con workflow_dispatch, `e2e: false` lo apaga.
@@ -379,7 +425,17 @@ jobs:
   listo:
     name: Listo · todo en verde
     if: always()
-    needs: [nivel-1, pruebas, cambios, base, e2e-build, e2e, ejemplo, aviso-noche]
+    needs:
+      - nivel-1
+      - pruebas
+      - cambios
+      - base
+      - contrato
+      - contrato-uso
+      - e2e-build
+      - e2e
+      - ejemplo
+      - aviso-noche
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

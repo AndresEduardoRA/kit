@@ -341,6 +341,8 @@ export default defineConfig([
     'next-env.d.ts',
     '**/*.gen.ts',
     'src/shared/types/database.types.ts',
+    // Los tipos de los contratos fijados: los escribe `pnpm contrato:tipos` (scripts/contratos/tipos.ts).
+    'src/shared/types/contratos/**',
     'scripts/probar-schema.mjs',
     // Deno, con sus globales y sus imports: `tsconfig.json` ya lo excluye, y sin proyecto de
     // TypeScript el lint tipado no tiene cómo leerlo. Se verifica con el e2e contra el runtime.

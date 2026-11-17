@@ -20,6 +20,7 @@ Infraestructura transversal sin reglas de negocio: clientes de Supabase, errores
 - `ui/diferido.tsx` — `diferido()`: el único lugar que carga código diferido (el lint prohíbe `next/dynamic`).
 - `ui/button.tsx`, `ui/aviso.tsx` — lo mínimo que usan `diferido()` y `not-found`; los de shadcn los reemplazan con la misma API.
 - `types/database.types.ts` — generado por `pnpm db:types`. No se edita.
+- `types/contratos/<id>.ts` — generado por `pnpm contrato:tipos` desde `.proyecto/contratos/` (un repo consumidor). No se edita.
 
 ## No se rompe
 

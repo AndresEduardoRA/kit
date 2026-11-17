@@ -49,6 +49,10 @@ function correr(cwd: string, entorno: Record<string, string>, hasta: string) {
 const decidir = (cwd: string, entorno: Record<string, string>, hasta: string) =>
   correr(cwd, entorno, hasta).salida
 
+// Las cuatro salidas: nada pesado, o todo (los caminos de «ante la duda» y la noche: los de contratos valen lo que `pesado`).
+const NADA = { pesado: 'false', e2e: 'false', contrato: 'false', contrato_uso: 'false' }
+const TODO = { pesado: 'true', e2e: 'true', contrato: 'true', contrato_uso: 'true' }
+
 beforeAll(() => {
   raiz = mkdtempSync(join(tmpdir(), 'ci-cambios-'))
   repo = join(raiz, 'repo')
@@ -70,11 +74,11 @@ describe('ci-cambios.sh', () => {
     decidir(cwd, { EVENTO: 'push', ANTES: commits[desde] ?? desde }, commits[hasta] ?? hasta)
 
   it('un push sólo de docs (aunque haya un package.json adentro) no corre lo pesado', () => {
-    expect(push('inicio', 'docs')).toEqual({ pesado: 'false', e2e: 'false' })
+    expect(push('inicio', 'docs')).toEqual(NADA)
   })
 
   it('un push con src/ corre la base y no el e2e', () => {
-    expect(push('docs', 'codigo')).toEqual({ pesado: 'true', e2e: 'false' })
+    expect(push('docs', 'codigo')).toEqual({ ...NADA, pesado: 'true' })
   })
 
   it.each(['lockfile', 'workflow'])('un push con %s también es pesado', (commit) => {
@@ -89,33 +93,30 @@ describe('ci-cambios.sh', () => {
         { EVENTO: 'pull_request', BASE_PR: commits['docs'] ?? '' },
         commits['codigo'] ?? '',
       ),
-    ).toEqual({ pesado: 'true', e2e: 'true' })
+    ).toEqual({ ...NADA, pesado: 'true', e2e: 'true' })
     expect(
       decidir(
         repo,
         { EVENTO: 'pull_request', BASE_PR: commits['inicio'] ?? '' },
         commits['docs'] ?? '',
       ),
-    ).toEqual({ pesado: 'false', e2e: 'false' })
+    ).toEqual(NADA)
   })
 
   it('workflow_dispatch corre todo', () => {
-    expect(decidir(repo, { EVENTO: 'workflow_dispatch' }, 'HEAD')).toEqual({
-      pesado: 'true',
-      e2e: 'true',
-    })
+    expect(decidir(repo, { EVENTO: 'workflow_dispatch' }, 'HEAD')).toEqual(TODO)
   })
 
   it('sin commit de comparación (rama nueva) o con uno desconocido (push forzado), todo es pesado y dice por qué', () => {
     const conMotivo = (antes: string) =>
       correr(repo, { EVENTO: 'push', ANTES: antes }, commits['docs'] ?? '')
     expect(conMotivo(CEROS)).toEqual({
-      salida: { pesado: 'true', e2e: 'false' },
+      salida: { ...TODO, e2e: 'false' },
       motivo: expect.stringContaining('sin commit de comparación') as string,
     })
     expect(conMotivo('').motivo).toContain('sin commit de comparación')
     expect(conMotivo('1234567890abcdef1234567890abcdef12345678')).toEqual({
-      salida: { pesado: 'true', e2e: 'false' },
+      salida: { ...TODO, e2e: 'false' },
       motivo: expect.stringContaining('el clon no tiene 1234567890ab') as string,
     })
   })
@@ -138,17 +139,16 @@ describe('ci-cambios.sh', () => {
     expect(
       decidir(superficial, { EVENTO: 'push', ANTES: commits['docs-3'] ?? '' }, hasta).pesado,
     ).toBe('true')
-    expect(decidir(completo, { EVENTO: 'push', ANTES: commits['docs-3'] ?? '' }, hasta)).toEqual({
-      pesado: 'false',
-      e2e: 'false',
-    })
+    expect(decidir(completo, { EVENTO: 'push', ANTES: commits['docs-3'] ?? '' }, hasta)).toEqual(
+      NADA,
+    )
   })
 })
 
 // El completo de cada noche (`schedule` en ci.yml) sólo corre si main se movió.
 describe('ci-cambios.sh › la noche', () => {
   it('la noche (schedule) corre todo si main tuvo commits en las últimas 25 h; si no, nada', () => {
-    expect(decidir(repo, { EVENTO: 'schedule' }, 'HEAD')).toEqual({ pesado: 'true', e2e: 'true' })
+    expect(decidir(repo, { EVENTO: 'schedule' }, 'HEAD')).toEqual(TODO)
     const quieto = join(raiz, 'quieto')
     mkdirSync(quieto)
     git(quieto, 'init', '-q', '-b', 'main')
@@ -167,7 +167,80 @@ describe('ci-cambios.sh › la noche', () => {
       },
     )
     const r = correr(quieto, { EVENTO: 'schedule' }, 'HEAD')
-    expect(r.salida).toEqual({ pesado: 'false', e2e: 'false' })
+    expect(r.salida).toEqual(NADA)
     expect(r.motivo).toContain('no tuvo commits')
+  })
+})
+
+// Los jobs de contratos (.claude/rules/contratos.md): `contrato` (el proveedor) y `contrato-uso` (el consumidor), cada uno por lo suyo.
+describe('ci-cambios.sh › los contratos', () => {
+  // Un PR de un solo commit encima de lo último: el rango es ese commit.
+  const pr = (nombre: string, archivos: string[]) => {
+    const antes = git(repo, 'rev-parse', 'HEAD')
+    commitear(nombre, archivos)
+    return decidir(repo, { EVENTO: 'pull_request', BASE_PR: antes }, commits[nombre] ?? '')
+  }
+
+  it('sólo una versión de contrato: corre el proveedor, no lo pesado', () => {
+    expect(pr('version', ['contratos/agenda@1.json'])).toEqual({ ...NADA, contrato: 'true' })
+  })
+
+  it('una migración: lo pesado y el proveedor', () => {
+    expect(pr('migracion', ['supabase/migrations/20261116000000_x.sql'])).toEqual({
+      ...NADA,
+      pesado: 'true',
+      e2e: 'true',
+      contrato: 'true',
+    })
+  })
+
+  it('un infra/ o los tipos de un contrato: el consumidor', () => {
+    expect(pr('infra', ['src/modules/turnos/infra/agenda.ts'])).toMatchObject({
+      contrato: 'false',
+      contrato_uso: 'true',
+    })
+    expect(pr('tipos', ['src/shared/types/contratos/agenda.ts']).contrato_uso).toBe('true')
+  })
+
+  it('una copia fijada: el consumidor; el manifiesto: los dos; los scripts de contratos: los dos', () => {
+    expect(pr('copia', ['.proyecto/contratos/agenda@1.json'])).toEqual({
+      ...NADA,
+      contrato_uso: 'true',
+    })
+    expect(pr('manifiesto', ['.proyecto/proyecto.yaml'])).toEqual({
+      ...NADA,
+      contrato: 'true',
+      contrato_uso: 'true',
+    })
+    expect(pr('scripts', ['scripts/contratos/usar.ts'])).toMatchObject({
+      contrato: 'true',
+      contrato_uso: 'true',
+    })
+  })
+
+  it('lo que los dos jobs corren (dependencias, CI): los dos; la pila o el candado: el proveedor', () => {
+    expect(pr('deps', ['package.json'])).toMatchObject({ contrato: 'true', contrato_uso: 'true' })
+    expect(pr('pila', ['scripts/lib/stack-local.mjs'])).toMatchObject({
+      contrato: 'true',
+      contrato_uso: 'false',
+    })
+  })
+
+  it('mover un archivo fuera de infra/ también toca infra/ (sin detección de renombres)', () => {
+    commitear('a-mover', ['src/modules/mover/infra/lector.ts'])
+    mkdirSync(join(repo, 'src/modules/mover/features'), { recursive: true })
+    git(repo, 'mv', 'src/modules/mover/infra/lector.ts', 'src/modules/mover/features/lector.ts')
+    const antes = git(repo, 'rev-parse', 'HEAD')
+    git(repo, 'commit', '-q', '-m', 'mover')
+    const salida = decidir(repo, { EVENTO: 'pull_request', BASE_PR: antes }, 'HEAD')
+    expect(salida.contrato_uso).toBe('true')
+  })
+
+  it('sólo docs: ninguno; otro src/ que no es infra/: ninguno', () => {
+    expect(pr('docs-c', ['docs/KIT.md'])).toEqual(NADA)
+    expect(pr('features', ['src/modules/turnos/features/x/accion.ts'])).toMatchObject({
+      contrato: 'false',
+      contrato_uso: 'false',
+    })
   })
 })

@@ -99,8 +99,18 @@ const scripts = (
     scripts: Record<string, string>
   }
 ).scripts
-// Los del kit; un proyecto que sume `db:medir`, `db:carreras` o `db:sembrar-volumen` los agrega aquí.
-const CON_CANDADO = ['db:reset', 'db:types', 'db:diff', 'db:lint', 'test:e2e', 'test:e2e:completo']
+// Los del kit; un proyecto que sume `db:medir`, `db:carreras` o `db:sembrar-volumen` los agrega aquí. `contrato:generar` y
+// `contrato:probar` leen la base local (como `db:types`): también.
+const CON_CANDADO = [
+  'db:reset',
+  'db:types',
+  'db:diff',
+  'db:lint',
+  'test:e2e',
+  'test:e2e:completo',
+  'contrato:generar',
+  'contrato:probar',
+]
 
 describe('package.json › el candado de la base', () => {
   it.each(CON_CANDADO)('%s toma el candado con su propio nombre', (nombre) => {
@@ -110,6 +120,13 @@ describe('package.json › el candado de la base', () => {
   it.each(['db:probar'])('%s no lo toma: es PGlite en memoria', (nombre) => {
     expect(scripts[nombre]).not.toContain('candado.sh')
   })
+
+  it.each(['contrato:tipos', 'contrato:usar'])(
+    '%s no lo toma: lee archivos, no la base',
+    (nombre) => {
+      expect(scripts[nombre]).not.toContain('candado.sh')
+    },
+  )
 
   it('test:e2e construye fuera del candado y le deja a playwright los argumentos', () => {
     expect(scripts['test:e2e']).toMatch(/next build && .*candado\.sh test:e2e -- playwright test$/)

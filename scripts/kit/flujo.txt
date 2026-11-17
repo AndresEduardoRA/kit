@@ -42,7 +42,11 @@ scripts/salida-de-test.ts
 scripts/salida-de-test.test.ts
 scripts/reporter-de-salida.ts
 scripts/huella.sh
+scripts/ci-cambios.sh
 scripts/ci-cambios.test.ts
+scripts/contratos/**
+scripts/guardas/contratos-publicados.test.ts
+scripts/guardas/workflows-contratos.test.ts
 e2e/soporte/reporter-de-inestables.ts
 e2e/soporte/reporter-de-fallos.ts
 vitest.config.mts

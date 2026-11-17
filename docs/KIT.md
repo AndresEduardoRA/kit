@@ -19,6 +19,7 @@ límite de Claude con turnos de sesión y una pausa compartida (`scripts/orquest
 | `scripts/guardas/`, `scripts/nivel.mjs`, `scripts/e2e-dirigidos.mjs`          | Las guardas que corren con `pnpm test` y la elección de qué e2e corre un PR                                                                                                                                                 |
 | `scripts/lib/stack-local.mjs`, `scripts/worktree/`                            | Los puertos por bloque y por carril (a, b, c), y el worktree con su propio stack de Supabase                                                                                                                                |
 | `.proyecto/proyecto.yaml`, `scripts/proyecto/manifiesto.mjs`                  | Quién es el repo: el manifiesto (abajo)                                                                                                                                                                                     |
+| `scripts/contratos/` (`pnpm contrato:generar`, `probar`, `tipos`, `usar`)     | Los contratos de base entre repos: el proveedor genera y prueba sus versiones desde su base local; el consumidor fija una copia y revisa su `infra/` (abajo)                                                                |
 | `src/shared`, `design/tokens.css`, `supabase/`, `e2e/`                        | La app base: entorno con Zod, clientes de Supabase, `safe-action`, paginación, fechas y formato, correo; tokens OKLCH; una migración base y las pruebas de la base (`rls-en-todo`, `privilegios-de-anon`, `escala`, `humo`) |
 | `scripts/kit/` (`nuevo-proyecto.mjs`, `flujo.txt`, fixtures)                  | El generador de proyectos y la lista de lo que es flujo; no viajan a un proyecto                                                                                                                                            |
 
@@ -51,18 +52,43 @@ El esquema vive fuera del repo, en `_herramientas/semillas/proyecto.plantilla.ya
 que el kit usa y, si algo falla, dice qué campo y ese comando. El kit lleva uno de ejemplo (`proyecto: cambiar-slug`), que el
 generador reemplaza.
 
-| Quién lo lee                                                                    | Qué toma del manifiesto                                                                                                        |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `scripts/lib/stack-local.mjs` (`baseDelRepo`) y `scripts/worktree/preparar.sh`  | `puertos.bloque` o `puertos.heredado` (calesa-app, 546xx: no se mueven). **Sin manifiesto: el bloque 5 y un aviso por stderr** |
-| `scripts/flujo/publicar.sh`, `estado.sh` y `scripts/orquestador/orquestador.sh` | La cuenta de `github` para el token de `gh`; sin manifiesto, la del remoto                                                     |
-| `scripts/orquestador/orquestador.sh`                                            | `PROYECTO` (el `nombre` del repo, `<proyecto>-<rol>`) si `config.env` o `config.local.env` no lo fijan                         |
-| `scripts/kit/nuevo-proyecto.mjs`                                                | El bloque libre: el primero de `[5,6,7,8,9,1,2,3]` que no use ningún `<raíz>/z_*/proyecto.yaml` (raíz = `<kit>/../..`)         |
+| Quién lo lee                                                                    | Qué toma del manifiesto                                                                                                                                                 |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/lib/stack-local.mjs` (`baseDelRepo`) y `scripts/worktree/preparar.sh`  | `puertos.bloque` o `puertos.heredado` (calesa-app, 546xx: no se mueven). **Sin manifiesto: el bloque 5 y un aviso por stderr**                                          |
+| `scripts/flujo/publicar.sh`, `estado.sh` y `scripts/orquestador/orquestador.sh` | La cuenta de `github` para el token de `gh`; sin manifiesto, la del remoto                                                                                              |
+| `scripts/orquestador/orquestador.sh`                                            | `PROYECTO` (el `nombre` del repo, `<proyecto>-<rol>`) si `config.env` o `config.local.env` no lo fijan                                                                  |
+| `scripts/kit/nuevo-proyecto.mjs`                                                | El bloque libre: el primero de `[5,6,7,8,9,1,2,3]` que no use ningún `<raíz>/z_*/proyecto.yaml` (raíz = `<kit>/../..`)                                                  |
+| `scripts/contratos/` (`manifiesto.ts`) y el job `contrato` del CI               | `provee`, `consume` y `contratos[]` (`tipo`, `vigentes`, `proveedor`, `consumidores`), revisados aparte: un contrato mal escrito no tumba los puertos ni el orquestador |
 
 - El repo propio es el que se llama como el remoto `origin` (o como su carpeta); un manifiesto de un solo repo no necesita el nombre.
 - Dos manifiestos con el mismo bloque, o un `--bloque` que otro ya usa, hacen fallar al generador nombrando los archivos.
 - Sin manifiesto, el nombre del proyecto sale del `project_id` de `supabase/config.toml` (con aviso); sin ninguno de los dos, falla.
 - Lo que nadie escribe todavía: el `z_<slug>/proyecto.yaml` suelto de un proyecto nuevo (K09: el generador de varios repos lo escribe);
   hasta entonces se crea a mano o el bloque siguiente no lo ve.
+
+## Contratos entre repos
+
+Un repo provee un contrato de base (vistas, RPC, tipos y permisos de un esquema propio) y otro lo consume; ninguna CI mira la base de
+otro repo. El orden de un cambio, quién escribe cada archivo y qué rompe una versión: `.claude/rules/contratos.md`. Lo que decide el
+código de `scripts/contratos/`:
+
+- La introspección es **una** sentencia `select` sobre `pg_catalog` que devuelve un `jsonb`, sin `set` de sesión; la corre el psql
+  del contenedor de la pila local (`docker exec`, como `e2e/soporte/sql.ts`) y, en las pruebas, PGlite: se prueba el mismo SQL. Sin
+  dependencias nuevas (`pg` sin sus tipos pediría `@types/pg`).
+- Los nombres de tipo se arman desde `nspname` (los de `pg_catalog` con `format_type`), nunca según el `search_path`; el orden se
+  hace en JS, por código, nunca `localeCompare`. El texto es `JSON.stringify(…, null, 2)` con las claves en un orden fijo: la guarda
+  de versiones publicadas compara bytes, así que `contratos/`, `.proyecto/contratos/` y `src/shared/types/contratos/` van en
+  `.prettierignore` (y los tipos, también fuera de ESLint).
+- Los permisos son los efectivos (`has_*_privilege`, con PUBLIC y la pertenencia a roles): lo que vive quien llama.
+- `contrato:probar` revisa `vigentes` ∪ {la de `provee`}, con los objetos de cada versión, y compara los tipos contra todos los del
+  esquema; `contrato:usar` sólo revisa lo encadenado a `.schema('<esquema fijado>')`. `generar` y `probar` exigen el esquema
+  en `[api] schemas` de `supabase/config.toml`: sin él todo daría verde y el consumidor recibiría un 404.
+- `ci-cambios.sh` dispara `contrato` y `contrato-uso` también con lo que esos jobs corren (sus scripts, el lector del manifiesto, la
+  pila, el CI y las dependencias), y lee el diff con `--no-renames`.
+- Los tipos TS tienen la forma de `Database` de Supabase (`Database & Contrato<Id>`); `Json` se declara sólo si se usa, porque el
+  `typecheck` del consumidor corre con `noUnusedLocals`.
+- El job `contrato` levanta la pila sólo si el repo provee algo (el paso `rol`: `cambios` no instala dependencias); `contrato-uso` no
+  usa base. Los dos se saltan en la plantilla. `src/shared/types/contratos/` no cuenta como disparador `shared` del Nivel 2.
 
 ## Crear un proyecto
 
@@ -99,6 +125,10 @@ todos los nombres de token de `design/tokens.css`; `slug` con su formato; opcion
 cumple, el arreglo vuelve a la semilla.
 
 ## Lo que no está verificado
+
+- **Los contratos en un proyecto real:** la introspección está probada en PGlite (Postgres 18) y se corrió una vez a mano contra la
+  pila de un carril (Postgres 17, la imagen de Supabase, con la misma salida byte a byte); el job `contrato` del CI y `contrato:usar`
+  sobre el `infra/` de un consumidor real corren recién en el primer proyecto que provea o consuma uno (en el kit se saltan).
 
 - **`preparar.sh`, `quitar.sh` y el stack de un carril:** pasan `bash -n`; no se corrieron en K04 (necesitan Docker y Supabase).
 - **Los e2e y `db:reset`:** no corren en el contenedor sin Docker; corren en la máquina de la persona y en el CI del proyecto generado.
