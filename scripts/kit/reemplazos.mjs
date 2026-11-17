@@ -129,7 +129,7 @@ export function reemplazos({
     'package.json': (t) => {
       const j = JSON.parse(t)
       j.name = nombre
-      // Los scripts del generador y de la publicación no viajan (scripts/kit/ tampoco).
+      // Los scripts del generador y de la publicación no viajan (lo de scripts/kit/ que no es flujo, tampoco).
       for (const s of Object.keys(j.scripts ?? {}))
         if (s.startsWith('kit:') || s === 'test:generador') delete j.scripts[s]
       return JSON.stringify(j, null, 2) + '\n'

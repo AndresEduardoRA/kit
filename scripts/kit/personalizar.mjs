@@ -101,11 +101,15 @@ export function personalizar(ruta, texto, valores) {
 }
 
 /**
- * Lo que se revisa por marcadores sueltos: todo menos la semilla, docs/KIT.md (que los documenta) y lo binario. Puro.
+ * Lo que se revisa por marcadores sueltos: todo menos la semilla, docs/KIT.md (que los documenta), scripts/kit/ (lo que viaja de ahí
+ * escribe los marcadores para personalizar) y lo binario. Puro.
  * @param {string} f
  */
 export const seRevisa = (f) =>
-  f !== 'docs/KIT.md' && !f.startsWith('docs/semilla/') && !/\.(png|jpg|ico|woff2?|tgz)$/.test(f)
+  f !== 'docs/KIT.md' &&
+  !f.startsWith('docs/semilla/') &&
+  !f.startsWith('scripts/kit/') &&
+  !/\.(png|jpg|ico|woff2?|tgz)$/.test(f)
 
 /**
  * Los marcadores que quedarían sin reemplazar, `archivo: marcador`, de un mapa archivo → texto. Puro.

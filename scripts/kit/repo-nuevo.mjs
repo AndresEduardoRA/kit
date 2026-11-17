@@ -15,6 +15,7 @@ import {
 } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { baseDelBloque } from '../lib/stack-local.mjs'
+import { esFlujo, patronesDelKit } from './flujo.mjs'
 import { textoDeLaCopia } from './manifiesto-nuevo.mjs'
 import { exigir } from './problema.mjs'
 import {
@@ -27,11 +28,12 @@ import {
 import { secretosEn } from './secretos.mjs'
 import * as S from './semilla.mjs'
 
-// Lo que es del kit y no viaja a un proyecto: el generador y la publicación, su skill, el validador y la semilla de ejemplo, las
-// lecciones de las semillas (nombran el flujo viejo), el estado de todo el proyecto (`proyecto.sh`: mira `proyectos/`, no un repo) y lo
-// generado.
+// Lo que es del kit y no viaja a un proyecto: lo de scripts/kit/ que no es flujo (el generador y la publicación), su skill, el
+// validador y la semilla de ejemplo, las lecciones de las semillas (nombran el flujo viejo), el estado de todo el proyecto
+// (`proyecto.sh`: mira `proyectos/`, no un repo) y lo generado. Lo de scripts/kit/ que es flujo (actualizar.mjs y lo que usa) sí viaja.
+const FLUJO = patronesDelKit()
 const NO_VIAJA = [
-  /^scripts\/kit\//,
+  { test: (/** @type {string} */ f) => f.startsWith('scripts/kit/') && !esFlujo(f, FLUJO) },
   /^scripts\/proyecto\/proyecto[.-]/,
   /^scripts\/semilla\//,
   /^docs\/semillas\//,
