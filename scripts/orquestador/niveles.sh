@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # Los niveles de modelo (scripts/orquestador/README.md › «Una tarea»): una tarea nombra un nivel (rapido, normal, capaz) y
 # config.env dice qué alias es cada uno (NIVEL_RAPIDO…). Nunca una versión fija: envejece sin que nadie lo note, y
-# `verificar` pregunta qué modelo es hoy cada alias. Lo carga orquestador.sh con `source`; usa su `campo`.
+# `verificar` pregunta qué modelo es hoy cada alias. Lo carga orquestador.sh con `source`; usa su `campo` y `log`.
 # Los textos de error son los mismos que los de `problemaDeModelo` en spec-issue.mjs (niveles.test.ts los compara).
 
 NIVELES="rapido normal capaz"
@@ -107,4 +107,28 @@ identidad_de_modelo() { # alias
   [ -n "$r" ] || return 1
   claves=$(jq -r '(.modelUsage // {}) | keys | join(", ")' <<<"$j" 2>/dev/null)
   echo "${r:0:120}${claves:+ · $claves}"
+}
+
+# ---------------------------------------------------------------------------------------------------------------- verificar
+
+verificar_niveles() { # la sección «Niveles» de verificar; devuelve 1 si algo no vale
+  local ok=0 linea tipo nivel alias quien
+  echo "== Niveles de modelo (qué modelo es hoy cada uno: se lo pregunta a cada alias)"
+  while IFS= read -r linea; do [ -n "$linea" ] && echo "✗ $linea" && ok=1; done < <(niveles_invalidos)
+  while IFS= read -r linea; do [ -n "$linea" ] && echo "· $linea"; done < <(modelos_heredados)
+  for nivel in $NIVELES; do
+    alias=$(modelo_de_nivel "$nivel") || continue
+    if quien=$(identidad_de_modelo "$alias"); then
+      echo "✓ nivel $nivel → $alias: $quien"
+      log "verificar: nivel $nivel → $alias: $quien"
+    else
+      echo "✗ nivel $nivel → $alias: claude -p --model $alias no respondió"
+      ok=1
+    fi
+  done
+  for tipo in EJECUTAR PLANIFICAR ARREGLAR_DIFICIL; do
+    nivel="NIVEL_$tipo"
+    echo "  ${tipo,,}: nivel ${!nivel:-?} → $(modelo_de_nivel "${!nivel:-}" || echo '(sin alias válido)')"
+  done
+  return $ok
 }

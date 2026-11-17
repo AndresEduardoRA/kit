@@ -144,15 +144,6 @@ pausado() { # la pausa manual de este proyecto, o la de la máquina por el lími
   pausa_compartida_hasta >/dev/null
 }
 
-pasar_pausa_vieja() { # la pausa por límite de antes era de cada proyecto ($EST/.pausa-hasta): si sigue en curso, pasa a la compartida
-  local h
-  h=$(cat "$EST/.pausa-hasta" 2>/dev/null) || return 0
-  if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -gt "$(date +%s)" ]; then
-    fijar_pausa_compartida "$h" && log "la pausa por el límite del plan (hasta las $(date -d "@$h" '+%H:%M')) ahora es de la máquina"
-  fi
-  rm -f "$EST/.pausa-hasta"
-}
-
 # ------------------------------------------------------------------------------------------------------------- cola y llaves
 
 # La spec todavía se está escribiendo (`borrador: si`, que en el issue es cola:borrador) o su issue tiene el yaml roto: no se lanza.
@@ -225,28 +216,6 @@ bucle() {
     fi
     sleep "${INTERVALO:-60}"
   done
-}
-
-# Al empezar la vuelta, antes de lanzar nada con el código viejo: si la principal avanzó y cambió scripts/orquestador/, el bucle se
-# reemplaza a sí mismo por la versión nueva (mismo PID, mismo candado). Sólo si corre desde la principal.
-al_dia_y_relanzar() {
-  local rc=0
-  ponerse_al_dia || rc=$?
-  [ "$rc" = 3 ] || return 0
-  if [ "$(cd "$ORQ" && pwd -P)" != "$(cd "$REPO/scripts/orquestador" 2>/dev/null && pwd -P)" ]; then
-    [ -f "$EST/.no-me-relanzo" ] || { touch "$EST/.no-me-relanzo" && log "scripts/orquestador/ cambió en main, pero corro desde $ORQ y no desde la principal: no me relanzo"; }
-    return 0
-  fi
-  log "scripts/orquestador/ cambió en main: me relanzo con la versión nueva"
-  exec env ORQ_RELANZADO=1 bash "$ORQ/orquestador.sh" bucle
-}
-
-avisar_turnos() { # un TURNOS_MAQUINA inválido se avisa una vez por valor (el bucle sigue con 3)
-  leer_turnos
-  if [ -z "$TURNOS_AVISO" ]; then rm -f "$EST/.turnos-avisado"; return 0; fi
-  [ "$(cat "$EST/.turnos-avisado" 2>/dev/null)" = "$TURNOS_AVISO" ] && return 0
-  printf '%s\n' "$TURNOS_AVISO" >"$EST/.turnos-avisado"
-  avisar "Turnos de la máquina" "$TURNOS_AVISO" default warning
 }
 
 # Una tarea «corriendo» cuyo proceso ya no existe (reinicio de la máquina, kill): se retoma.
@@ -892,56 +861,6 @@ cmd_verificar() {
   echo "  (mira el celular)"
   echo
   if [ "$ok" = 1 ]; then echo "Todo listo."; else echo "Hay cosas que arreglar arriba."; exit 1; fi
-}
-
-linea_de_pausa() { # la pausa compartida, si la hay
-  local h
-  h=$(pausa_compartida_hasta) || return 0
-  echo "⏸  pausa compartida por el límite del plan hasta las $(date -d "@$h" '+%H:%M'): no lanza nada (vale para todos los orquestadores de la máquina)"
-}
-
-paquete_de() { # herramienta → cómo se instala
-  case "$1" in
-    flock | setsid) echo "sudo apt install util-linux" ;;
-    timeout) echo "sudo apt install coreutils" ;;
-    *) echo "instala $1" ;;
-  esac
-}
-
-verificar_maquina() { # la sección «Máquina» de verificar: maquina.env (lo crea si falta) y los turnos; 1 si algo no vale
-  local ok=0 ocupados
-  echo "== Máquina (lo que comparten los orquestadores de esta máquina)"
-  asegurar_maquina_env
-  leer_turnos
-  if [ -n "$TURNOS_AVISO" ]; then echo "✗ $TURNOS_AVISO"; ok=1; fi
-  if command -v flock >/dev/null; then
-    ocupados=$(turnos_ocupados_por)
-    echo "✓ turnos de sesión: $(turnos_libres) de $TURNOS libres${ocupados:+ (ocupados: $ocupados)}"
-  fi
-  linea_de_pausa
-  return $ok
-}
-
-verificar_niveles() { # la sección «Niveles» de verificar; devuelve 1 si algo no vale
-  local ok=0 linea tipo nivel alias quien
-  echo "== Niveles de modelo (qué modelo es hoy cada uno: se lo pregunta a cada alias)"
-  while IFS= read -r linea; do [ -n "$linea" ] && echo "✗ $linea" && ok=1; done < <(niveles_invalidos)
-  while IFS= read -r linea; do [ -n "$linea" ] && echo "· $linea"; done < <(modelos_heredados)
-  for nivel in $NIVELES; do
-    alias=$(modelo_de_nivel "$nivel") || continue
-    if quien=$(identidad_de_modelo "$alias"); then
-      echo "✓ nivel $nivel → $alias: $quien"
-      log "verificar: nivel $nivel → $alias: $quien"
-    else
-      echo "✗ nivel $nivel → $alias: claude -p --model $alias no respondió"
-      ok=1
-    fi
-  done
-  for tipo in EJECUTAR PLANIFICAR ARREGLAR_DIFICIL; do
-    nivel="NIVEL_$tipo"
-    echo "  ${tipo,,}: nivel ${!nivel:-?} → $(modelo_de_nivel "${!nivel:-}" || echo '(sin alias válido)')"
-  done
-  return $ok
 }
 
 cmd_nueva() { # tema (con la cola en issues) | ID tema (ORQ_SOLO_LOCAL=1)

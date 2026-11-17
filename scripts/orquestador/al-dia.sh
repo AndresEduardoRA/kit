@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 # El orquestador se pone al día solo (scripts/orquestador/README.md › «Cómo decide»): al empezar cada vuelta, si la principal del repo
 # está en main, sin cambios y detrás de origin/main, avanza con `merge --ff-only` (nunca empuja). Si eso cambió scripts/orquestador/,
-# el bucle se relanza con la versión nueva (`bucle` en orquestador.sh). Lo carga orquestador.sh con `source`; usa su `REPO`, `EST` y
-# `log`.
+# el bucle se relanza con la versión nueva (`bucle` en orquestador.sh). Lo carga orquestador.sh con `source`; usa su `ORQ`, `REPO`,
+# `EST` y `log`.
 
 motivo_para_no_tocar_la_principal() { # imprime por qué no se pone al día la principal y devuelve 0; si se puede, nada y 1
   local rama
@@ -48,4 +48,20 @@ ponerse_al_dia() { # 3 si avanzó y cambió algo de scripts/orquestador/; 0 si n
   log "la principal se puso al día con origin/main ($(git -C "$REPO" rev-parse --short HEAD))"
   git -C "$REPO" diff --quiet "$antes" HEAD -- scripts/orquestador/ || return 3
   return 0
+}
+
+# -------------------------------------------------------------------------------------------------------- relanzarse (bucle)
+
+# Al empezar la vuelta, antes de lanzar nada con el código viejo: si la principal avanzó y cambió scripts/orquestador/, el bucle se
+# reemplaza a sí mismo por la versión nueva (mismo PID, mismo candado). Sólo si corre desde la principal.
+al_dia_y_relanzar() {
+  local rc=0
+  ponerse_al_dia || rc=$?
+  [ "$rc" = 3 ] || return 0
+  if [ "$(cd "$ORQ" && pwd -P)" != "$(cd "$REPO/scripts/orquestador" 2>/dev/null && pwd -P)" ]; then
+    [ -f "$EST/.no-me-relanzo" ] || { touch "$EST/.no-me-relanzo" && log "scripts/orquestador/ cambió en main, pero corro desde $ORQ y no desde la principal: no me relanzo"; }
+    return 0
+  fi
+  log "scripts/orquestador/ cambió en main: me relanzo con la versión nueva"
+  exec env ORQ_RELANZADO=1 bash "$ORQ/orquestador.sh" bucle
 }

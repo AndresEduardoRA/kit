@@ -3,7 +3,7 @@
 # y la pausa por el límite del plan.
 # Cada proyecto tiene su orquestador, pero la RAM es de la máquina y el límite del plan, de la cuenta de Claude: un hijo sólo
 # corre su sesión con un turno tomado (`flock` sobre ~/.local/state/orquestador/turno-<k>.lock, k = 1…TURNOS_MAQUINA), y el
-# kernel lo suelta si el proceso muere. Lo carga orquestador.sh con `source`; usa su `PROYECTO`, `ID` y `log`.
+# kernel lo suelta si el proceso muere. Lo carga orquestador.sh con `source`; usa su `PROYECTO`, `ID`, `EST`, `log` y `avisar`.
 #
 # Las rutas no siguen XDG a propósito: el servicio de systemd y una terminal con otro XDG tienen que ver los mismos archivos.
 
@@ -118,4 +118,51 @@ quitar_pausa_compartida() {
     flock -w 5 7
     rm -f "$PAUSA_COMPARTIDA"
   ) 7>>"$MAQUINA_EST/pausa.lock"
+}
+
+# -------------------------------------------------------------------------------------------- lo que usan el bucle y verificar
+
+pasar_pausa_vieja() { # la pausa por límite de antes era de cada proyecto ($EST/.pausa-hasta): si sigue en curso, pasa a la compartida
+  local h
+  h=$(cat "$EST/.pausa-hasta" 2>/dev/null) || return 0
+  if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -gt "$(date +%s)" ]; then
+    fijar_pausa_compartida "$h" && log "la pausa por el límite del plan (hasta las $(date -d "@$h" '+%H:%M')) ahora es de la máquina"
+  fi
+  rm -f "$EST/.pausa-hasta"
+}
+
+avisar_turnos() { # un TURNOS_MAQUINA inválido se avisa una vez por valor (el bucle sigue con 3)
+  leer_turnos
+  if [ -z "$TURNOS_AVISO" ]; then rm -f "$EST/.turnos-avisado"; return 0; fi
+  [ "$(cat "$EST/.turnos-avisado" 2>/dev/null)" = "$TURNOS_AVISO" ] && return 0
+  printf '%s\n' "$TURNOS_AVISO" >"$EST/.turnos-avisado"
+  avisar "Turnos de la máquina" "$TURNOS_AVISO" default warning
+}
+
+linea_de_pausa() { # la pausa compartida, si la hay
+  local h
+  h=$(pausa_compartida_hasta) || return 0
+  echo "⏸  pausa compartida por el límite del plan hasta las $(date -d "@$h" '+%H:%M'): no lanza nada (vale para todos los orquestadores de la máquina)"
+}
+
+paquete_de() { # herramienta → cómo se instala
+  case "$1" in
+    flock | setsid) echo "sudo apt install util-linux" ;;
+    timeout) echo "sudo apt install coreutils" ;;
+    *) echo "instala $1" ;;
+  esac
+}
+
+verificar_maquina() { # la sección «Máquina» de verificar: maquina.env (lo crea si falta) y los turnos; 1 si algo no vale
+  local ok=0 ocupados
+  echo "== Máquina (lo que comparten los orquestadores de esta máquina)"
+  asegurar_maquina_env
+  leer_turnos
+  if [ -n "$TURNOS_AVISO" ]; then echo "✗ $TURNOS_AVISO"; ok=1; fi
+  if command -v flock >/dev/null; then
+    ocupados=$(turnos_ocupados_por)
+    echo "✓ turnos de sesión: $(turnos_libres) de $TURNOS libres${ocupados:+ (ocupados: $ocupados)}"
+  fi
+  linea_de_pausa
+  return $ok
 }
