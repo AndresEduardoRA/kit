@@ -68,6 +68,8 @@ describe('orquestador.sh: la cola', () => {
     const prompt = orquestador('prompt', 'T07').salida
     expect(prompt).toContain('# Tarea T07')
     expect(prompt).not.toMatch(/Closes|\{\{CIERRA_ISSUE\}\}/)
+    // Sin «permite», ni la llave ni el párrafo del permiso de dependencias.
+    expect(prompt).not.toMatch(/\{\{PERMITE\}\}|permite: dependencias/)
   })
 
   it('«nueva» rechaza un id o un tema mal escritos y un id que ya existe', () => {

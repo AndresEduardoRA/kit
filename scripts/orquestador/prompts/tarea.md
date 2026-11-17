@@ -54,6 +54,7 @@ dependencias · desactivar una
 regla de lint o saltarte un hook · editar la migración `…_base.sql` · empezar otra tarea de la cola aunque parezca el paso obvio · dejar
 cambios sin commitear.
 
+{{PERMITE}}
 ## Al terminar
 
 Tu última línea, siempre, es una de estas dos:

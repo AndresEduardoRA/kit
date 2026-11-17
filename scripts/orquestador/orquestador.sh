@@ -502,6 +502,13 @@ soltar_carril() { [ -f "$WT/.env.carril" ] && (cd "$WT" && bash scripts/worktree
 reemplazar() { # plantilla → prompt (las llaves {{X}} se reemplazan)
   local t
   t=$(<"$1")
+  # Lo que la spec permite (`permite: dependencias`): un párrafo que levanta el «cambiar dependencias» de «No hagas». Va antes que
+  # la spec y el plan, que podrían nombrar la llave como texto.
+  local permite=""
+  if [[ " $(campo "$SPEC" permite | tr ',' ' ') " == *" dependencias "* ]]; then
+    permite=$(<"$PROMPTS/permite-dependencias.md")$'\n\n'
+  fi
+  t=${t//$'{{PERMITE}}\n'/$permite}
   t=${t//'{{ID}}'/$ID}
   t=${t//'{{TITULO}}'/$TITULO}
   t=${t//'{{RAMA}}'/$RAMA}
@@ -528,8 +535,10 @@ claude_en_el_worktree() { # nombre modelo effort modo prompt_archivo [args extra
   shift 5
   local salida="$EST/$ID/$nombre.jsonl" rc
   ln -sfn "$salida" "$EST/$ID/sesion-actual.jsonl"
-  log "$ID: sesión $nombre ($modelo · $effort · $modo)"
-  (cd "$WT" && timeout --kill-after=120 "${TIEMPO_MAX_SESION:-5h}" \
+  log "$ID: sesión $nombre ($modelo · $effort · $modo${PERMITE_SESION:+ · permite $PERMITE_SESION})"
+  # ORQ_PERMITE siempre explícito (vacío si la spec no permite nada): el hook de Bash lo lee del entorno del proceso `claude`, y el
+  # del servicio no se hereda.
+  (cd "$WT" && ORQ_PERMITE="${PERMITE_SESION:-}" timeout --kill-after=120 "${TIEMPO_MAX_SESION:-5h}" \
     claude -p --model "$modelo" --effort "$effort" --permission-mode "$modo" \
     --output-format stream-json --verbose "$@" <"$prompt") >"$salida" 2>"$salida.err" 9>&-
   # (`9>&-`: un proceso que la sesión deje vivo no retiene el turno de la máquina.)
@@ -578,6 +587,7 @@ retomar_luego() {
 planificar() {
   local p="$EST/$ID/prompt-plan.md" modelo=$MODELO_PLAN effort
   effort=$(campo "$SPEC" effort_plan); effort=${effort:-$EFFORT_PLANIFICAR}
+  PERMITE_SESION="" # el plan sólo lee: ningún permiso
   reemplazar "$PROMPTS/planificar.md" >"$p"
   claude_en_el_worktree plan "$modelo" "$effort" plan "$p" --disallowedTools ExitPlanMode || return 1
   if [ "${#RESULTADO_TEXTO}" -lt 800 ]; then
@@ -604,6 +614,7 @@ sesion() { # tarea | retomar | arreglar
   p="$EST/$ID/prompt-$n-$tipo.md"
   modelo=$MODELO_SESION
   effort=$(campo "$SPEC" effort); effort=${effort:-$EFFORT_EJECUTAR}
+  PERMITE_SESION=$(campo "$SPEC" permite)
   CONTEXTO=""
   case "$tipo" in
     retomar)

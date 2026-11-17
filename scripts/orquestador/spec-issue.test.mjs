@@ -5,6 +5,7 @@ import {
   archivoDeIssue,
   canonDeArchivo,
   issueDeArchivo,
+  PERMISOS,
   SpecRota,
   temaDeRama,
 } from './spec-issue.mjs'
@@ -146,4 +147,21 @@ test('los campos de modelo: un nivel o un alias pasan; una versión fija o un ni
   assert.doesNotThrow(issue('nivel: capaz'))
   assert.doesNotThrow(issue('modelo: opus'))
   assert.doesNotThrow(() => canonDeArchivo(archivo('modelo: sonnet[1m]\nnivel_plan: rapido')))
+})
+
+test('«permite»: sólo los permisos conocidos (dependencias); otra palabra deja la spec rota', () => {
+  const issue = (extra) => () =>
+    archivoDeIssue({ number: 3, body: `\`\`\`yaml\ntitulo: x\nrama: feat/x\n${extra}\n\`\`\`\n` })
+  assert.deepEqual(PERMISOS, ['dependencias'])
+  assert.match(issue('permite: dependencias')(), /\npermite: dependencias\n/)
+  assert.match(issue('permite: [dependencias]')(), /\npermite: dependencias\n/)
+  assert.throws(
+    issue('permite: todo'),
+    /«permite: todo» no es un permiso conocido \(dependencias\)/,
+  )
+  assert.throws(issue('permite: dependencias red'), /«permite: red» no es un permiso conocido/)
+  assert.throws(
+    () => canonDeArchivo('---\ntitulo: x\nrama: feat/x\npermite: sudo\n---\n'),
+    SpecRota,
+  )
 })
