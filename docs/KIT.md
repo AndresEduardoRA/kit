@@ -81,7 +81,10 @@ código de `scripts/contratos/`:
   `.prettierignore` (y los tipos, también fuera de ESLint).
 - Los permisos son los efectivos (`has_*_privilege`, con PUBLIC y la pertenencia a roles): lo que vive quien llama.
 - `contrato:probar` revisa `vigentes` ∪ {la de `provee`}, con los objetos de cada versión, y compara los tipos contra todos los del
-  esquema; `contrato:usar` sólo revisa lo encadenado a `.schema('<esquema fijado>')`.
+  esquema; `contrato:usar` sólo revisa lo encadenado a `.schema('<esquema fijado>')`. `generar` y `probar` exigen el esquema
+  en `[api] schemas` de `supabase/config.toml`: sin él todo daría verde y el consumidor recibiría un 404.
+- `ci-cambios.sh` dispara `contrato` y `contrato-uso` también con lo que esos jobs corren (sus scripts, el lector del manifiesto, la
+  pila, el CI y las dependencias), y lee el diff con `--no-renames`.
 - Los tipos TS tienen la forma de `Database` de Supabase (`Database & Contrato<Id>`); `Json` se declara sólo si se usa, porque el
   `typecheck` del consumidor corre con `noUnusedLocals`.
 - El job `contrato` levanta la pila sólo si el repo provee algo (el paso `rol`: `cambios` no instala dependencias); `contrato-uso` no

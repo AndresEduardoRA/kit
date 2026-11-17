@@ -30,7 +30,7 @@ en la nube: el proveedor prueba su base local contra sus versiones; el consumido
   compara contra main (también las copias fijadas) y `contrato:generar` se niega a reescribir una versión publicada.
 - **Nunca dos repos en una sesión.** Un cambio de contrato son dos o tres tareas, una por repo, en el orden de abajo.
 - El esquema es propio del contrato, nunca `public` (el consumidor no distinguiría sus RPC de las del proveedor), y va en
-  `[api] schemas` de `supabase/config.toml` (y en la nube) para que PostgREST lo exponga.
+  `[api] schemas` de `supabase/config.toml` (y en la nube) para que PostgREST lo exponga: `generar` y `probar` lo exigen.
 - `objetos` lista vistas y funciones, no tablas. Una función tiene una sola firma (un `create or replace` con otros argumentos deja
   dos: `drop function` primero) y todos sus parámetros con nombre (PostgREST llama por nombre).
 - Los tipos que usan los objetos son del mismo esquema y entran solos; uno de otro esquema (`public.x`, `extensions.citext`) se
@@ -76,7 +76,10 @@ Tener más está bien en objetos, columnas y campos; no en permisos ni en valore
 - Un `.rpc('x')` suelto o con `.schema('public')` es de la base propia: lo cubre `typecheck` contra `database.types.ts`.
 - Tipa el cliente con `Database & Contrato<Id>` (`createClient<Database & ContratoAgenda>(…)`); cablearlo en
   `src/shared/lib/supabase` es del consumidor.
-- Límite: `contrato:usar` no revisa las columnas de un `.select('…')`; los tipos generados sí, por `typecheck`.
+- Las llamadas a un esquema fijado van en `src/**/infra/**`: es lo único que `contrato:usar` revisa.
+- Límites: `contrato:usar` no revisa las columnas de un `.select('…')` (los tipos generados sí, por `typecheck`) ni un cliente
+  creado con `db: { schema }`; `contrato:probar` no compara el typmod (`numeric(10,2)` es `numeric`), la nulabilidad, los `check`
+  de un dominio, `security definer` o `security_invoker`, ni los permisos por columna.
 
 ## Comandos y CI
 
