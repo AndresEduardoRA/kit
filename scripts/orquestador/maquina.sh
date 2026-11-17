@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# Lo que comparten todos los orquestadores de una máquina (scripts/orquestador/README.md › «Uno por proyecto»): los turnos de sesión.
+# Lo que comparten todos los orquestadores de una máquina (scripts/orquestador/README.md › «Uno por proyecto»): los turnos de sesión
+# y la pausa por el límite del plan.
 # Cada proyecto tiene su orquestador, pero la RAM es de la máquina y el límite del plan, de la cuenta de Claude: un hijo sólo
 # corre su sesión con un turno tomado (`flock` sobre ~/.local/state/orquestador/turno-<k>.lock, k = 1…TURNOS_MAQUINA), y el
 # kernel lo suelta si el proceso muere. Lo carga orquestador.sh con `source`; usa su `PROYECTO`, `ID` y `log`.
@@ -76,4 +77,45 @@ tomar_turno() {
     exec 9>&-
   done
   return 1
+}
+
+# ----------------------------------------------------------------------------------------------- la pausa por el límite del plan
+# El límite es de la cuenta: el orquestador que lo detecta escribe la hora de fin en ~/.local/state/orquestador/pausa-hasta y todos
+# la leen antes de lanzar. Se escribe y se borra bajo pausa.lock: dos que llegan al límite a la vez no se pisan (queda la más tardía),
+# y nadie borra una pausa recién puesta.
+PAUSA_COMPARTIDA="$MAQUINA_EST/pausa-hasta"
+
+pausa_compartida_hasta() { # imprime la hora de fin (epoch) si está en el futuro; vencida o basura, la borra y devuelve 1
+  local h
+  h=$(cat "$PAUSA_COMPARTIDA" 2>/dev/null) || return 1
+  if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -gt "$(date +%s)" ]; then
+    echo "$h"
+    return 0
+  fi
+  mkdir -p "$MAQUINA_EST"
+  (
+    flock -w 5 7 || exit 0
+    h=$(cat "$PAUSA_COMPARTIDA" 2>/dev/null) || exit 0
+    if ! [[ "$h" =~ ^[0-9]+$ ]] || [ "$h" -le "$(date +%s)" ]; then rm -f "$PAUSA_COMPARTIDA"; fi
+  ) 7>>"$MAQUINA_EST/pausa.lock"
+  return 1
+}
+
+fijar_pausa_compartida() { # epoch — guarda el máximo entre la que había y ésta
+  local h
+  mkdir -p "$MAQUINA_EST"
+  (
+    flock -w 5 7 || exit 1
+    h=$(cat "$PAUSA_COMPARTIDA" 2>/dev/null)
+    if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge "$1" ]; then exit 0; fi
+    printf '%s\n' "$1" >"$PAUSA_COMPARTIDA.$$" && mv "$PAUSA_COMPARTIDA.$$" "$PAUSA_COMPARTIDA"
+  ) 7>>"$MAQUINA_EST/pausa.lock"
+}
+
+quitar_pausa_compartida() {
+  mkdir -p "$MAQUINA_EST"
+  (
+    flock -w 5 7
+    rm -f "$PAUSA_COMPARTIDA"
+  ) 7>>"$MAQUINA_EST/pausa.lock"
 }

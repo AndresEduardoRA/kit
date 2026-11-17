@@ -134,11 +134,18 @@ token_gh() { # la cuenta dueña del repo, aunque la activa sea otra (igual que p
 }
 ghr() { (cd "$REPO" && gh "$@"); }
 
-pausado() {
+pausado() { # la pausa manual de este proyecto, o la de la máquina por el límite del plan (maquina.sh)
   [ -f "$EST/.pausa-manual" ] && return 0
+  pausa_compartida_hasta >/dev/null
+}
+
+pasar_pausa_vieja() { # la pausa por límite de antes era de cada proyecto ($EST/.pausa-hasta): si sigue en curso, pasa a la compartida
   local h
-  h=$(cat "$EST/.pausa-hasta" 2>/dev/null || echo 0)
-  [ "$(date +%s)" -lt "${h:-0}" ]
+  h=$(cat "$EST/.pausa-hasta" 2>/dev/null) || return 0
+  if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -gt "$(date +%s)" ]; then
+    fijar_pausa_compartida "$h" && log "la pausa por el límite del plan (hasta las $(date -d "@$h" '+%H:%M')) ahora es de la máquina"
+  fi
+  rm -f "$EST/.pausa-hasta"
 }
 
 # ------------------------------------------------------------------------------------------------------------- cola y llaves
@@ -195,6 +202,7 @@ bucle() {
     exit 78
   fi
   while IFS= read -r malos; do [ -n "$malos" ] && log "$malos"; done < <(modelos_heredados)
+  pasar_pausa_vieja
   token_gh
   leer_turnos
   log "orquestador arriba · paralelo $PARALELO · turnos de la máquina $TURNOS · niveles rapido=$NIVEL_RAPIDO normal=$NIVEL_NORMAL capaz=$NIVEL_CAPAZ · $(ids | wc -w) tareas en la cola"
@@ -415,6 +423,9 @@ correr() {
   fi
   # El turno se toma antes de preparar nada (un carril de Docker que después no puede correr) y se sostiene hasta salir.
   tomar_turno || { volver "sin turno en la máquina"; exit 0; }
+  # Otro orquestador pudo llegar al límite del plan entre que el bucle miró y ahora.
+  local hasta
+  if hasta=$(pausa_compartida_hasta); then volver "pausa compartida por el límite del plan hasta las $(date -d "@$hasta" '+%H:%M')"; exit 0; fi
   log "$ID: turno $TURNO de $TURNOS de la máquina"
   log "$ID: empieza ($PREVIO) en $WT"
   case "$PREVIO" in
@@ -546,10 +557,12 @@ claude_en_el_worktree() { # nombre modelo effort modo prompt_archivo [args extra
     grep -qiE 'usage limit|limit reached|hit your limit|limit will reset|resets at|out of (extra )?usage|rate[ _-]?limit' "$salida.err" <(tail -n 5 "$salida"); then
     soltar_carril
     local hasta=$(($(date +%s) + ${PAUSA_POR_LIMITE_MIN:-30} * 60))
-    echo "$hasta" >"$EST/.pausa-hasta"
+    # El límite es de la cuenta: la pausa es de todos los orquestadores de la máquina (si otro puso una más tardía, queda ésa).
+    fijar_pausa_compartida "$hasta" || log "no se pudo escribir la pausa compartida ($PAUSA_COMPARTIDA)"
+    hasta=$(pausa_compartida_hasta) || hasta=$(($(date +%s) + ${PAUSA_POR_LIMITE_MIN:-30} * 60))
     est_set "$ID" motivo_retomar "La sesión anterior ($nombre) se cortó por el límite del plan de Claude."
     est_set "$ID" estado "$([ "$PREVIO" = por_arreglar ] && echo por_arreglar || echo por_retomar)"
-    avisar "Pausa: límite del plan" "$ID se cortó por el límite de Claude. Reintento a las $(date -d "@$hasta" '+%H:%M')." low hourglass
+    avisar "Pausa: límite del plan" "$ID se cortó por el límite de Claude. Reintento a las $(date -d "@$hasta" '+%H:%M') (vale para todos los orquestadores de la máquina)." low hourglass
     return 1
   fi
   if [ "$rc" != 0 ] && [ -z "$RESULTADO_JSON" ]; then
@@ -695,7 +708,7 @@ cmd_estado() {
   leer_turnos
   echo "Turnos de la máquina: $(turnos_libres) de $TURNOS libres${TURNOS_AVISO:+ ($TURNOS_AVISO)}."
   if [ -f "$EST/.pausa-manual" ]; then echo "⏸  En pausa manual (bash scripts/orquestador/orquestador.sh reanudar)."; fi
-  if pausado && [ ! -f "$EST/.pausa-manual" ]; then echo "⏸  En pausa por el límite del plan hasta las $(date -d "@$(cat "$EST/.pausa-hasta")" '+%H:%M')."; fi
+  linea_de_pausa
   echo "INT = retomas/arreglos. Trabadas: el motivo está en .orquestador/estado/<ID>/trabada.md"
 }
 
@@ -705,6 +718,8 @@ cmd_plan() {
   libres=$(turnos_libres)
   echo "$PROYECTO · turnos de la máquina: $libres de $TURNOS libres · paralelo $PARALELO"
   [ -n "$TURNOS_AVISO" ] && echo "⚠ $TURNOS_AVISO"
+  linea_de_pausa
+  [ -f "$EST/.pausa-manual" ] && echo "⏸  en pausa manual: no lanza nuevas (bash scripts/orquestador/orquestador.sh reanudar)"
   [ "$libres" = 0 ] && sin_turno="espera: sin turno en la máquina ($TURNOS de $TURNOS ocupados: $(turnos_ocupados_por))"
   cola_invalida
   for id in $(ids); do
@@ -856,6 +871,12 @@ cmd_verificar() {
   if [ "$ok" = 1 ]; then echo "Todo listo."; else echo "Hay cosas que arreglar arriba."; exit 1; fi
 }
 
+linea_de_pausa() { # la pausa compartida, si la hay
+  local h
+  h=$(pausa_compartida_hasta) || return 0
+  echo "⏸  pausa compartida por el límite del plan hasta las $(date -d "@$h" '+%H:%M'): no lanza nada (vale para todos los orquestadores de la máquina)"
+}
+
 paquete_de() { # herramienta → cómo se instala
   case "$1" in
     flock | setsid) echo "sudo apt install util-linux" ;;
@@ -874,6 +895,7 @@ verificar_maquina() { # la sección «Máquina» de verificar: maquina.env (lo c
     ocupados=$(turnos_ocupados_por)
     echo "✓ turnos de sesión: $(turnos_libres) de $TURNOS libres${ocupados:+ (ocupados: $ocupados)}"
   fi
+  linea_de_pausa
   return $ok
 }
 
@@ -1004,7 +1026,10 @@ case "${1:-bucle}" in
   omitir) cmd_omitir "$2" ;;
   parar) cmd_parar "$2" ;;
   pausar) touch "$EST/.pausa-manual" && echo "En pausa: no lanza nuevas; las que corren terminan." ;;
-  reanudar) rm -f "$EST/.pausa-manual" "$EST/.pausa-hasta" && echo "Reanudado." ;;
+  reanudar)
+    rm -f "$EST/.pausa-manual" "$EST/.pausa-hasta" && quitar_pausa_compartida
+    echo "Reanudado (y sin la pausa compartida por el límite del plan, que es de todos los orquestadores de la máquina)."
+    ;;
   verificar) cmd_verificar ;;
   nueva) shift && cmd_nueva "$@" ;;
   entrada) cmd_entrada ;;

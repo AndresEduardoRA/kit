@@ -80,3 +80,34 @@ describe('maquina.sh › los turnos', () => {
     expect(bash(h, 'tomar_turno; echo "$? $TURNO"').salida).toBe('0 1')
   })
 })
+
+describe('maquina.sh › la pausa compartida', () => {
+  const pausa = (home: string) => join(home, '.local/state/orquestador/pausa-hasta')
+  const poner = (home: string, texto: string) => {
+    mkdirSync(join(home, '.local/state/orquestador'), { recursive: true })
+    writeFileSync(pausa(home), texto)
+  }
+
+  it('una hora pasada o basura no pausa y se borra; una futura, sí', () => {
+    const h = casa()
+    for (const vieja of ['1000\n', 'mañana\n', '']) {
+      poner(h, vieja)
+      expect(bash(h, 'pausa_compartida_hasta').estado).toBe(1)
+      expect(existsSync(pausa(h))).toBe(false)
+    }
+    const futura = String(Math.floor(Date.now() / 1000) + 600)
+    poner(h, `${futura}\n`)
+    expect(bash(h, 'pausa_compartida_hasta')).toEqual({ estado: 0, salida: futura })
+    expect(bash(h, 'quitar_pausa_compartida; pausa_compartida_hasta').estado).toBe(1)
+  })
+
+  it('fijarla guarda la más tardía entre la que había y la nueva', () => {
+    const h = casa()
+    const ahora = Math.floor(Date.now() / 1000)
+    bash(h, `fijar_pausa_compartida ${ahora + 900}`)
+    bash(h, `fijar_pausa_compartida ${ahora + 300}`)
+    expect(bash(h, 'pausa_compartida_hasta').salida).toBe(String(ahora + 900))
+    bash(h, `fijar_pausa_compartida ${ahora + 1200}`)
+    expect(readFileSync(pausa(h), 'utf8').trim()).toBe(String(ahora + 1200))
+  })
+})

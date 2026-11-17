@@ -1,8 +1,12 @@
+import { existsSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import {
   esperar,
   estado,
   lanzarGuion,
+  leer,
+  logDe,
   type Maquina,
   maquina,
   matarTodo,
@@ -80,6 +84,38 @@ it(
       await esperar(() => orq(b, {}, 'plan').salida.includes('T1  LISTA para lanzar'), 10_000),
     ).toBe(true)
     expect(vivo(claude)).toBe(true)
+  },
+  TIEMPO,
+)
+
+it(
+  'la pausa de uno por el límite del plan frena al otro, sin gastar intentos; vencida, se borra',
+  async () => {
+    m = maquina()
+    const a = repo(m, 'uno')
+    const b = repo(m, 'dos')
+    tarea(a, 'T1')
+    tarea(b, 'T1')
+    const hijo = lanzarGuion(a, { CLAUDE_FALSO_MODO: 'limite' }, 'correr', 'T1')
+    expect(await esperar(() => estado(a, 'T1') === 'por_retomar')).toBe(true)
+    expect(await esperar(() => !vivo(hijo))).toBe(true)
+    const archivo = join(m.home, '.local/state/orquestador/pausa-hasta')
+    expect(Number(leer(archivo).trim())).toBeGreaterThan(Date.now() / 1000)
+    expect(estado(a, 'T1', 'retomas')).toBe('')
+    expect(logDe(a)).toContain('vale para todos los orquestadores de la máquina')
+
+    expect(orq(b, {}, 'plan').salida).toContain(
+      '⏸  pausa compartida por el límite del plan hasta las',
+    )
+    lanzarGuion(b, {})
+    expect(await esperar(() => logDe(b).includes('orquestador arriba'))).toBe(true)
+    await new Promise((r) => setTimeout(r, 3000))
+    expect(estado(b, 'T1')).toBe('')
+    expect(sesiones(m)).toHaveLength(1)
+
+    writeFileSync(archivo, `${Math.floor(Date.now() / 1000) - 60}\n`)
+    expect(orq(b, {}, 'plan').salida).not.toContain('pausa compartida')
+    expect(existsSync(archivo)).toBe(false)
   },
   TIEMPO,
 )
