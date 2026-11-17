@@ -49,6 +49,7 @@ Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquest
 | `.orquestador/cola/T*.md`                | La copia de trabajo de la cola: una tarea por archivo, frontmatter + la spec                                                                                                                                                                                                               |
 | `.orquestador/estado/`                   | Lo crea él: el estado de cada tarea, los logs, los prompts y lo que dijo cada sesión                                                                                                                                                                                                       |
 | `.orquestador/worktrees/`                | Lo crea él: un worktree por tarea en curso                                                                                                                                                                                                                                                 |
+| `~/.cache/orquestador/<PROYECTO>/<ID>/`  | Lo crea él: el `TMPDIR` de cada tarea, fuera de `/tmp` (`TMP_TAREAS`); se vacía al empezar cada corrida y se borra al integrar                                                                                                                                                             |
 
 ## Una tarea
 
@@ -264,7 +265,8 @@ Si el servicio no encuentra `claude`, `pnpm` o `node`, agrega sus rutas a `PATH_
 ## Cómo decide
 
 - **Lanza** una tarea cuando sus `depende` están integradas, ninguna en curso comparte su `conflicto`, hay carril libre y hay turno en
-  la máquina. Primero termina lo empezado (arreglos y retomas), después lo nuevo: las `cola:urgente` y luego por número.
+  la máquina. Primero termina lo empezado (arreglos y retomas), después lo nuevo: las `cola:urgente` y luego por número. Una que se
+  retoma o se arregla también espera el área que ocupa otra; entre dos que se retoman con una llave en común pasa la de número menor.
 - **Redacta** un pedido después de lanzar las tareas: una redacción a la vez por proyecto, con turno de la máquina pero sin carril ni
   lugar en `PARALELO`. `plan` dice en qué está cada pedido (`P<n>  pedido: …`).
 - **Turnos de la máquina**: antes de preparar el worktree, el hijo toma un turno (`flock -n` sobre

@@ -63,6 +63,7 @@ manifiesto() { if [ -f "$REPO/.proyecto/proyecto.yaml" ]; then node "$MANIFIESTO
 [ -n "${PROYECTO:-}" ] || [ ! -f "$REPO/.kit/plantilla" ] || PROYECTO=kit
 [ -n "${PROYECTO:-}" ] || PROYECTO=$(manifiesto nombre)
 SERVICIO="orquestador-${PROYECTO:?falta PROYECTO: fíjalo en config.env o dalo en .proyecto/proyecto.yaml (node scripts/proyecto/manifiesto.mjs nombre)}"
+TMP_TAREAS="${TMP_TAREAS:-${XDG_CACHE_HOME:-$HOME/.cache}/orquestador/$PROYECTO}"
 
 # La cola en los issues: lo que habla con GitHub y el espejo.
 # shellcheck source=github.sh
@@ -182,14 +183,17 @@ retiene_llaves() {
   esac
 }
 
-llave_ocupada_por() { # imprime la tarea que retiene alguna llave de $1, si hay
-  local id=$1 mias otra s k
+llave_ocupada_por() { # id [retomando] → imprime la tarea que retiene alguna llave de id, si hay
+  local id=$1 retomando=${2:-} mias otra s k despues=no
   mias=$(campo "$(spec_de "$id")" conflicto)
   [ -n "$mias" ] || return 1
   for otra in $(ids); do
-    [ "$otra" = "$id" ] && continue
+    [ "$otra" = "$id" ] && { despues=si; continue; }
     s=$(estado_de "$otra")
     retiene_llaves "$s" || continue
+    # Dos tareas por retomar o arreglar con una llave en común (las dos quedaron trabadas y se reintentaron): pasa primero la de
+    # antes en la cola. Si cada una esperara a la otra, no correría ninguna.
+    if [ -n "$retomando" ] && [ "$despues" = si ] && [[ "$s" == por_* ]]; then continue; fi
     for k in $(campo "$(spec_de "$otra")" conflicto); do
       if [[ " $mias " == *" $k "* ]]; then echo "$otra ($k)"; return 0; fi
     done
@@ -266,7 +270,10 @@ lanzar() {
       [ "$libres" -gt 0 ] || return 0
       s=$(estado_de "$id")
       case "$pasada:$s" in
-        arreglos:por_arreglar | arreglos:por_retomar) ;;
+        arreglos:por_arreglar | arreglos:por_retomar)
+          # Una trabada no retiene sus llaves: al reintentarla, otra tarea de su área puede estar corriendo o esperando al CI.
+          quien=$(llave_ocupada_por "$id" retomando) && continue
+          ;;
         nuevas:pendiente)
           deps_listas "$(spec_de "$id")" || continue
           quien=$(llave_ocupada_por "$id") && continue
@@ -387,6 +394,7 @@ integrada() {
   fi
   git -C "$REPO" worktree prune >/dev/null 2>&1
   git -C "$REPO" branch -D "$rama" >/dev/null 2>&1 || true
+  rm -rf "${TMP_TAREAS:?}/$id"
   marcar_al_integrar "$id"
   marcar_aviso_kit "$id"
   est_set "$id" estado integrado
@@ -426,6 +434,10 @@ correr() {
   RAMA=$(campo "$SPEC" rama)
   TITULO=$(campo "$SPEC" titulo)
   WT="$WTS/$ID"
+  # Su propia carpeta temporal (TMPDIR), vacía en cada corrida y fuera de /tmp: lo que las pruebas y las herramientas dejan sin borrar
+  # no se acumula en el tmpfs de la máquina, que tiene tope de archivos y frena a todos los proyectos cuando se llena.
+  export TMPDIR="$TMP_TAREAS/$ID"
+  rm -rf "$TMPDIR" && mkdir -p "$TMPDIR"
   PREVIO=$(est_get "$ID" previo)
   est_set "$ID" pid "$$"
   token_gh
@@ -769,6 +781,9 @@ cmd_plan() {
         elif quien=$(llave_ocupada_por "$id"); then echo "$id  espera el área que ocupa $quien"
         elif [ -n "$sin_turno" ]; then echo "$id  $sin_turno"
         else echo "$id  LISTA para lanzar"; fi
+        ;;
+      por_arreglar | por_retomar)
+        if quien=$(llave_ocupada_por "$id" retomando); then echo "$id  $s, espera el área que ocupa $quien"; else echo "$id  $s"; fi
         ;;
       *) echo "$id  $s$(linea_al_integrar "$id")$(linea_aviso_kit "$id")" ;;
     esac
