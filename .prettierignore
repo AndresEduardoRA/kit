@@ -2,6 +2,8 @@ docs/MAPA.md
 src/shared/types/database.types.ts
 # las versiones de un contrato: las escribe `pnpm contrato:generar` byte a byte (la guarda de versiones publicadas compara bytes)
 /contratos/
+# las copias fijadas de un consumidor: van tal cual salen de main del proveedor
+.proyecto/contratos/
 supabase/**/*.sql
 pnpm-lock.yaml
 .next

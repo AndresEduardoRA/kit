@@ -35,8 +35,9 @@ export function explicarModificada(ruta: string, base: string): string {
 }
 
 /** La referencia contra la que se compara: `CONTRATOS_BASE` o `origin/main`. */
-export const baseDePublicados = (entorno: NodeJS.ProcessEnv = process.env): string =>
-  entorno['CONTRATOS_BASE'] || 'origin/main'
+export const baseDePublicados = (
+  entorno: Readonly<Record<string, string | undefined>> = process.env,
+): string => entorno['CONTRATOS_BASE'] || 'origin/main'
 
 const git = (raiz: string, ...args: string[]) =>
   execFileSync('git', ['-C', raiz, ...args], {
