@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { coincide, esFlujo, leerPatrones, rutaProhibida, tocaFlujo } from './flujo.mjs'
+import { KIT_POR_DEFECTO } from './kit-gh.mjs'
 import { decidir, mezclar3, quitarRepetidas } from './mezcla.mjs'
 import { MARCADORES } from './personalizar.mjs'
 
@@ -220,6 +221,11 @@ describe('mezcla.mjs › ayudantes', () => {
       texto: 'a\nX\nY\nc\n',
       choques: 0,
     })
+  })
+
+  it('el kit por defecto de kit-gh.mjs es el KIT_GITHUB de config.env del orquestador', () => {
+    const config = readFileSync('scripts/orquestador/config.env', 'utf8')
+    expect(/^KIT_GITHUB="(.*)"$/m.exec(config)?.[1]).toBe(KIT_POR_DEFECTO)
   })
 
   it('quitarRepetidas quita sólo la (kit) repetida', () => {
