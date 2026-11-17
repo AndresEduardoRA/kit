@@ -181,3 +181,42 @@ it(
   },
   TIEMPO,
 )
+
+it(
+  'cola en issues › el issue de un workflow (github-actions[bot], sin asociación) entra a la cola; el comentario de un bot no es la respuesta a una trabada',
+  () => {
+    const t = escenario()
+    // El aviso de la noche lo abre con GITHUB_TOKEN: author_association NONE y usuario de tipo Bot.
+    t.issue(40, cuerpo('fix/e2e-noche-40'))
+    t.issue(41, cuerpo('fix/ajeno'))
+    t.cambiarGh((g) => {
+      Object.assign(g.issues[40]!, { autor: 'NONE', login: 'github-actions[bot]', tipo: 'Bot' })
+      // Otro bot cualquiera, o una persona que se llama igual, no.
+      Object.assign(g.issues[41]!, { autor: 'NONE', login: 'github-actions[bot]', tipo: 'User' })
+    })
+    t.orq('espejo')
+    expect(t.cola()).toEqual(['T40-e2e-noche-40.md'])
+    expect(t.log()).toContain('issue #41: lo abrió alguien sin permiso de escritura')
+
+    t.ponerEst('T40', 'estado', 'trabada')
+    t.ponerEst('T40', 'trabada_comentario', '1001')
+    t.cambiarGh((g) => {
+      const c = (id: number, body: string, user = { login: 'persona', type: 'User' }) => ({
+        id,
+        body,
+        created_at: `2026-01-0${String(id - 999)}T00:00:00Z`,
+        author_association: 'OWNER',
+        user,
+      })
+      g.issues[40]!.comentarios = [
+        c(1001, '🤖 orquestador: me trabé: el spec cae por la red'),
+        c(1002, 'Esto lo dice un bot con permiso.', { login: 'renovate[bot]', type: 'Bot' }),
+      ]
+      g.siguienteComentario = 1003
+    })
+    t.orq('espejo')
+    expect(t.est('T40', 'estado')).toBe('trabada')
+    expect(t.est('T40', 'respuesta.md')).toBe('')
+  },
+  TIEMPO,
+)

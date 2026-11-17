@@ -117,11 +117,13 @@ if (args[0] === 'api') {
   } else if ((m = /^issues\/(\d+)\/comments$/.exec(resto))) {
     const i = issue(m[1] ?? '')
     if (metodo === 'POST') {
+      // Lo comenta la cuenta dueña (el token del orquestador o la persona).
       const c = {
         id: e.siguienteComentario++,
         body: campos['body'],
         created_at: ahora(),
         author_association: 'OWNER',
+        user: { login: 'persona', type: 'User' },
       }
       i.comentarios.push(c)
       guardar()

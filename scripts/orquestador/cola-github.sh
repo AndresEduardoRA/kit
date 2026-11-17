@@ -211,7 +211,7 @@ revisar_cerrados() { # " números de los abiertos "
   done
 }
 
-# La respuesta a una trabada: el primer comentario posterior al de la trabada que no es del orquestador.
+# La respuesta a una trabada: el primer comentario posterior al de la trabada que no es del orquestador ni de un bot.
 buscar_respuestas() {
   local id n cid en cs r
   for id in $(ids); do
@@ -221,9 +221,10 @@ buscar_respuestas() {
     en=$(est_get "$id" trabada_en)
     [[ -n "$n" && -n "$cid$en" ]] || continue
     cs=$(ghc api --paginate "repos/{owner}/{repo}/issues/$n/comments?per_page=100") || return 0
-    # Sólo cuenta quien puede escribir en el repo: en un repo público, cualquiera puede comentar.
+    # Sólo cuenta quien puede escribir en el repo (en un repo público, cualquiera puede comentar), y nunca un bot.
     r=$(jq -s -r --arg bot "$BOT" --argjson cid "${cid:-0}" --arg en "$en" --argjson ok "$CON_PERMISO" \
       '[add[]? | select((.body // "" | startswith($bot)) | not) | select(.author_association as $a | $ok | index($a))
+        | select((.user.type // "User") != "Bot")
         | select(if $cid > 0 then .id > $cid else .created_at > $en end)] | first | .body // empty' <<<"$cs")
     [ -n "$r" ] && aplicar_respuesta "$id" "$n" "$r"
   done
