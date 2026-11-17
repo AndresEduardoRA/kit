@@ -191,13 +191,13 @@ toma primero. En verde, cierra el que todavía no está en la cola. Con dos `noc
 
 ### La tarea semanal del flujo del kit
 
-Una vez por semana (UTC, semana ISO), si no hay un issue `kit` abierto, el espejo corre `node scripts/kit/actualizar.mjs --revisar`:
-si `.kit/version` quedó atrás del main del kit (`KIT_GITHUB`) en algún archivo de flujo, crea la tarea desde
-`plantillas/traer-flujo-del-kit.md` con `cola` y `kit` (`KIT_SEMANAL="no"` la apaga). Un kit que sólo avanzó fuera del flujo no abre
-nada. La tarea corre `actualizar.mjs`, que mezcla el kit y commitea; si choca, no toca nada y la tarea se traba con las rutas: se
-responde por ruta (`--tomar-kit`, `--dejar` o una línea en `.kit/omitir`; `docs/KIT.md` › «El flujo entre el kit y los proyectos»).
-Si el kit no responde (sin red, sin acceso), se dice en el log y se vuelve a mirar a las 6 horas, sin aviso. La semana resuelta queda en
-`estado/.kit-semana`. El kit mismo no la hace.
+Una vez por semana (UTC, semana ISO), si no hay un issue `kit` abierto (de quien puede escribir en el repo), el espejo corre
+`node scripts/kit/actualizar.mjs --revisar`: si `.kit/version` quedó atrás del main del kit (`KIT_GITHUB`) en algún archivo de flujo,
+crea la tarea desde `plantillas/traer-flujo-del-kit.md` con `cola` y `kit` (`KIT_SEMANAL="no"` la apaga). Un kit que sólo avanzó
+fuera del flujo no abre nada. La tarea corre `actualizar.mjs`, que mezcla el kit y commitea; si choca, no toca nada y la tarea se traba
+con las rutas: se responde por ruta (`--tomar-kit`, `--dejar` o una línea en `.kit/omitir`; `docs/KIT.md` › «El flujo entre el kit y
+los proyectos»). Si el kit no responde (sin red, sin acceso), se dice en el log y se vuelve a mirar a las 6 horas; al cuarto fallo
+seguido (un día) avisa una vez y sigue intentando. La semana resuelta queda en `estado/.kit-semana`. El kit mismo no la hace.
 
 ## Al integrar
 

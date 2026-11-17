@@ -8,8 +8,10 @@
 # El kit mismo no hace ninguno de los dos. Lo carga orquestador.sh con `source`, después de al-integrar.sh; usa sus `REPO`, `ORQ`, `EST`,
 # `log`, y de github.sh y cola-entrada.sh `ghc`, `REPO_GH`, `publicar_entrada` y `PUBLICADA`.
 
-# Sin acceso al kit, la revisión semanal se vuelve a intentar a las 6 h (sin aviso: si la tarea falla al correr, ahí sí se traba).
+# Sin acceso al kit, la revisión semanal se vuelve a intentar a las 6 h; a los KIT_FALLOS_AVISO seguidos (un día) avisa una vez, y sigue
+# intentando. Si la tarea falla al correr, se traba como cualquiera.
 KIT_REINTENTO_S=21600
+KIT_FALLOS_AVISO=4
 
 es_el_kit() { [ -f "$REPO/.kit/plantilla" ]; }
 # El proyecto puede traer el flujo: tiene la versión del kit de la que salió y el guion que trae.
@@ -19,7 +21,7 @@ kit_aplica() { ! es_el_kit && [ -f "$REPO/.kit/version" ] && [ -f "$REPO/scripts
 
 # Devuelve 1 sólo si GitHub no respondió al listar los issues de este repo (el espejo lo trata como sin red). Sólo cuenta un issue
 # `kit` abierto por quien puede escribir en el repo. La marca de la semana resuelta queda en estado/.kit-semana; la espera tras un
-# fallo al mirar el kit, en estado/.kit-reintento (epoch).
+# fallo al mirar el kit, en estado/.kit-reintento (epoch), y los fallos seguidos, en estado/.kit-fallos.
 kit_semanal() {
   [ "${KIT_SEMANAL:-si}" = si ] || return 0
   kit_aplica || return 0
@@ -35,19 +37,13 @@ kit_semanal() {
   fi
   salida=$(cd "$REPO" && KIT_GITHUB="${KIT_GITHUB:-}" node scripts/kit/actualizar.mjs --revisar 2>&1)
   rc=$?
-  case "$rc" in
-    0)
-      echo "$semana" >"$EST/.kit-semana"
-      log "el flujo sigue al día con el kit ($(tail -n 1 <<<"$salida"))"
-      return 0
-      ;;
-    10) ;;
-    *)
-      echo $(($(date +%s) + KIT_REINTENTO_S)) >"$EST/.kit-reintento"
-      log "✗ no pude mirar el kit: $(tail -n 1 <<<"$salida") (se vuelve a mirar en 6 h)"
-      return 0
-      ;;
-  esac
+  [ "$rc" = 0 ] || [ "$rc" = 10 ] || { kit_no_responde "$salida"; return 0; }
+  rm -f "$EST/.kit-fallos"
+  if [ "$rc" = 0 ]; then
+    echo "$semana" >"$EST/.kit-semana"
+    log "el flujo sigue al día con el kit ($(tail -n 1 <<<"$salida"))"
+    return 0
+  fi
   f="$EST/traer-kit-$semana.md"
   [ -e "$f" ] || sed -e "s/{{SEMANA}}/$semana/g" -e "s/{{RAMA_SEMANA}}/${semana,,}/g" "$ORQ/plantillas/traer-flujo-del-kit.md" >"$f"
   publicar_entrada "$f" kit || return 1
@@ -59,6 +55,17 @@ kit_semanal() {
     echo "$semana" >"$EST/.kit-semana"
     log "✗ la tarea de traer el flujo del kit no se publica: plantillas/traer-flujo-del-kit.md no se lee ($(cat "$f.error"))"
   fi
+}
+
+kit_no_responde() { # salida de actualizar.mjs --revisar
+  local n
+  echo $(($(date +%s) + KIT_REINTENTO_S)) >"$EST/.kit-reintento"
+  n=$(($(cat "$EST/.kit-fallos" 2>/dev/null || echo 0) + 1))
+  echo "$n" >"$EST/.kit-fallos"
+  log "✗ no pude mirar el kit: $(tail -n 1 <<<"$1") (se vuelve a mirar en 6 h)"
+  [ "$n" = "$KIT_FALLOS_AVISO" ] &&
+    avisar "no puedo mirar el kit desde hace un día" "$(tail -n 1 <<<"$1"). Sigo intentando cada 6 h; a mano: node scripts/kit/actualizar.mjs --revisar" default warning
+  return 0
 }
 
 # ------------------------------------------------------------------------------------------------- del proyecto al kit, al integrar
@@ -150,7 +157,9 @@ aviso_kit_fallo() { # ID motivo [final | el código de ghc: 1 GitHub falló, 2 e
   avisar "$id: no pude llevar al kit el PR #$pr" "$motivo. A mano: $a_mano" high warning "$(enlace_issue "$id")"
 }
 
-avisos_kit_pendientes() { # el espejo (o el bucle, con la cola sólo local): los avisos pendientes, una vez cada AL_INTEGRAR_ESPERA
+# El espejo reintenta los pendientes una vez cada AL_INTEGRAR_ESPERA. Con la cola sólo local no hay espejo: el primer fallo ya es
+# `fallido`, y el bucle sólo recoge lo que un corte dejó pendiente.
+avisos_kit_pendientes() {
   local id ult ahora
   ahora=$(date +%s)
   for id in $(ids); do

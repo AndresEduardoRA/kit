@@ -112,6 +112,14 @@ it(
     t.orq('espejo')
     expect(alKit(t)).toHaveLength(antes)
     expect(t.est('.', '.kit-semana')).toBe('')
+    expect(t.log()).not.toContain('AVISO')
+    // Al cuarto fallo seguido (un día), avisa una vez; y sigue intentando.
+    for (let n = 0; n < 4; n++) {
+      t.ponerEst('.', '.kit-reintento', '0')
+      t.orq('espejo')
+    }
+    expect(t.est('.', '.kit-fallos')).toBe('5')
+    expect(t.log().match(/AVISO · no puedo mirar el kit desde hace un día/g)).toHaveLength(1)
   },
   TIEMPO,
 )
