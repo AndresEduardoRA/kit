@@ -100,7 +100,7 @@ servicios: [supabase, vercel]
 agentes: [claude]
 tope_cuota: {ventana_5h_pct: 30, semanal_pct: 20}
 funciones_edge: [push, storage-gc]
-generada_con: {modelo: Opus 5.5, effort: high, confirmado_por: dueño}
+generada_con: {modelo: opus, effort: high, confirmado_por: dueño}
 ---
 
 ## 1. Visión y alcance
