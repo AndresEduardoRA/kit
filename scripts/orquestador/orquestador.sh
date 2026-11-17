@@ -54,7 +54,7 @@ fi
 # token. Sin manifiesto, ni lo uno ni lo otro: PROYECTO tiene que venir fijado y la cuenta es la del remoto, como antes.
 MANIFIESTO="$REPO/scripts/proyecto/manifiesto.mjs"
 # Un campo del repo propio, o nada: sin manifiesto, o con uno inválido (el motivo sale por stderr: no se traga).
-manifiesto() { [ -f "$REPO/.proyecto/proyecto.yaml" ] && node "$MANIFIESTO" "$1" "$REPO" || true; }
+manifiesto() { if [ -f "$REPO/.proyecto/proyecto.yaml" ]; then node "$MANIFIESTO" "$1" "$REPO" || true; fi; }
 # El kit es el kit: su manifiesto es el del proyecto de ejemplo y daría el nombre de ese proyecto.
 [ -n "${PROYECTO:-}" ] || [ ! -f "$REPO/.kit/plantilla" ] || PROYECTO=kit
 [ -n "${PROYECTO:-}" ] || PROYECTO=$(manifiesto nombre)
@@ -844,7 +844,7 @@ cmd_verificar() {
   cola_invalida || ok=0
   for id in $(ids); do
     f=$(spec_de "$id")
-    [ -n "$(campo "$f" rama)" ] && [ -n "$(campo "$f" titulo)" ] || { echo "✗ $id sin rama o título"; ok=0; }
+    [[ -n "$(campo "$f" rama)" && -n "$(campo "$f" titulo)" ]] || { echo "✗ $id sin rama o título"; ok=0; }
     for d in $(campo "$f" depende); do
       case "$d" in
         T[0-9]*) ;;
@@ -866,7 +866,7 @@ cmd_verificar() {
 cmd_nueva() { # tema (con la cola en issues) | ID tema (ORQ_SOLO_LOCAL=1)
   con_issues && { nueva_en_issues "$@"; return; }
   local id=${1:-} tema=${2:-} f
-  [[ "$id" =~ ^T[0-9]+$ ]] && [ -n "$tema" ] || { echo "uso (cola sólo local): nueva T23 tema-en-kebab" >&2; exit 64; }
+  [[ "$id" =~ ^T[0-9]+$ && -n "$tema" ]] || { echo "uso (cola sólo local): nueva T23 tema-en-kebab" >&2; exit 64; }
   spec_de "$id" >/dev/null && { echo "ya existe $(spec_de "$id")" >&2; exit 64; }
   f="$COLA/$id-$tema.md"
   [[ "$tema" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "el tema va en kebab (minúsculas, números y guiones): $tema" >&2; exit 64; }
@@ -882,7 +882,7 @@ cmd_nueva() { # tema (con la cola en issues) | ID tema (ORQ_SOLO_LOCAL=1)
 
 nueva_en_issues() { # tema — la spec en borrador va a la entrada y se publica ya como issue (sin red, en la vuelta siguiente)
   local tema=${1:-} f spec
-  [ -n "$tema" ] && [ -z "${2:-}" ] || { echo "uso: nueva tema-en-kebab (el id es el número del issue que se crea)" >&2; exit 64; }
+  [[ -n "$tema" && -z "${2:-}" ]] || { echo "uso: nueva tema-en-kebab (el id es el número del issue que se crea)" >&2; exit 64; }
   [[ "$tema" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "el tema va en kebab (minúsculas, números y guiones): $tema" >&2; exit 64; }
   mkdir -p "$DATOS/entrada"
   f="$DATOS/entrada/$tema.md"

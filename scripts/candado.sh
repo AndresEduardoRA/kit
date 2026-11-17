@@ -15,7 +15,7 @@
 # candado: lo que deje vivo detrás no lo retiene. Uso mal hecho: 64.
 set -uo pipefail
 
-[ "$#" -ge 3 ] && [ "$2" = -- ] || {
+[[ "$#" -ge 3 && "$2" = -- ]] || {
   echo "uso: bash scripts/candado.sh <nombre> -- <comando…>" >&2
   exit 64
 }

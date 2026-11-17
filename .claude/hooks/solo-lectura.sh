@@ -125,7 +125,7 @@ revisar_git() {
 
 revisar_sed() {
   local n="${#A[@]}" script
-  [ "$n" -ge 2 ] && [ "${A[0]}" = -n ] || rechazar "sed sólo como sed -n '<n>p' <archivo>."
+  [[ "$n" -ge 2 && "${A[0]}" = -n ]] || rechazar "sed sólo como sed -n '<n>p' <archivo>."
   script="${A[1]}"
   [[ "$script" =~ ^([0-9]+|\$)(,([0-9]+|\$))?p$ ]] || [[ "$script" =~ ^/[^/]+/p$ ]] ||
     rechazar "sed -n con «$script»: sólo líneas (<n>p, <a>,<b>p) o /patrón/p."
