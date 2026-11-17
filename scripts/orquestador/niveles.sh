@@ -95,3 +95,16 @@ modelos_heredados() { # los MODELO_* de antes que siguen en config.local.env: ya
   done
   return 0
 }
+
+# Qué modelo es hoy un alias, preguntándoselo con una llamada corta (`verificar`): lo que dice ser, en una línea, y las claves de
+# `modelUsage` si `claude -p` las trae (el id que de verdad respondió). 1 si no respondió.
+identidad_de_modelo() { # alias
+  local j r claves
+  j=$(echo 'Di sólo qué modelo eres (nombre y versión), en una línea y sin nada más.' |
+    timeout 120 claude -p --model "$1" --permission-mode plan --output-format json 2>/dev/null) || return 1
+  r=$(jq -r '.result // empty' <<<"$j" 2>/dev/null | tr '\n' ' ')
+  r=${r%"${r##*[! ]}"}
+  [ -n "$r" ] || return 1
+  claves=$(jq -r '(.modelUsage // {}) | keys | join(", ")' <<<"$j" 2>/dev/null)
+  echo "${r:0:120}${claves:+ · $claves}"
+}

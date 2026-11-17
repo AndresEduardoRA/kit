@@ -138,3 +138,37 @@ describe('niveles.sh › la cola sólo local', () => {
     expect(r.stdout).toContain('T8  LISTA para lanzar')
   })
 })
+
+describe('niveles.sh › qué modelo es hoy un alias', () => {
+  it('le pregunta al alias y junta lo que dice ser con las claves de modelUsage', () => {
+    const bin = carpeta()
+    writeFileSync(
+      join(bin, 'claude'),
+      `#!/usr/bin/env bash\nexec bash ${ORQ}/prueba/claude-falso.sh "$@"\n`,
+      { mode: 0o755 },
+    )
+    const r = spawnSync('bash', ['-c', `source "${ORQ}/niveles.sh"; identidad_de_modelo sonnet`], {
+      encoding: 'utf8',
+      env: {
+        NODE_ENV: 'test',
+        PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+        CLAUDE_FALSO_MODO: 'identidad',
+      },
+    })
+    expect(r.stdout.trim()).toBe('Soy el modelo falso · modelo-falso')
+    expect(r.status).toBe(0)
+    const mudo = spawnSync(
+      'bash',
+      ['-c', `source "${ORQ}/niveles.sh"; identidad_de_modelo sonnet`],
+      {
+        encoding: 'utf8',
+        env: {
+          NODE_ENV: 'test',
+          PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+          CLAUDE_FALSO_MODO: 'limite',
+        },
+      },
+    )
+    expect(mudo.status).toBe(1)
+  })
+})

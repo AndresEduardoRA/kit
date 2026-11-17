@@ -900,10 +900,20 @@ verificar_maquina() { # la sección «Máquina» de verificar: maquina.env (lo c
 }
 
 verificar_niveles() { # la sección «Niveles» de verificar; devuelve 1 si algo no vale
-  local ok=0 linea tipo nivel
-  echo "== Niveles de modelo"
+  local ok=0 linea tipo nivel alias quien
+  echo "== Niveles de modelo (qué modelo es hoy cada uno: se lo pregunta a cada alias)"
   while IFS= read -r linea; do [ -n "$linea" ] && echo "✗ $linea" && ok=1; done < <(niveles_invalidos)
   while IFS= read -r linea; do [ -n "$linea" ] && echo "· $linea"; done < <(modelos_heredados)
+  for nivel in $NIVELES; do
+    alias=$(modelo_de_nivel "$nivel") || continue
+    if quien=$(identidad_de_modelo "$alias"); then
+      echo "✓ nivel $nivel → $alias: $quien"
+      log "verificar: nivel $nivel → $alias: $quien"
+    else
+      echo "✗ nivel $nivel → $alias: claude -p --model $alias no respondió"
+      ok=1
+    fi
+  done
   for tipo in EJECUTAR PLANIFICAR ARREGLAR_DIFICIL; do
     nivel="NIVEL_$tipo"
     echo "  ${tipo,,}: nivel ${!nivel:-?} → $(modelo_de_nivel "${!nivel:-}" || echo '(sin alias válido)')"
