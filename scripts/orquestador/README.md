@@ -49,6 +49,7 @@ Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquest
 | `.orquestador/cola/T*.md`                | La copia de trabajo de la cola: una tarea por archivo, frontmatter + la spec                                                                                                                                                                                                               |
 | `.orquestador/estado/`                   | Lo crea él: el estado de cada tarea, los logs, los prompts y lo que dijo cada sesión                                                                                                                                                                                                       |
 | `.orquestador/worktrees/`                | Lo crea él: un worktree por tarea en curso                                                                                                                                                                                                                                                 |
+| `~/.cache/orquestador/<PROYECTO>/<ID>/`  | Lo crea él: el `TMPDIR` de cada tarea, fuera de `/tmp` (`TMP_TAREAS`); se vacía al empezar cada corrida y se borra al integrar                                                                                                                                                             |
 
 ## Una tarea
 
