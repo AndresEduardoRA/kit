@@ -28,7 +28,7 @@ Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquest
 | `scripts/orquestador/github.sh`          | Lo que le pide a GitHub: etiquetas, comentarios, editar y cerrar issues, dependencias por rama                                                                                                            |
 | `scripts/orquestador/cola-github.sh`     | El espejo entre la cola local y los issues; respuestas a trabadas; issues cerrados a mano                                                                                                                 |
 | `scripts/orquestador/cola-entrada.sh`    | La entrada (`.orquestador/entrada/`), la tarea mensual de dependencias y la adopción de las tareas locales de antes                                                                                       |
-| `scripts/orquestador/pedidos.sh`         | Un pedido en texto libre (`pedido`): lanzar su redacción, la sesión en modo plan y lo que hace con su `SPEC:` o sus `PREGUNTAS:`                                                                          |
+| `scripts/orquestador/pedidos.sh`         | Un pedido en texto libre (`pedido`): lanzar su redacción y la sesión en modo plan; lo que hace con su `SPEC:` o sus `PREGUNTAS:`, en `pedidos-salida.sh`                                                  |
 | `scripts/orquestador/redaccion.mjs`      | Lo puro de la redacción: el hilo del issue (rondas, respuesta, conversación) y la salida de la sesión                                                                                                     |
 | `scripts/orquestador/maquina.sh`         | Lo que comparten los orquestadores de la máquina: `maquina.env`, los turnos de sesión y la pausa por el límite del plan                                                                                   |
 | `scripts/orquestador/niveles.sh`         | Los niveles de modelo: nivel → alias, qué campos de una spec valen, qué modelo es hoy cada alias                                                                                                          |
@@ -134,9 +134,10 @@ respuesta: se guarda en `estado/<ID>/respuesta.md`, se suma al cuerpo del issue 
 **El PR cierra el issue:** la sesión pone `Closes #<n>` en su cuerpo; al integrarse, el orquestador pone `cola:integrada` y cierra el
 issue si GitHub no lo hizo.
 
-**Issues que abre un workflow.** El autor de un issue tiene que poder escribir en el repo, o ser `github-actions[bot]`: el issue
-`noche-roja` lo abre el CI con `GITHUB_TOKEN` (un fork no tiene ese token con escritura). Ningún comentario de un bot cuenta como
-respuesta. Un workflow que cree issues con contenido de afuera no les pone `cola` ni `pedido`.
+**Issues que abre un workflow.** El autor de un issue tiene que poder escribir en el repo, o ser `github-actions[bot]` en un issue
+`noche-roja`: ése lo abre el CI con `GITHUB_TOKEN` (un fork no tiene ese token con escritura). Otro issue de un bot no entra, y
+ningún comentario de un bot cuenta como respuesta. Una spec redactada desde un pedido no puede traer `permite`: un permiso lo da la
+persona.
 
 **Dependencias por rama.** `<repo>:<rama>` está lista cuando hay un PR de esa rama integrado en ese repo: `kit` es `KIT_GITHUB`, el
 nombre de este repo es este, y otro nombre, el `github` que le da el manifiesto (`.proyecto/proyecto.yaml`). Se consulta con el token

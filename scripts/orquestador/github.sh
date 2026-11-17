@@ -19,12 +19,13 @@ con_issues() { [ "${ORQ_SOLO_LOCAL:-0}" != 1 ] && [ -n "$REPO_GH" ]; }
 
 # Quien abre un issue o comenta y puede escribir en el repo (author_association de la API). Lo demás no entra a la cola.
 CON_PERMISO='["OWNER","MEMBER","COLLABORATOR"]'
-# El autor de un issue: además, github-actions[bot], el issue que abre un workflow del repo con GITHUB_TOKEN (el aviso de la noche,
-# scripts/flujo/noche.mjs), que no trae una asociación de escritura; un fork no tiene ese token con escritura. Ningún comentario de
-# un bot cuenta como respuesta (buscar_respuestas, redaccion.mjs).
+# El autor de un issue: además, github-actions[bot] en un issue `noche-roja`, el que abre el aviso de la noche (scripts/flujo/noche.mjs)
+# con GITHUB_TOKEN, sin una asociación de escritura; un fork no tiene ese token con escritura. Otro issue de un bot (un `pedido`, una
+# `cola` sin `noche-roja`) no entra. Ningún comentario de un bot cuenta como respuesta (buscar_respuestas, redaccion.mjs).
 con_permiso() {
   jq -e --argjson ok "$CON_PERMISO" '(.author_association as $a | $ok | index($a)) != null
-    or (.user.login == "github-actions[bot]" and .user.type == "Bot")' <<<"$1" >/dev/null
+    or (.user.login == "github-actions[bot]" and .user.type == "Bot"
+      and any(.labels[]?; (if type == "string" then . else .name end) == "noche-roja"))' <<<"$1" >/dev/null
 }
 
 huella() { sha256sum | cut -c1-16; }

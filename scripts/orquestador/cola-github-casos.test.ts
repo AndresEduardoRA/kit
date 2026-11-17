@@ -187,16 +187,19 @@ it(
   () => {
     const t = escenario()
     // El aviso de la noche lo abre con GITHUB_TOKEN: author_association NONE y usuario de tipo Bot.
-    t.issue(40, cuerpo('fix/e2e-noche-40'))
-    t.issue(41, cuerpo('fix/ajeno'))
+    t.issue(40, cuerpo('fix/e2e-noche-40'), ['cola', 'noche-roja'])
+    t.issue(41, cuerpo('fix/ajeno'), ['cola', 'noche-roja'])
+    t.issue(42, cuerpo('fix/otro-bot'))
     t.cambiarGh((g) => {
       Object.assign(g.issues[40]!, { autor: 'NONE', login: 'github-actions[bot]', tipo: 'Bot' })
-      // Otro bot cualquiera, o una persona que se llama igual, no.
+      // Una persona que se llama igual no; un issue del bot sin noche-roja, tampoco.
       Object.assign(g.issues[41]!, { autor: 'NONE', login: 'github-actions[bot]', tipo: 'User' })
+      Object.assign(g.issues[42]!, { autor: 'NONE', login: 'github-actions[bot]', tipo: 'Bot' })
     })
     t.orq('espejo')
     expect(t.cola()).toEqual(['T40-e2e-noche-40.md'])
     expect(t.log()).toContain('issue #41: lo abrió alguien sin permiso de escritura')
+    expect(t.log()).toContain('issue #42: lo abrió alguien sin permiso de escritura')
 
     t.ponerEst('T40', 'estado', 'trabada')
     t.ponerEst('T40', 'trabada_comentario', '1001')
