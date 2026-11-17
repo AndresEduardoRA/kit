@@ -131,12 +131,25 @@ function admitidaEnSuJob(prohibido: string, job: Job | undefined): boolean {
   return SI_DE_CARRERAS.test(si)
 }
 
+// La única escritura admitida: `issues: write` del aviso de la noche (scripts/flujo/noche.mjs abre y comenta el issue `noche-roja`),
+// en su job y con un `if:` que sólo corre con `schedule`. Sin `||`: abriría el job (y su token con escritura) a un PR de afuera.
+const JOB_DEL_AVISO = 'aviso-noche'
+const SI_DEL_AVISO =
+  /^(?:\$\{\{\s*)?always\(\) && github\.event_name == 'schedule'(?: && [^|]+?)?(?:\s*\}\})?$/
+
+function escrituraAdmitida(linea: string, job: Job | undefined): boolean {
+  if (!/^\s+issues:\s*write\s*$/.test(linea) || job?.nombre !== JOB_DEL_AVISO) return false
+  const si = /^ {4}if:\s*(.+?)\s*$/m.exec(codigoDe(job))?.[1] ?? ''
+  return SI_DEL_AVISO.test(si)
+}
+
 // Lo que se mira línea por línea: permisos de escritura, lo que no corre en CI y el proyecto del e2e.
 function problemasPorLinea(texto: string, archivo: string): string[] {
   const problemas: string[] = []
   const jobs = jobsDe(texto)
   for (const { n, texto: t } of lineasDeCodigo(texto)) {
-    if (/^\s+[a-z-]+:\s*write\b/.test(t)) problemas.push(`${archivo}:${n}: un permiso de escritura`)
+    if (/^\s+[a-z-]+:\s*write\b/.test(t) && !escrituraAdmitida(t, jobDeLinea(jobs, n)))
+      problemas.push(`${archivo}:${n}: un permiso de escritura`)
     for (const prohibido of FUERA_DE_CI.filter((p) => t.includes(p))) {
       if (admitidaEnSuJob(prohibido, jobDeLinea(jobs, n))) continue
       problemas.push(`${archivo}:${n}: ${prohibido} no corre en CI`)
