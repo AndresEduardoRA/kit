@@ -10,6 +10,9 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 const TIPOS = 'src/shared/types/database.types.ts'
+// Los tipos de los contratos fijados (`pnpm contrato:tipos`): como database.types.ts, generados; adoptar una versión no es un cambio de
+// lo compartido.
+const TIPOS_DE_CONTRATOS = 'src/shared/types/contratos/'
 const empieza = (archivo, ...prefijos) => prefijos.some((p) => archivo.startsWith(p))
 
 // SQL sin sus comentarios: una policy nombrada en un `--` no es una policy.
@@ -25,7 +28,10 @@ const cambiaEstructura = (sql) =>
 
 // El orden es el de la regla: (1) lo compartido … (6) la estructura.
 const DISPARADORES = [
-  { id: 'shared', aplica: (a) => a.startsWith('src/shared/') && a !== TIPOS },
+  {
+    id: 'shared',
+    aplica: (a) => a.startsWith('src/shared/') && a !== TIPOS && !a.startsWith(TIPOS_DE_CONTRATOS),
+  },
   { id: 'proxy', aplica: (a) => a === 'src/proxy.ts' },
   {
     id: 'auth',

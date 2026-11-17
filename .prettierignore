@@ -4,6 +4,8 @@ src/shared/types/database.types.ts
 /contratos/
 # las copias fijadas de un consumidor: van tal cual salen de main del proveedor
 .proyecto/contratos/
+# los tipos de los contratos fijados: los escribe `pnpm contrato:tipos` (el CI los regenera y exige cero diff)
+src/shared/types/contratos/
 supabase/**/*.sql
 pnpm-lock.yaml
 .next

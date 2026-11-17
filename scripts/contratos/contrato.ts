@@ -1,14 +1,15 @@
 // La CLI de los contratos de base entre repos (`.claude/rules/contratos.md`):
 //
-//   tsx scripts/contratos/contrato.ts generar [<id>] | probar | rol
+//   tsx scripts/contratos/contrato.ts generar [<id>] | probar | tipos | rol
 //
 // - generar: escribe `contratos/<id>@<n>.json` (la versión de `provee`) desde la base local, según `contratos/<id>.config.json`.
 // - probar:  la base local cumple cada versión de `vigentes` y la de `provee`.
+// - tipos:   `src/shared/types/contratos/<id>.ts` desde cada copia fijada de `consume`; borra los de lo que ya no se consume.
 // - rol:     `provee=true|false` y `consume=true|false`, para `$GITHUB_OUTPUT` (el job `contrato` levanta la pila sólo si provee).
 //
 // Errores a stderr; sale con 1 si hay problemas y con 64 si el uso está mal. Si no hay nada que hacer lo dice y sale con 0. Por
 // `pnpm contrato:generar` y `pnpm contrato:probar` toma el candado de la base (`scripts/candado.sh`).
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
@@ -20,9 +21,16 @@ import { consultarPilaLocal, contenedorDeLaPila, explicarFalloDeLaPila } from '.
 import { textoDelContrato } from './esquemas'
 import { archivoDeConfig, decidirEscritura, generarContrato, leerConfig } from './generar'
 import type { Consultar } from './introspeccion'
-import { contratosQueProvee } from './manifiesto'
+import {
+  CARPETA_DE_COPIAS,
+  archivoDeVersion,
+  contratosQueConsume,
+  contratosQueProvee,
+  problemasDeLasCopias,
+} from './manifiesto'
 import { cargarVersion, probarVersion, versionesAProbar } from './probar'
 import { baseDePublicados, leerPublicados } from './publicados'
+import { tiposDeTs } from './tipos'
 
 type Propio = NonNullable<ReturnType<typeof repoDeEsteWorktree>>
 type Comando = (raiz: string, propio: Propio, args: string[]) => Promise<number>
@@ -110,13 +118,47 @@ const probar: Comando = async (raiz, propio) => {
   return codigo
 }
 
+// Las copias fijadas que nombra `consume`, leídas y revisadas contra el manifiesto.
+function copiasDelRepo(raiz: string, propio: Propio) {
+  const { contratos, problemas } = contratosQueConsume(propio.manifiesto, propio.repo)
+  const dir = join(raiz, CARPETA_DE_COPIAS)
+  const archivos = existsSync(dir) ? readdirSync(dir).filter((a) => a.endsWith('.json')) : []
+  const r = problemasDeLasCopias(contratos, archivos, (a) => readFileSync(join(dir, a), 'utf8'))
+  return { copias: r.copias, problemas: [...problemas, ...r.problemas] }
+}
+
+const CARPETA_DE_TIPOS = 'src/shared/types/contratos'
+
+const tipos: Comando = (raiz, propio) => {
+  const { copias, problemas } = copiasDelRepo(raiz, propio)
+  if (problemas.length) return Promise.resolve(fallar(problemas))
+  const dir = join(raiz, CARPETA_DE_TIPOS)
+  const quedan = new Set(copias.map((c) => `${c.contrato}.ts`))
+  for (const a of existsSync(dir) ? readdirSync(dir) : [])
+    if (a.endsWith('.ts') && !quedan.has(a)) {
+      rmSync(join(dir, a))
+      decir(`borré ${CARPETA_DE_TIPOS}/${a}: ese contrato ya no se consume`)
+    }
+  if (!copias.length)
+    decir(
+      'Este repo no consume contratos (`consume` del manifiesto está vacío): no hay tipos que generar.',
+    )
+  for (const c of copias) {
+    mkdirSync(dir, { recursive: true })
+    const origen = `${CARPETA_DE_COPIAS}/${archivoDeVersion({ id: c.contrato, version: c.version })}`
+    writeFileSync(join(dir, `${c.contrato}.ts`), tiposDeTs(c, origen))
+    decir(`escribí ${CARPETA_DE_TIPOS}/${c.contrato}.ts desde ${origen}`)
+  }
+  return Promise.resolve(0)
+}
+
 const rol: Comando = (_raiz, propio) => {
   const { provee, consume } = contratosDelRepo(propio.manifiesto, propio.repo)
   decir(`provee=${String(provee.length > 0)}`, `consume=${String(consume.length > 0)}`)
   return Promise.resolve(0)
 }
 
-const COMANDOS: Record<string, Comando> = { generar, probar, rol }
+const COMANDOS: Record<string, Comando> = { generar, probar, tipos, rol }
 const USO = `uso: tsx scripts/contratos/contrato.ts ${Object.keys(COMANDOS).join(' | ')} (generar acepta un <id>)`
 
 /** Corre un comando en el repo de `raiz` y devuelve el código de salida. */

@@ -112,6 +112,12 @@ describe('nivel.mjs › database.types.ts se informa aparte', () => {
   it('sin ese archivo, database_types es falso', () => {
     expect(nivelDe(['src/proxy.ts'], sinContenido).database_types).toBe(false)
   })
+
+  // Adoptar una versión de un contrato en un consumidor regenera sus tipos: si contara como `shared`, dispararía el e2e completo.
+  it('los tipos de un contrato fijado (`pnpm contrato:tipos`) tampoco son un disparador de src/shared', () => {
+    const r = nivelDe(['src/shared/types/contratos/agenda.ts'], sinContenido)
+    expect(r).toMatchObject({ nivel: 1, disparadores: [], database_types: false })
+  })
 })
 
 describe('nivel.mjs › toca_interfaz decide si los e2e dirigidos corren también en celular', () => {
