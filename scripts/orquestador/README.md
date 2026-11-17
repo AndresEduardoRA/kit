@@ -268,6 +268,9 @@ Si el servicio no encuentra `claude`, `pnpm` o `node`, agrega sus rutas a `PATH_
   la máquina. Primero termina lo empezado (arreglos y retomas), después lo nuevo: las `cola:urgente` y luego por número.
 - **Redacta** un pedido después de lanzar las tareas: una redacción a la vez por proyecto, con turno de la máquina pero sin carril ni
   lugar en `PARALELO`. `plan` dice en qué está cada pedido (`P<n>  pedido: …`).
+- **No lanza sin lugar**: con menos de `MIN_LIBRE_PCT` % libre (inodos o espacio) en `/tmp`, el disco del repo o el de `TMP_TAREAS`,
+  avisa una vez y espera; las que corren siguen. `plan`, `estado` y `verificar` dicen qué está lleno. Un worktree que no se pudo crear
+  se reintenta a los 5 min (a la tercera, trabada).
 - **Turnos de la máquina**: antes de preparar el worktree, el hijo toma un turno (`flock -n` sobre
   `~/.local/state/orquestador/turno-<k>.lock`) y lo sostiene hasta salir; si muere, el kernel lo suelta. Lo que lanza (la sesión,
   `preparar.sh`) no lo hereda: un proceso que quede vivo no lo retiene. Sin turno libre no lanza, `plan` dice «sin turno en la
