@@ -3,7 +3,8 @@
 # que es lo que Claude recibe). Lee la entrada con jq (`tool_input.command`, `cwd`). Se prueba en `bloquear-peligrosos.test.ts`.
 #
 #   Lo bloqueado:   lo irreversible (reset --hard, clean, checkout --, branch -D…), publicar en main (una sesión empuja sólo su rama,
-#                   sin forzar, o una etiqueta nueva; main avanza por PR: docs/FLUJO.md), lo remoto (supabase contra el proyecto
+#                   sin forzar, o una etiqueta nueva; main avanza por PR: docs/FLUJO.md; la única excepción es el primer push de main
+#                   de un repo nuevo, abajo en `primer_push_de_main`), lo remoto (supabase contra el proyecto
 #                   remoto salvo leer, link, secrets, config push, functions deploy, gh api …/dispatches, vercel), cambiar
 #                   dependencias y saltarse el candado de la base (`scripts/candado.sh`).
 #   Dependencias:   la tarea con `permite: dependencias` (el orquestador la corre con ORQ_PERMITE=dependencias) sí corre
@@ -74,6 +75,31 @@ hay_posicional() {
 # Una sesión empuja sólo la rama en la que está (la de su PR), sin forzar ni borrar, y nunca main: main avanza al integrarse el PR
 # (docs/FLUJO.md). `cd x && git push` cambiaría de rama sin que el hook lo vea: se rechaza. Una etiqueta nueva (`git push origin
 # refs/tags/<nombre>`) sí se empuja, desde cualquier rama: no mueve ninguna.
+# El primer push de main de un repo recién creado (la skill semilla-a-repo, docs/semillas/LECCIONES.md › «GitHub»): sólo
+# `git [-C <carpeta>] push [-u|--set-upstream|-q] origin main`, desde main, a un `origin` que existe y no tiene main todavía
+# (`ls-remote --exit-code` sale con 2). Sin red, sin remoto, con main ya publicado o con cualquier otra forma, no hay excepción.
+primer_push_de_main() {
+  local dir="$1" t d rc=0 pos=()
+  shift
+  for t in "$@"; do
+    case "$t" in
+      -u | --set-upstream | -q | --quiet) ;;
+      -*) return 1 ;;
+      *) pos+=("$t") ;;
+    esac
+  done
+  [ "${#pos[@]}" = 2 ] || return 1
+  [ "${pos[0]}" = origin ] || return 1
+  [ "${pos[1]}" = main ] || return 1
+  case "$dir" in
+    '') d="$CWD" ;;
+    /*) d="$dir" ;;
+    *) d="$CWD/$dir" ;;
+  esac
+  GIT_TERMINAL_PROMPT=0 timeout 30 git -C "$d" ls-remote --exit-code --heads origin main >/dev/null 2>&1 || rc=$?
+  [ "$rc" = 2 ]
+}
+
 revisar_push() {
   local dir="$1"
   shift
@@ -95,7 +121,9 @@ revisar_push() {
   rama=$(rama_de "$dir")
   case "$rama" in
     '') bloquear "git push sin una rama (HEAD suelto o fuera de un repo): no se sabe qué se publica." ;;
-    main) bloquear "git push desde main: main avanza por PR (docs/FLUJO.md). Trabaja en tu rama y empújala." ;;
+    main)
+      primer_push_de_main "$dir" "$@" && return 0
+      bloquear "git push desde main: main avanza por PR (docs/FLUJO.md). Trabaja en tu rama y empújala." ;;
   esac
   case "${#pos[@]}" in
     0 | 1) ;;
