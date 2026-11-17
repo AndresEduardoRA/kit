@@ -28,9 +28,10 @@ import {
 import { secretosEn } from './secretos.mjs'
 import * as S from './semilla.mjs'
 
-// Lo que es del kit y no viaja a un proyecto: lo de scripts/kit/ que no es flujo (el generador y la publicación), su skill, el
-// validador y la semilla de ejemplo, las lecciones de las semillas (nombran el flujo viejo), el estado de todo el proyecto
-// (`proyecto.sh`: mira `proyectos/`, no un repo) y lo generado. Lo de scripts/kit/ que es flujo (actualizar.mjs y lo que usa) sí viaja.
+// Lo que es del kit y no viaja a un proyecto: lo de scripts/kit/ que no es flujo (el generador, la publicación y traer al kit lo de
+// un proyecto), sus skills, el validador y la semilla de ejemplo, las lecciones de las semillas (nombran el flujo viejo), el estado de
+// todo el proyecto (`proyecto.sh`: mira `proyectos/`, no un repo) y lo generado. Lo de scripts/kit/ que es flujo (actualizar.mjs y lo
+// que usa) sí viaja.
 const FLUJO = patronesDelKit()
 const NO_VIAJA = [
   { test: (/** @type {string} */ f) => f.startsWith('scripts/kit/') && !esFlujo(f, FLUJO) },
@@ -38,6 +39,7 @@ const NO_VIAJA = [
   /^scripts\/semilla\//,
   /^docs\/semillas\//,
   /^\.claude\/skills\/semilla-a-repo\//,
+  /^\.claude\/skills\/traer-de-proyecto\//,
   /^docs\/MAPA\.md$/,
   /^\.kit\/plantilla$/,
   /^kit-protegidos\.tgz$/,
