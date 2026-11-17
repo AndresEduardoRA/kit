@@ -508,6 +508,9 @@ preparar_carril() {
     volver "los tres carriles están ocupados (¿tienes uno abierto con Orca?)"
     return 1
   fi
+  # Un preparar.sh que cayó a mitad dejó `.env.carril`: esa letra seguiría contando como usada y las demás tareas verían «los tres
+  # carriles ocupados» sin que nadie los use. Se suelta (baja lo que haya quedado de su stack) antes de volver a la cola.
+  soltar_carril
   sumar "$ID" fallos_carril
   if [ "$(num "$ID" fallos_carril)" -ge 3 ]; then
     trabar "$ID" "preparar.sh falló 3 veces (Docker, Supabase o pnpm). Mira .orquestador/estado/$ID/preparar.log."
