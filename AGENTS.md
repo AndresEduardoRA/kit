@@ -20,7 +20,7 @@ Un cambio es una rama, un PR con auto-merge y el CI que decide (`docs/FLUJO.md`)
 ## Comandos
 
 `pnpm dev` · `test` · `lint` · `typecheck` · `test:e2e <spec>` · `test:e2e:completo` · `db:reset` · `db:types` · `db:probar` (`db:probar:rapido` al trabajar) · `db:lint` ·
-`env:check` · `mapa` · `bash scripts/flujo/publicar.sh`. La base y el e2e van con candado (`scripts/candado.sh`); en un carril, siempre por `pnpm`, nunca `supabase` suelto.
+`env:check` · `mapa` · `contrato:generar` · `contrato:probar` · `contrato:tipos` · `contrato:usar` (`.claude/rules/contratos.md`) · `bash scripts/flujo/publicar.sh`. La base y el e2e van con candado (`scripts/candado.sh`); en un carril, siempre por `pnpm`, nunca `supabase` suelto.
 
 ## Arquitectura: monolito modular
 
