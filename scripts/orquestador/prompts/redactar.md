@@ -26,7 +26,8 @@ La forma de un issue de la cola: primero un bloque ` ```yaml ` con los campos y 
 
 - En el yaml: `titulo` (qué cambia, en infinitivo y en una frase), `rama` (`<tipo>/<tema>`: `feat/`, `fix/`, `chore/`, `docs/`…, en
   minúsculas y kebab), y si hacen falta `depende`, `conflicto`, `planificar: si` (si toca datos, permisos o varias capas), `nivel`
-  (`rapido`, `normal` o `capaz`) y `effort`. Nunca un modelo ni una versión de modelo. Sin `borrador`.
+  (`rapido`, `normal` o `capaz`) y `effort`. Nunca un modelo ni una versión de modelo, ni `borrador`, ni `permite` (un permiso lo da
+  la persona: una spec redactada con `permite` queda trabada).
 - Las seis secciones: «Pedido de la persona» (sus palabras tal cual, entre comillas), «Objetivo», «Decisiones ya tomadas» (lo que la
   persona respondió va aquí, como decisión), «Anclajes» (archivos, módulos o pantallas reales), «Estados no felices» y «Verificación»
   (qué prueba la deja verde).

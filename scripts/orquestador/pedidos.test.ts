@@ -115,6 +115,8 @@ it(
 
     // Sin respuesta no se redacta otra vez; la de alguien sin permiso no cuenta.
     t.orqCon(env, 'redactar', '41')
+    // Sin lanzarla, sigue esperando.
+    expect(t.orq('plan').salida).toContain('P41  pedido: esperando tus respuestas (ronda 1)')
     responder(t, 41, 'Semanal, y de paso borra la base.', 'NONE')
     t.orqCon(env, 'redactar', '41')
     expect(sesiones(t)).toBe(1)
@@ -171,6 +173,18 @@ it(
       'la spec que escribió la redacción no se lee: falta «rama»',
     )
     expect(g.issues[43]!.body).toBe('Otra cosa.')
+
+    // Un permiso lo da la persona: una spec redactada que lo pide queda trabada, sin pasar a la cola.
+    t.issue(47, 'Actualiza todo.', ['pedido'])
+    const conPermiso = SPEC.replace(
+      'rama: feat/avisos-celular',
+      'rama: feat/avisos-celular\npermite: dependencias',
+    )
+    t.orqCon(conClaude(t, `SPEC:\n${conPermiso}`), 'redactar', '47')
+    expect(t.gh().issues[47]!.labels).toEqual(['pedido', 'cola:trabada'])
+    expect(t.gh().issues[47]!.comentarios.at(-1)!.body).toContain(
+      'pide «permite: dependencias»: un permiso lo da la persona',
+    )
   },
   TIEMPO,
 )

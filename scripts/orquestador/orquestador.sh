@@ -72,6 +72,8 @@ source "$ORQ/cola-entrada.sh"
 # Un pedido en texto libre (un issue con `pedido`), redactado como spec por una sesión en modo plan.
 # shellcheck source=pedidos.sh
 source "$ORQ/pedidos.sh"
+# shellcheck source=pedidos-salida.sh
+source "$ORQ/pedidos-salida.sh"
 # Los niveles de modelo (rapido, normal, capaz) y qué alias es cada uno.
 # shellcheck source=niveles.sh
 source "$ORQ/niveles.sh"
