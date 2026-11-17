@@ -1,0 +1,178 @@
+import { execFileSync, spawnSync } from 'node:child_process'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { afterAll } from 'vitest'
+
+// El escenario de las pruebas de la cola en los issues (cola-github*.test.ts): el guion real en un repo temporal con su
+// manifiesto, y un `gh` falso primero en el PATH (gh-falso.mjs) que guarda un «GitHub» en un JSON y anota cada llamada con su
+// token. Nada sale a la red. Cada llamada al guion ronda un segundo (lanza node varias veces): las pruebas llevan TIEMPO.
+const raices: string[] = []
+afterAll(() => {
+  for (const r of raices) rmSync(r, { recursive: true, force: true })
+})
+
+export const TIEMPO = 60_000
+
+const MANIFIESTO = `esquema: proyecto/v1
+proyecto: tienda
+nombre: Tienda
+semilla: null
+repos:
+  - { rol: app, nombre: tienda-app, github: Cuenta/tienda-app, etapa: construccion, semilla: null, puertos: { bloque: 6 } }
+  - { rol: web, nombre: tienda-web, github: Otra/tienda-web, etapa: construccion, semilla: null, puertos: { bloque: 7 } }
+contratos: []
+`
+
+// Como las de ../tareas: `id: K06` no es un id de la cola y queda como origen.
+export const K06 = `---
+id: K06
+titulo: repartir el límite entre orquestadores
+rama: feat/turnos-y-niveles
+depende: kit:feat/cola-en-issues
+conflicto: orquestador
+planificar: si
+effort: high
+---
+
+## Pedido de la persona
+
+«Dos orquestadores se reparten el límite a mano.»
+
+## Decisiones ya tomadas
+
+- Turnos por máquina con flock.
+
+## Verificación
+
+pnpm test.
+`
+
+/** El cuerpo de un issue de la cola: el bloque yaml y una sección. */
+export const cuerpo = (rama: string, extra = '') =>
+  `\`\`\`yaml\ntitulo: tarea de ${rama}\nrama: ${rama}\n${extra}\`\`\`\n\n## Decisiones ya tomadas\n\n- Lo de siempre.\n`
+
+type Issue = {
+  number: number
+  title: string
+  body: string
+  labels: string[]
+  state: string
+  autor?: string
+  comentarios: { id: number; body: string; created_at: string; author_association?: string }[]
+}
+type Gh = {
+  repo: string
+  siguiente: number
+  siguienteComentario: number
+  issues: Record<string, Issue>
+  etiquetas: string[]
+  prs: Record<string, { number: number; rama: string; estado: string }[]>
+  cuentas: string[]
+  sinRed?: boolean
+  limite?: boolean
+  issueEditFalla?: boolean
+}
+
+/** Un repo temporal con el guion, el manifiesto, su `.orquestador/` y el `gh` falso; devuelve sus carpetas. */
+function prepararRepo(local: string) {
+  const repo = mkdtempSync(join(tmpdir(), 'orq-issues-'))
+  raices.push(repo)
+  execFileSync('git', ['init', '-q', '-b', 'main', repo])
+  execFileSync('git', [
+    '-C',
+    repo,
+    'remote',
+    'add',
+    'origin',
+    'https://github.com/Cuenta/tienda-app.git',
+  ])
+  mkdirSync(join(repo, 'scripts/proyecto'), { recursive: true })
+  cpSync(resolve('scripts/orquestador'), join(repo, 'scripts/orquestador'), { recursive: true })
+  cpSync(resolve('scripts/proyecto/manifiesto.mjs'), join(repo, 'scripts/proyecto/manifiesto.mjs'))
+  symlinkSync(resolve('node_modules'), join(repo, 'node_modules'))
+  mkdirSync(join(repo, '.proyecto'))
+  writeFileSync(join(repo, '.proyecto/proyecto.yaml'), MANIFIESTO)
+  const datos = join(repo, '.orquestador')
+  mkdirSync(join(datos, 'cola'), { recursive: true })
+  writeFileSync(join(datos, 'config.local.env'), local)
+  const falso = join(repo, '.gh-falso')
+  mkdirSync(join(falso, 'bin'), { recursive: true })
+  writeFileSync(
+    join(falso, 'bin/gh'),
+    `#!/usr/bin/env bash\nexec node ${resolve('scripts/orquestador/prueba/gh-falso.mjs')} "$@"\n`,
+    { mode: 0o755 },
+  )
+  return { repo, datos, falso }
+}
+
+export function escenario(local = '') {
+  const { repo, datos, falso } = prepararRepo(local)
+  const ruta = join(falso, 'estado.json')
+  const inicial: Gh = {
+    repo: 'Cuenta/tienda-app',
+    siguiente: 5,
+    siguienteComentario: 1000,
+    issues: {},
+    etiquetas: ['bug'],
+    prs: {},
+    cuentas: ['Cuenta'],
+    issueEditFalla: true,
+  }
+  writeFileSync(ruta, JSON.stringify(inicial))
+
+  const gh = (): Gh => JSON.parse(readFileSync(ruta, 'utf8')) as Gh
+  const cambiarGh = (f: (g: Gh) => void) => {
+    const g = gh()
+    f(g)
+    writeFileSync(ruta, JSON.stringify(g))
+  }
+  const issue = (n: number, body: string, labels = ['cola']) =>
+    cambiarGh((g) => {
+      g.issues[n] = { number: n, title: `issue ${n}`, body, labels, state: 'open', comentarios: [] }
+      g.siguiente = Math.max(g.siguiente, n + 1)
+    })
+  const orq = (...args: string[]) => {
+    const r = spawnSync('bash', [join(repo, 'scripts/orquestador/orquestador.sh'), ...args], {
+      encoding: 'utf8',
+      env: {
+        NODE_ENV: 'test',
+        HOME: datos,
+        PATH: `${join(falso, 'bin')}:${process.env['PATH'] ?? ''}`,
+        GH_FALSO: falso,
+      },
+    })
+    return { estado: r.status, salida: r.stdout + r.stderr }
+  }
+  // Las llamadas a GitHub (sin `gh auth token`, que lee la sesión local).
+  const llamadas = (): { args: string[]; token: string }[] =>
+    existsSync(join(falso, 'llamadas.log'))
+      ? readFileSync(join(falso, 'llamadas.log'), 'utf8')
+          .trim()
+          .split('\n')
+          .map((l) => JSON.parse(l) as { args: string[]; token: string })
+          .filter((l) => l.args[0] !== 'auth')
+      : []
+  const cola = () => readdirSync(join(datos, 'cola')).sort()
+  const spec = (nombre: string) => readFileSync(join(datos, 'cola', nombre), 'utf8')
+  const est = (id: string, k: string) => {
+    const f = join(datos, 'estado', id, k)
+    return existsSync(f) ? readFileSync(f, 'utf8').trim() : ''
+  }
+  const ponerEst = (id: string, k: string, v: string) => {
+    mkdirSync(join(datos, 'estado', id), { recursive: true })
+    writeFileSync(join(datos, 'estado', id, k), `${v}\n`)
+  }
+  const log = () => readFileSync(join(datos, 'estado/orquestador.log'), 'utf8')
+  return { datos, gh, cambiarGh, issue, orq, llamadas, cola, spec, est, ponerEst, log }
+}
