@@ -3,9 +3,11 @@
 #
 #   pesado=true|false        la base (`base`): el cambio toca código, base, e2e, scripts o la configuración que los mueve
 #   e2e=true|false           el e2e en bloques: pesado y, además, el evento lo pide (pull_request, schedule y workflow_dispatch; no push)
-#   contrato=true|false      el proveedor (`contrato`): toca la base, sus contratos, los scripts de contratos o el manifiesto
+#   contrato=true|false      el proveedor (`contrato`): toca la base, sus contratos, el manifiesto o lo que el job corre (los scripts
+#                            de contratos, el lector del manifiesto, la pila y el candado, el CI y las dependencias)
 #   contrato_uso=true|false  el consumidor (`contrato-uso`): toca las copias fijadas, el manifiesto, algún `infra/`, los tipos de los
-#                            contratos o sus scripts (.claude/rules/contratos.md)
+#                            contratos o lo que el job corre (sus scripts, el lector del manifiesto, el CI y las dependencias)
+#                            (.claude/rules/contratos.md)
 #
 # `schedule` (el completo de cada noche sobre main) corre sólo si main tuvo commits en las últimas 25 horas.
 #
@@ -15,12 +17,13 @@
 # Ante la duda corre todo: sin commit de comparación (push de una rama nueva, `before` en ceros), con un commit que el clon no
 # tiene (un clon superficial: el job pide `fetch-depth: 0`; un push forzado) o si `git diff` falla. En esos caminos (y en la noche)
 # los dos de contratos valen lo mismo que `pesado`.
+# El diff va con `--no-renames`: mover un archivo fuera de `infra/` también cuenta como tocar `infra/`.
 # Se prueba en `scripts/ci-cambios.test.ts`.
 set -uo pipefail
 
 PATRON='^(src/|supabase/|e2e/|scripts/|\.github/|package\.json$|pnpm-lock\.yaml$|playwright\.config\.ts$|next\.config\.ts$)'
-PATRON_CONTRATO='^(supabase/|contratos/|scripts/contratos/|\.proyecto/proyecto\.yaml$)'
-PATRON_CONTRATO_USO='^(\.proyecto/contratos/|\.proyecto/proyecto\.yaml$|src/(.+/)?infra/|src/shared/types/contratos/|scripts/contratos/)'
+PATRON_CONTRATO='^(supabase/|contratos/|\.proyecto/proyecto\.yaml$|scripts/(contratos|proyecto|lib)/|scripts/candado\.sh$|\.github/|package\.json$|pnpm-lock\.yaml$)'
+PATRON_CONTRATO_USO='^(\.proyecto/contratos/|\.proyecto/proyecto\.yaml$|src/(.+/)?infra/|src/shared/types/contratos/|scripts/(contratos|proyecto)/|\.github/|package\.json$|pnpm-lock\.yaml$)'
 CEROS=0000000000000000000000000000000000000000
 EVENTO="${EVENTO:-}"
 
@@ -60,7 +63,7 @@ if ! git cat-file -e "${desde}^{commit}" 2>/dev/null; then
   salir true "el clon no tiene ${desde:0:12} (¿superficial o push forzado?)"
 fi
 
-if ! archivos=$(git diff --name-only "${desde}...${hasta}" 2>/dev/null); then
+if ! archivos=$(git diff --name-only --no-renames "${desde}...${hasta}" 2>/dev/null); then
   salir true "git diff ${desde:0:12}...${hasta} falló"
 fi
 tocados=$(grep -cE "$PATRON" <<< "$archivos" || true)

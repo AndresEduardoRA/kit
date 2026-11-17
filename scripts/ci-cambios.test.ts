@@ -218,6 +218,24 @@ describe('ci-cambios.sh › los contratos', () => {
     })
   })
 
+  it('lo que los dos jobs corren (dependencias, CI): los dos; la pila o el candado: el proveedor', () => {
+    expect(pr('deps', ['package.json'])).toMatchObject({ contrato: 'true', contrato_uso: 'true' })
+    expect(pr('pila', ['scripts/lib/stack-local.mjs'])).toMatchObject({
+      contrato: 'true',
+      contrato_uso: 'false',
+    })
+  })
+
+  it('mover un archivo fuera de infra/ también toca infra/ (sin detección de renombres)', () => {
+    commitear('a-mover', ['src/modules/mover/infra/lector.ts'])
+    mkdirSync(join(repo, 'src/modules/mover/features'), { recursive: true })
+    git(repo, 'mv', 'src/modules/mover/infra/lector.ts', 'src/modules/mover/features/lector.ts')
+    const antes = git(repo, 'rev-parse', 'HEAD')
+    git(repo, 'commit', '-q', '-m', 'mover')
+    const salida = decidir(repo, { EVENTO: 'pull_request', BASE_PR: antes }, 'HEAD')
+    expect(salida.contrato_uso).toBe('true')
+  })
+
   it('sólo docs: ninguno; otro src/ que no es infra/: ninguno', () => {
     expect(pr('docs-c', ['docs/KIT.md'])).toEqual(NADA)
     expect(pr('features', ['src/modules/turnos/features/x/accion.ts'])).toMatchObject({
