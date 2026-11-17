@@ -72,6 +72,12 @@ test('el manifiesto real de calesa se lee: repo propio por nombre, cuenta, puert
     () => repoPropio(m, 'calesa-crm'),
     /no está en el manifiesto de calesa.*calesa-app, calesa-web/,
   )
+  // Sin remoto vale la carpeta: un repo recién creado vive en z_<proyecto>/<rol>.
+  assert.equal(repoPropio(m, 'web'), web)
+  assert.equal(repoPropio(m, 'app'), app)
+  // Un repo que en GitHub se llama distinto se reconoce por el nombre de su remoto.
+  const ajeno = leerManifiesto(CALESA.replace('AndresEduardoRA/calesa-app', 'Otra/calesa.app'))
+  assert.equal(repoPropio(ajeno, 'calesa.app').nombre, 'calesa-app')
 })
 
 test('un manifiesto de un solo repo no necesita el nombre; los contratos se reparten por repo', () => {

@@ -107,12 +107,17 @@ export function leerManifiesto(texto, archivo = RUTA_MANIFIESTO) {
 }
 
 /**
- * El repo propio: el que se llama `nombre`. Un manifiesto de un solo repo no necesita el nombre; con varios, uno que no está falla
- * diciendo cuáles son. Puro.
+ * El repo propio: el que se llama `nombre` (el del remoto o el de la carpeta). Si ninguno se llama así, el que tiene ese nombre en
+ * `github` (un repo ajeno guarda ahí su nombre real) o ese `rol`: la carpeta de un repo es `z_<proyecto>/<rol>`, y un repo recién
+ * creado todavía no tiene remoto. Un manifiesto de un solo repo no necesita el nombre; con varios, uno que no está falla diciendo
+ * cuáles son. Puro.
  * @param {Manifiesto} m  @param {string | null | undefined} nombre
  */
 export function repoPropio(m, nombre) {
-  const r = m.repos.find((x) => x.nombre === nombre)
+  const r =
+    m.repos.find((x) => x.nombre === nombre) ??
+    m.repos.find((x) => x.github.split('/')[1] === nombre) ??
+    m.repos.find((x) => x.rol === nombre)
   if (r) return r
   if (m.repos.length === 1 && m.repos[0]) return m.repos[0]
   throw new ManifiestoInvalido(
