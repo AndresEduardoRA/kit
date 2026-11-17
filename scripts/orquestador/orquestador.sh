@@ -55,6 +55,8 @@ fi
 MANIFIESTO="$REPO/scripts/proyecto/manifiesto.mjs"
 # Un campo del repo propio, o nada: sin manifiesto, o con uno inválido (el motivo sale por stderr: no se traga).
 manifiesto() { [ -f "$REPO/.proyecto/proyecto.yaml" ] && node "$MANIFIESTO" "$1" "$REPO" || true; }
+# El kit es el kit: su manifiesto es el del proyecto de ejemplo y daría el nombre de ese proyecto.
+[ -n "${PROYECTO:-}" ] || [ ! -f "$REPO/.kit/plantilla" ] || PROYECTO=kit
 [ -n "${PROYECTO:-}" ] || PROYECTO=$(manifiesto nombre)
 SERVICIO="orquestador-${PROYECTO:?falta PROYECTO: fíjalo en config.env o dalo en .proyecto/proyecto.yaml (node scripts/proyecto/manifiesto.mjs nombre)}"
 
