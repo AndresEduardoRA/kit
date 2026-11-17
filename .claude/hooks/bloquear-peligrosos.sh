@@ -6,6 +6,9 @@
 #                   sin forzar, o una etiqueta nueva; main avanza por PR: docs/FLUJO.md), lo remoto (supabase contra el proyecto
 #                   remoto salvo leer, link, secrets, config push, functions deploy, gh api …/dispatches, vercel), cambiar
 #                   dependencias y saltarse el candado de la base (`scripts/candado.sh`).
+#   Dependencias:   la tarea con `permite: dependencias` (el orquestador la corre con ORQ_PERMITE=dependencias) sí corre
+#                   `pnpm update` dentro de los rangos de package.json (sin --latest, -g, -i ni una versión) y `pnpm dedupe`. ORQ_PERMITE se
+#                   lee del entorno del hook, que es el del proceso `claude`: un `ORQ_PERMITE=x pnpm …` escrito en el comando no cuenta.
 #   El revisor:     su Bash es de sólo lectura (`solo-lectura.sh`) aunque la carpeta no esté confiada: los hooks del frontmatter de
 #                   `.claude/agents/revisor.md` sólo corren con la carpeta confiada y `claude -p` (el orquestador) no la confía; los de
 #                   settings sí corren y su entrada trae `agent_type`.
@@ -199,14 +202,54 @@ revisar_supabase() {
   esac
 }
 
+# Un permiso que el orquestador le dio a esta sesión (`permite:` de la spec → ORQ_PERMITE, separados por espacio o coma).
+permite() {
+  local p=${ORQ_PERMITE:-}
+  [[ " ${p//,/ } " == *" $1 "* ]]
+}
+
+# `pnpm update` de la tarea de dependencias: dentro de los rangos de package.json. --latest (-L), global (-g), interactivo (-i) o una
+# versión pedida (`zod@4`) cambian los rangos: eso lo decide una persona.
+revisar_update_permitido() {
+  local t
+  for t in "$@"; do
+    case "$t" in
+      --latest* | --global* | --interactive*) bloquear "pnpm update $t sale de los rangos de package.json: lo decide una persona." ;;
+      --*) ;;
+      -*[Lgi]*) bloquear "pnpm update $t (-L, -g o -i) sale de los rangos de package.json: lo decide una persona." ;;
+      -*) ;;
+      ?*@*) bloquear "pnpm update $t pide una versión: sólo dentro de los rangos de package.json." ;;
+    esac
+  done
+}
+
 revisar_pnpm() {
-  local sub="${A[0]:-}"
+  local i=0 sub
+  # Las opciones del principio no esconden el subcomando: `pnpm -r update`, `pnpm --filter web add zod`.
+  while [ "$i" -lt "${#A[@]}" ]; do
+    case "${A[$i]}" in
+      --filter | -F | --dir | -C | --workspace-dir | --reporter | --loglevel) i=$((i + 2)) ;;
+      -*) i=$((i + 1)) ;;
+      *) break ;;
+    esac
+  done
+  sub="${A[$i]:-}"
+  local R=("${A[@]:$((i + 1))}")
   case "$sub" in
-    add* | up | update | upgrade | up*) bloquear "pnpm $sub cambia dependencias: se verifican y las decide una persona." ;;
+    up | update | upgrade)
+      if permite dependencias; then
+        revisar_update_permitido "${R[@]}"
+      else
+        bloquear "pnpm $sub cambia dependencias: se verifican y las decide una persona (la tarea de dependencias lo corre con «permite: dependencias»)."
+      fi ;;
+    add* | up*) bloquear "pnpm $sub cambia dependencias: se verifican y las decide una persona." ;;
     remove | rm | uninstall | un) bloquear "pnpm $sub cambia dependencias: lo decide una persona." ;;
     i | install)
-      hay_posicional "${A[@]:1}" && bloquear "pnpm $sub <paquete> cambia dependencias: lo decide una persona." ;;
-    next) [ "${A[1]:-}" = upgrade ] && bloquear "next upgrade lo decide una persona." ;;
+      hay_posicional "${R[@]}" && bloquear "pnpm $sub <paquete> cambia dependencias: lo decide una persona." ;;
+    dedupe)
+      [[ " ${R[*]} " == *" --check "* ]] || permite dependencias ||
+        bloquear "pnpm dedupe reescribe pnpm-lock.yaml: lo hace la tarea de dependencias (permite: dependencias)." ;;
+    next) [ "${R[0]:-}" = upgrade ] && bloquear "next upgrade lo decide una persona." ;;
   esac
 }
 
