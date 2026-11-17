@@ -4,21 +4,13 @@
 // «Decisiones tomadas sin preguntar». Como nuevo-proyecto.test.mjs, sin python3 con PyYAML se salta (salvo SEMILLA_EXIGE_PYYAML=1).
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs'
-import { tmpdir } from 'node:os'
+import { cpSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { leerManifiesto } from '../proyecto/manifiesto.mjs'
 import { crear } from './nuevo-proyecto.mjs'
+import { carpetaTemporal } from '../lib/temporal.mjs'
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const hayPyYaml = spawnSync('python3', ['-c', 'import yaml']).status === 0
@@ -88,7 +80,7 @@ function cola() {
 
 /** El repo app del ejemplo, con node_modules del kit, un gh falso primero en el PATH y la cola de arriba. */
 function montar() {
-  const raiz = mkdtempSync(join(tmpdir(), 'cierre-'))
+  const raiz = carpetaTemporal('cierre-')
   cpSync(join(KIT, 'scripts/semilla/ejemplo/semilla'), join(raiz, 'z_turnero/semilla'), {
     recursive: true,
   })

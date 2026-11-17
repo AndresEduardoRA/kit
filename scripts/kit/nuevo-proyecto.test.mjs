@@ -7,14 +7,12 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -24,6 +22,7 @@ import { crear, resumen } from './nuevo-proyecto.mjs'
 import { personalizar } from './personalizar.mjs'
 import { reemplazos } from './reemplazos.mjs'
 import { archivosDelKit } from './repo-nuevo.mjs'
+import { carpetaTemporal } from '../lib/temporal.mjs'
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const hayPyYaml = spawnSync('python3', ['-c', 'import yaml']).status === 0
@@ -34,7 +33,7 @@ const conValidador = hayPyYaml || exige ? describe : describe.skip
 
 /** Una raíz de proyectos temporal con la semilla de ejemplo en z_turnero/semilla, con `cambio(dir)` aplicado. */
 function proyecto(cambio = () => {}) {
-  const raiz = mkdtempSync(join(tmpdir(), 'proyectos-'))
+  const raiz = carpetaTemporal('proyectos-')
   const semilla = join(raiz, 'z_turnero', 'semilla')
   cpSync(join(KIT, 'scripts/semilla/ejemplo/semilla'), semilla, { recursive: true })
   cambio(semilla)
@@ -235,7 +234,7 @@ conValidador('nuevo-proyecto.mjs sobre el ejemplo turnero', () => {
   })
 
   test('se niega: sin semilla, semilla que no valida, marcas «verificar», sin auditoría', () => {
-    const vacia = mkdtempSync(join(tmpdir(), 'proyectos-'))
+    const vacia = carpetaTemporal('proyectos-')
     assert.throws(() => crear('turnero', { raiz: vacia }), /no hay semilla en .*z_turnero\/semilla/)
     const rota = proyecto((s) =>
       editar(join(s, 'comun.md'), (t) => t.replace('Pagos en línea,', 'Pagos en línea, etc.,')),
