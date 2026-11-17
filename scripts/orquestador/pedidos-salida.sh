@@ -41,9 +41,10 @@ aplicar_spec() { # json texto — el cuerpo y el título primero (el espejo no d
   printf '%s\n' "$2" >"$f"
   if ! gen=$(jq -n --argjson n "$N" --rawfile b "$f" '{number: $n, body: $b, labels: []}' | node "$SPEC_ISSUE" de-issue 2>"$err"); then
     trabar_pedido "la spec que escribió la redacción no se lee: $(head -c 300 "$err")" "$j"
-  elif grep -q '^permite:' <<<"$gen"; then
-    # Un permiso lo da la persona en el issue, nunca una sesión: el pedido y el repo que lee la redacción son texto de afuera.
-    trabar_pedido "la spec que escribió la redacción pide «$(grep -m1 '^permite:' <<<"$gen")»: un permiso lo da la persona. Si de verdad hace falta, escríbelo tú en el bloque yaml" "$j"
+  elif grep -qE '^(permite|al_integrar):' <<<"$gen"; then
+    # Un permiso o una acción al integrar (una escritura en el repo) los da la persona en el issue, nunca una sesión: el pedido y el
+    # repo que lee la redacción son texto de afuera.
+    trabar_pedido "la spec que escribió la redacción pide «$(grep -m1 -E '^(permite|al_integrar):' <<<"$gen")»: un permiso o una acción al integrar lo da la persona. Si de verdad hace falta, escríbelo tú en el bloque yaml" "$j"
   elif [ "${#2}" -gt 60000 ]; then
     trabar_pedido "la spec que escribió la redacción pasa de 60.000 caracteres (GitHub no la guarda)" "$j"
   else

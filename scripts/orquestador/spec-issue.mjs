@@ -115,6 +115,25 @@ export function problemaDeModelo(clave, v) {
  * `ORQ_PERMITE=<permite>` y el hook de Bash lo lee. Otra palabra deja la spec rota. */
 export const PERMISOS = ['dependencias']
 
+/** Lo que una spec puede pedir con `al_integrar:` (README.md › «Al integrar»): el orquestador lo hace cuando la tarea se integra
+ * (al-integrar.sh). Hoy sólo `etiquetar <nombre>`. Otra cosa deja la spec rota. */
+export const ACCIONES_AL_INTEGRAR = ['etiquetar']
+/** El nombre de una etiqueta que crea `al_integrar` (al-integrar.sh valida con el mismo regex: el nombre va a un filtro jq). */
+export const NOMBRE_DE_ETIQUETA = /^[A-Za-z0-9]+([._-][A-Za-z0-9]+)*$/
+
+/** @param {string} accion */
+function exigirAlIntegrar(accion) {
+  if (!accion) return
+  const [verbo = '', nombre = '', ...resto] = accion.split(/\s+/)
+  const ok =
+    ACCIONES_AL_INTEGRAR.includes(verbo) &&
+    resto.length === 0 &&
+    nombre.length <= 100 &&
+    NOMBRE_DE_ETIQUETA.test(nombre)
+  if (!ok)
+    throw new SpecRota(`«al_integrar: ${accion}» no es una acción conocida (etiquetar <nombre>)`)
+}
+
 /** @param {{ campos: [string, string][] }} t */
 function exigir(t) {
   if (!valor(t, 'titulo')) throw new SpecRota('falta «titulo»')
@@ -131,6 +150,7 @@ function exigir(t) {
     .filter(Boolean))
     if (!PERMISOS.includes(p))
       throw new SpecRota(`«permite: ${p}» no es un permiso conocido (${PERMISOS.join(', ')})`)
+  exigirAlIntegrar(valor(t, 'al_integrar'))
 }
 
 /**

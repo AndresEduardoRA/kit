@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  ACCIONES_AL_INTEGRAR,
   agregarDecision,
   archivoDeIssue,
   canonDeArchivo,
@@ -162,6 +163,27 @@ test('«permite»: sólo los permisos conocidos (dependencias); otra palabra dej
   assert.throws(issue('permite: dependencias red'), /«permite: red» no es un permiso conocido/)
   assert.throws(
     () => canonDeArchivo('---\ntitulo: x\nrama: feat/x\npermite: sudo\n---\n'),
+    SpecRota,
+  )
+})
+
+test('«al_integrar»: sólo «etiquetar <nombre>»; otra cosa deja la spec rota', () => {
+  const issue = (extra) => () =>
+    archivoDeIssue({ number: 3, body: `\`\`\`yaml\ntitulo: x\nrama: feat/x\n${extra}\n\`\`\`\n` })
+  assert.deepEqual(ACCIONES_AL_INTEGRAR, ['etiquetar'])
+  assert.match(
+    issue('al_integrar: etiquetar semilla-v1')(),
+    /\nal_integrar: etiquetar semilla-v1\n/,
+  )
+  assert.match(
+    issue('al_integrar: [etiquetar, semilla-v1]')(),
+    /\nal_integrar: etiquetar semilla-v1\n/,
+  )
+  for (const mala of ['borrar x', 'etiquetar', 'etiquetar a b', '"etiquetar x;y"'])
+    assert.throws(issue(`al_integrar: ${mala}`), /no es una acción conocida \(etiquetar <nombre>\)/)
+  assert.throws(issue(`al_integrar: etiquetar ${'a'.repeat(101)}`), SpecRota)
+  assert.throws(
+    () => canonDeArchivo('---\ntitulo: x\nrama: feat/x\nal_integrar: etiquetar ../x\n---\n'),
     SpecRota,
   )
 })
