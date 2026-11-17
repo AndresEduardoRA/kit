@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avisoDeInestables, marcaDeFecha, sobrantes } from './e2e-fallos'
+import { avisoDeInestables, lineasDeCaidos, marcaDeFecha, sobrantes } from './e2e-fallos'
 
 describe('e2e-fallos', () => {
   it('la carpeta se llama con la fecha y la hora, ordenable', () => {
@@ -41,5 +41,30 @@ describe('e2e-fallos', () => {
     ])
     expect(r.resumen).toContain('### e2e inestables (1)')
     expect(r.resumen).toContain('- `e2e/leads-etiquetas.spec.ts:216` agrega una etiqueta (movil)')
+  })
+
+  it('las caídas son una línea por prueba, sin repetidas y ordenadas; sin caídas, nada', () => {
+    const caida = (archivo: string, linea: number, proyecto = 'escritorio') => ({
+      archivo,
+      linea,
+      titulo: `E2E ${proyecto} prueba`,
+      proyecto,
+    })
+    expect(lineasDeCaidos([])).toBe('')
+    expect(
+      lineasDeCaidos([
+        caida('e2e/leads.spec.ts', 40),
+        caida('e2e/inicio.spec.ts', 12),
+        caida('e2e/leads.spec.ts', 40),
+        caida('e2e/inicio.spec.ts', 12, 'movil'),
+      ]),
+    ).toBe(
+      [
+        'e2e/inicio.spec.ts:12 › E2E escritorio prueba (escritorio)',
+        'e2e/inicio.spec.ts:12 › E2E movil prueba (movil)',
+        'e2e/leads.spec.ts:40 › E2E escritorio prueba (escritorio)',
+        '',
+      ].join('\n'),
+    )
   })
 })

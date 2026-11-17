@@ -41,3 +41,15 @@ export function avisoDeInestables(inestables: readonly Inestable[]): {
   ].join('\n')
   return { anotaciones, resumen }
 }
+
+// El archivo, dentro de la carpeta de una corrida que falló, con las pruebas que cayeron (las que no pasaron ni al reintentar): lo lee el
+// aviso de la noche (`scripts/flujo/noche.mjs`, con el mismo nombre) para nombrar los specs caídos sin abrir el reporte de Playwright.
+export const CAIDOS = 'caidos.txt'
+
+// Una línea por prueba caída, `archivo:línea › título (proyecto)`, sin repetidas y ordenadas. Sin caídas, nada.
+export function lineasDeCaidos(caidas: readonly Inestable[]): string {
+  const lineas = [
+    ...new Set(caidas.map((c) => `${c.archivo}:${String(c.linea)} › ${c.titulo} (${c.proyecto})`)),
+  ].sort()
+  return lineas.length === 0 ? '' : `${lineas.join('\n')}\n`
+}
