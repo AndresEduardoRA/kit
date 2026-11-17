@@ -251,10 +251,42 @@ revisar_procesos() {
   done
 }
 
+# Imprime qué está lleno si /tmp, el disco del repo o el de las carpetas temporales pasan del tope (inodos o espacio); 1 si hay lugar.
+# Una tarea lanzada sin lugar se traba a mitad (sin pruebas, sin publicar) y otra ni crea su worktree: mejor no lanzar y esperar.
+sin_lugar() {
+  local d punto uso_i uso_b tope=$((100 - ${MIN_LIBRE_PCT:-5})) llenos="" vistos=" "
+  [ -n "${TMP_TAREAS:-}" ] && mkdir -p "$TMP_TAREAS" 2>/dev/null
+  for d in /tmp "$REPO" ${TMP_TAREAS:+"$TMP_TAREAS"}; do
+    read -r punto uso_i uso_b < <(df --output=target,ipcent,pcent "$d" 2>/dev/null | tail -n 1) || continue
+    [[ "$vistos" == *" $punto "* ]] && continue
+    vistos="$vistos$punto "
+    uso_i=${uso_i%\%} uso_b=${uso_b%\%}
+    [[ "$uso_i" =~ ^[0-9]+$ ]] || uso_i=0 # btrfs y otros no cuentan inodos: «-»
+    [[ "$uso_b" =~ ^[0-9]+$ ]] || uso_b=0
+    [ "$uso_i" -ge "$tope" ] && llenos="$llenos $punto con el $uso_i % de los inodos usados;"
+    [ "$uso_b" -ge "$tope" ] && llenos="$llenos $punto con el $uso_b % del espacio usado;"
+  done
+  [ -n "$llenos" ] || return 1
+  llenos=${llenos# }
+  echo "${llenos%;}"
+}
+
 lanzar() {
-  local libres id s quien orden turnos
+  local libres id s quien orden turnos lleno
   libres=$((PARALELO - $(corriendo_ahora)))
   [ "$libres" -gt 0 ] || return 0
+  if lleno=$(sin_lugar); then
+    if [ ! -f "$EST/.sin-lugar" ]; then
+      touch "$EST/.sin-lugar"
+      log "máquina sin lugar: no lanzo tareas ($lleno)"
+      avisar "Máquina sin lugar" "No lanzo tareas: $lleno. Sigo solo cuando se libere; las que corren siguen." high floppy_disk
+    fi
+    return 0
+  fi
+  if [ -f "$EST/.sin-lugar" ]; then
+    rm -f "$EST/.sin-lugar"
+    log "la máquina tiene lugar otra vez: sigo lanzando"
+  fi
   # El tope del proyecto y el de la máquina: no se lanza un hijo que no va a tener turno.
   turnos=$(turnos_libres)
   if [ "$turnos" = 0 ]; then
@@ -499,7 +531,19 @@ preparar_worktree() {
     git -C "$REPO" worktree add -q -b "$RAMA" "$WT" FETCH_HEAD
   else
     git -C "$REPO" worktree add -q -b "$RAMA" "$WT" origin/main
-  fi || { trabar "$ID" "No se pudo crear el worktree $WT para la rama $RAMA (mira .orquestador/estado/$ID/correr.log)."; return 1; }
+  fi 2>>"$EST/$ID/correr.log" || {
+    # Casi siempre es la máquina (disco o /tmp llenos), no la tarea: se reintenta como un preparar.sh que cayó, sin trabarla a la primera.
+    [ -d "$WT" ] && [ ! -e "$WT/.git" ] && rm -rf "$WT"
+    git -C "$REPO" worktree prune >/dev/null 2>&1
+    sumar "$ID" fallos_carril
+    if [ "$(num "$ID" fallos_carril)" -ge 3 ]; then
+      trabar "$ID" "No se pudo crear el worktree $WT para la rama $RAMA 3 veces (mira .orquestador/estado/$ID/correr.log)."
+    else
+      est_set "$ID" espera_carril_hasta $(($(date +%s) + 300))
+      volver "no se pudo crear el worktree (intento $(num "$ID" fallos_carril)); se reintenta en 5 min"
+    fi
+    return 1
+  }
   local f d
   for f in $INCLUIR; do [ -f "$REPO/$f" ] && cp -p "$REPO/$f" "$WT/$f"; done
   for d in $COMPARTIDAS; do
@@ -740,7 +784,7 @@ despues_de_la_sesion() {
 # --------------------------------------------------------------------------------------------------------------- comandos
 
 cmd_estado() {
-  local id s pr extra
+  local id s pr extra lleno
   cola_invalida
   printf '%-4s %-13s %-6s %-5s %s\n' ID ESTADO PR INT TÍTULO
   for id in $(ids); do
@@ -756,11 +800,12 @@ cmd_estado() {
   echo "Turnos de la máquina: $(turnos_libres) de $TURNOS libres${TURNOS_AVISO:+ ($TURNOS_AVISO)}."
   if [ -f "$EST/.pausa-manual" ]; then echo "⏸  En pausa manual (bash scripts/orquestador/orquestador.sh reanudar)."; fi
   linea_de_pausa
+  if lleno=$(sin_lugar); then echo "⛔ Máquina sin lugar, no lanza tareas: $lleno."; fi
   echo "INT = retomas/arreglos. Trabadas: el motivo está en .orquestador/estado/<ID>/trabada.md"
 }
 
 cmd_plan() {
-  local id s quien motivo libres sin_turno=""
+  local id s quien motivo libres sin_turno="" lleno
   leer_turnos
   libres=$(turnos_libres)
   echo "$PROYECTO · turnos de la máquina: $libres de $TURNOS libres · paralelo $PARALELO"
@@ -768,6 +813,7 @@ cmd_plan() {
   linea_de_pausa
   [ -f "$EST/.pausa-manual" ] && echo "⏸  en pausa manual: no lanza nuevas (bash scripts/orquestador/orquestador.sh reanudar)"
   motivo=$(motivo_para_no_tocar_la_principal) && echo "· $motivo"
+  if lleno=$(sin_lugar); then echo "⛔ Máquina sin lugar, no lanza tareas: $lleno."; fi
   [ "$libres" = 0 ] && sin_turno="espera: sin turno en la máquina ($TURNOS de $TURNOS ocupados: $(turnos_ocupados_por))"
   cola_invalida
   for id in $(ids); do
@@ -866,7 +912,7 @@ cmd_parar() {
 }
 
 cmd_verificar() {
-  local ok=1 c d id f
+  local ok=1 c d id f lleno
   echo "== Herramientas"
   for c in git gh jq claude pnpm node docker flock timeout setsid curl; do
     if command -v "$c" >/dev/null; then echo "✓ $c"; else echo "✗ falta $c ($(paquete_de "$c"))"; ok=0; fi
@@ -896,6 +942,8 @@ cmd_verificar() {
   echo "== Docker"
   if docker info >/dev/null 2>&1; then echo "✓ docker responde"; else echo "✗ docker no responde"; ok=0; fi
   free -g 2>/dev/null | awk '/Mem:/ {print "  RAM: " $2 " GB en total, " $7 " GB disponibles (cada carril con Supabase y un e2e ronda 3-4 GB)"}'
+  echo "== Lugar (/tmp, el repo y las carpetas temporales; tope: ${MIN_LIBRE_PCT:-5} % libre)"
+  if lleno=$(sin_lugar); then echo "✗ $lleno"; ok=0; else echo "✓ hay lugar"; fi
   verificar_maquina || ok=0
   verificar_niveles || ok=0
   echo "== Claude (una llamada mínima)"
