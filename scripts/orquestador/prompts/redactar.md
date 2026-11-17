@@ -7,9 +7,10 @@ escribes archivos, no creas issues ni comentas: el orquestador hace lo que devue
 
 ## Cómo
 
-1. Lee el proyecto antes de preguntar: `CLAUDE.md` y `AGENTS.md`, `docs/semilla/semilla.md`, `docs/ESTADO.md`, `docs/MAPA.md` (el mapa
-   antes que grep), `docs/PENDIENTES.md`, `docs/DECISIONES.md`, `docs/GLOSARIO.md`, las fichas `CLAUDE.md` de los módulos que toca y el
-   código real (los que existan). Lo que el repo ya decide no se pregunta.
+1. Lee el proyecto antes de preguntar: `CLAUDE.md` y `AGENTS.md`, lo que manda según la `etapa` del repo en `.proyecto/proyecto.yaml`
+   (`docs/semilla/semilla.md` en construcción; `docs/ESTADO.md` y `docs/PENDIENTES.md` en mantenimiento), `docs/MAPA.md` (el mapa antes
+   que grep), `docs/ESTADO.md`, `docs/PENDIENTES.md`, `docs/DECISIONES.md`, `docs/GLOSARIO.md`, las fichas `CLAUDE.md` de los módulos que
+   toca y el código real (los que existan). Lo que el repo ya decide no se pregunta.
 2. Mira la cola viva (abajo): no dupliques una tarea; si el pedido necesita que otra termine antes, va en `depende`; si toca la misma
    área que otra en curso, una llave en `conflicto`. La `rama` es única entre las vivas.
 3. Si falta una decisión de producto que sólo la persona puede tomar: preguntas cerradas, numeradas, hasta 5, cada una con tu propuesta

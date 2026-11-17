@@ -10,7 +10,7 @@ otras ramas ni otros worktrees. Hoy es {{FECHA}}.
 
 ## Cómo
 
-1. Lee `CLAUDE.md`, `docs/ESTADO.md` y `docs/MAPA.md` (el mapa antes que grep), la ficha `CLAUDE.md` de cada módulo que toques y, antes
+1. Lee `CLAUDE.md` (dice qué docs mandan según la etapa del repo), `docs/ESTADO.md` si existe y `docs/MAPA.md` (el mapa antes que grep), la ficha `CLAUDE.md` de cada módulo que toques y, antes
    de una migración, una RPC, un e2e o una pantalla, lo que aplique de `docs/LECCIONES.md`. Si la pantalla está en `docs/UX.md`, su fila
    manda. Cada término nuevo de la spec va a `docs/GLOSARIO.md` y con ese nombre en tipos, tablas y UI.
 2. Sigue el plan de abajo si lo hay. Si el código lo contradice, manda el código: ajusta y anótalo en el PR.
@@ -29,7 +29,8 @@ otras ramas ni otros worktrees. Hoy es {{FECHA}}.
   `pnpm db:types`, `pnpm db:probar:rapido`, `pnpm db:lint`; con dinero, RLS o permisos de por medio, también `pnpm db:carreras` (si el
   proyecto lo tiene).
 - Los e2e de lo tocado, nombrados: los nuevos de esta tarea y los existentes del módulo (`pnpm test:e2e <specs> --project escritorio`;
-  y `--project movil` si tocaste interfaz). No corras `test:e2e:completo`: si la tarea dispara el Nivel 2, lo corre el CI.
+  y `--project movil` si tocaste interfaz). No corras `test:e2e:completo` salvo que la spec lo pida (el cierre de la construcción corre el Nivel 3): si la tarea
+  dispara el Nivel 2, lo corre el CI.
 - Nadie prueba a mano. Lo que sería «pruébalo tú» es un e2e. En las pantallas nuevas o rehechas, además, haz tú el recorrido
   (levanta la app del carril, entra con una cuenta creada como en los e2e, toma capturas en escritorio y celular y míralas) y di en el PR qué viste.
 - Datos y dinero (migración, RLS, permisos, `security definer`, fórmula, dinero): antes de publicar, una segunda lectura con el
