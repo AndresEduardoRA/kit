@@ -2,14 +2,14 @@
 // que se niega a hacer. Con python3 y PyYAML, además, el texto pasa `validar_semilla.py --manifiesto`.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import { leerManifiesto } from '../proyecto/manifiesto.mjs'
 import { manifiestoDelProyecto, textoDeLaCopia } from './manifiesto-nuevo.mjs'
+import { carpetaTemporal } from '../lib/temporal.mjs'
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const COMUN = parse(
@@ -22,7 +22,7 @@ const hayPyYaml = spawnSync('python3', ['-c', 'import yaml']).status === 0
 /** Que el texto pase el validador de Python (si hay PyYAML). */
 function pasaPython(texto) {
   if (!hayPyYaml) return
-  const archivo = join(mkdtempSync(join(tmpdir(), 'manifiesto-')), 'proyecto.yaml')
+  const archivo = join(carpetaTemporal('manifiesto-'), 'proyecto.yaml')
   writeFileSync(archivo, texto)
   const r = spawnSync(
     'python3',

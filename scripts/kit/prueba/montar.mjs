@@ -1,14 +1,14 @@
 // Lo común de las pruebas de publicar-proyecto.mjs (cola.test.mjs y publicar-proyecto.test.mjs): el ejemplo turnero creado en una
 // raíz temporal, un gh falso con su estado y la CLI que corre con los dos.
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { cpSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { describe } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { archivoDeIssue, leerArchivo } from '../../orquestador/spec-issue.mjs'
 import { crear } from '../nuevo-proyecto.mjs'
 import { instalarGhFalso, leerEstado, nuevoRepo } from './gh-falso.mjs'
+import { carpetaTemporal } from '../../lib/temporal.mjs'
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 const CLI = join(KIT, 'scripts/kit/publicar-proyecto.mjs')
@@ -22,12 +22,12 @@ export const WEB = 'AndresEduardoRA/turnero-web'
 
 /** El ejemplo creado en una raíz temporal y un gh falso con `estado`; `correr(...args)` corre la CLI con ellos. */
 export function montar(estado = {}, cambio = () => {}) {
-  const raiz = mkdtempSync(join(tmpdir(), 'proyectos-'))
+  const raiz = carpetaTemporal('proyectos-')
   const semilla = join(raiz, 'z_turnero', 'semilla')
   cpSync(join(KIT, 'scripts/semilla/ejemplo/semilla'), semilla, { recursive: true })
   crear('turnero', { raiz })
   cambio(semilla)
-  const gh = mkdtempSync(join(tmpdir(), 'gh-falso-'))
+  const gh = carpetaTemporal('gh-falso-')
   const env = { ...instalarGhFalso(gh, estado), PUBLICAR_PAUSA_MS: '0' }
   const correr = (...args) => {
     const r = spawnSync('node', [CLI, 'turnero', ...args, '--raiz', raiz], {

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import {
@@ -14,6 +13,7 @@ import {
   proyectoDelRepo,
   variablesDelCarril,
 } from './stack-local.mjs'
+import { carpetaTemporal } from './temporal.mjs'
 
 test('dos proyectos con bloques distintos y todos sus carriles no comparten ningún puerto', () => {
   const usados = new Map()
@@ -71,7 +71,7 @@ test('los carriles del orquestador son a, b y c, con desfases 100, 200 y 300 que
 
 /** Un repo temporal con su copia del manifiesto: `puertos` es `{ bloque: N }` o `{ heredado: {…} }`; `remoto`, su origin. */
 function repoConManifiesto({ slug, rol = 'app', puertos, remoto }) {
-  const raiz = mkdtempSync(join(tmpdir(), `${slug}-`))
+  const raiz = carpetaTemporal(`${slug}-`)
   execFileSync('git', ['init', '-q', '-b', 'main', raiz])
   if (remoto) execFileSync('git', ['-C', raiz, 'remote', 'add', 'origin', remoto])
   mkdirSync(join(raiz, '.proyecto'))
@@ -173,7 +173,7 @@ test('un repo con puertos heredados (546xx) los conserva y no choca con un bloqu
 })
 
 test('sin manifiesto el bloque es el 5 y lo dice un aviso; el proyecto sale de config.toml, también con aviso', () => {
-  const sin = mkdtempSync(join(tmpdir(), 'sin-manifiesto-'))
+  const sin = carpetaTemporal('sin-manifiesto-')
   const avisos = []
   assert.equal(BLOQUE_POR_DEFECTO, 5)
   assert.deepEqual(
@@ -226,7 +226,7 @@ repos:
 contratos: []
 `
   const carriles = ['app', 'web'].map((rol) => {
-    const raiz = mkdtempSync(join(tmpdir(), `turnero-${rol}-`))
+    const raiz = carpetaTemporal(`turnero-${rol}-`)
     execFileSync('git', ['init', '-q', '-b', 'main', raiz])
     execFileSync('git', [
       '-C',
