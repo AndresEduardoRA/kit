@@ -28,9 +28,11 @@ import { secretosEn } from './secretos.mjs'
 import * as S from './semilla.mjs'
 
 // Lo que es del kit y no viaja a un proyecto: el generador y la publicación, su skill, el validador y la semilla de ejemplo, las
-// lecciones de las semillas (nombran el flujo viejo) y lo generado.
+// lecciones de las semillas (nombran el flujo viejo), el estado de todo el proyecto (`proyecto.sh`: mira `proyectos/`, no un repo) y lo
+// generado.
 const NO_VIAJA = [
   /^scripts\/kit\//,
+  /^scripts\/proyecto\/proyecto[.-]/,
   /^scripts\/semilla\//,
   /^docs\/semillas\//,
   /^\.claude\/skills\/semilla-a-repo\//,

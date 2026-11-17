@@ -21,6 +21,7 @@ límite de Claude con turnos de sesión y una pausa compartida (`scripts/orquest
 | `.proyecto/proyecto.yaml`, `scripts/proyecto/manifiesto.mjs`                               | Quién es el repo: el manifiesto (abajo)                                                                                                                                                                                     |
 | `scripts/contratos/` (`pnpm contrato:generar`, `probar`, `tipos`, `usar`)                  | Los contratos de base entre repos: el proveedor genera y prueba sus versiones desde su base local; el consumidor fija una copia y revisa su `infra/` (abajo)                                                                |
 | `src/shared`, `design/tokens.css`, `supabase/`, `e2e/`                                     | La app base: entorno con Zod, clientes de Supabase, `safe-action`, paginación, fechas y formato, correo; tokens OKLCH; una migración base y las pruebas de la base (`rls-en-todo`, `privilegios-de-anon`, `escala`, `humo`) |
+| `scripts/proyecto/proyecto.sh` (`proyecto.mjs`, `proyecto-texto.mjs`)                      | El estado de un proyecto entero y su resumen diario al celular (abajo); no viaja a un proyecto                                                                                                                              |
 | `scripts/kit/` (`nuevo-proyecto.mjs`, `publicar-proyecto.mjs`, `flujo.txt`, el `gh` falso) | El generador de los repos de un proyecto, su publicación en GitHub con la cola y la lista de lo que es flujo; no viajan a un proyecto                                                                                       |
 | `scripts/semilla/`, `docs/semillas/`                                                       | De idea-a-semilla: el validador, la semilla de ejemplo v2 (turnero: app y web), las lecciones de las semillas y la plantilla del manifiesto; no viajan                                                                      |
 
@@ -177,6 +178,41 @@ del commit integrado: el PR del cierre saca `docs/semilla/`, y la etiqueta la co
 `chore(docs): cerrar la construcción (semilla-vN)`, para encontrarlo con `gh pr list --state merged --search 'cerrar la construcción in:title'`;
 su `## Retro` la copia K11 a `z_<slug>/semilla/retro.md`. Se prueba con `scripts/flujo/cierre.test.ts`,
 `scripts/orquestador/al-integrar.test.ts` y el ensayo sobre el proyecto de ejemplo, `scripts/kit/cierre-ensayo.test.mjs`.
+
+## El estado de un proyecto
+
+Un repo se mira con `scripts/flujo/estado.sh`; un **proyecto** (varios repos, quizá de cuentas distintas) se mira desde `proyectos/`:
+
+```bash
+bash _herramientas/kit/scripts/proyecto/proyecto.sh estado <z_carpeta>|--todos
+bash _herramientas/kit/scripts/proyecto/proyecto.sh sincronizar <z_carpeta>|--todos
+bash _herramientas/kit/scripts/proyecto/proyecto.sh reconstruir <z_carpeta> [--forzar]
+bash _herramientas/kit/scripts/proyecto/proyecto.sh resumen --todos
+bash _herramientas/kit/scripts/proyecto/proyecto.sh instalar-resumen
+```
+
+- **`estado`** lee sólo `z_*/proyecto.yaml` y, por GitHub con el token de la cuenta de cada repo (`gh auth token --user`, nunca un
+  `GH_TOKEN` suelto), dice por repo: PR abiertos con su «Listo» (un PR de `DIAS_DE_UN_PR` = 2 días o más va en rojo aunque su CI esté
+  verde: «nadie lo vio»), el último CI de `main`, la última noche, las `cola:trabada` y `cola:pregunta` (rojo), las `cola:urgente` y
+  cuántas hay en la cola (con tope: «más de 99», nunca un total exacto). Marcas `✓ ✗ ·` como `estado.sh`. Sin token de una cuenta, esa
+  línea dice «sin acceso a <cuenta>» y sigue; sin red, dice sólo lo local; sin el suelto, sugiere `reconstruir`. Nunca frena (sale con 0;
+  1 sólo si se pidió una carpeta que no existe o no tiene manifiesto).
+- **`sincronizar`** trae de la copia de cada repo en `main` (`gh api …/contents/.proyecto/proyecto.yaml`) lo que manda el repo (`etapa`,
+  `semilla`, `provee` y los `vigentes` de lo que provee) al suelto, cambiando sólo esos valores (los comentarios y el resto quedan). Si en
+  una copia difiere lo que manda el proyecto (nombre, `github`, `puertos`, contratos y sus consumidores, `semilla` del proyecto), abre en
+  ese repo un issue `cola` «sincronizar el manifiesto» con las diferencias y el contenido esperado (y no lo duplica mientras siga
+  abierto). `consume` no se compara ni se trae: el esquema no se lo asigna a nadie y lo escribe `contrato:usar`. Copia la `## Retro` del PR
+  integrado «cerrar la construcción» de cada repo a `z_<slug>/semilla/retro.md` (un bloque por repo, que se reescribe sin tocar los demás).
+- **`reconstruir`** rehace el suelto desde las copias locales `z_<slug>/<rol>/.proyecto/proyecto.yaml`: la que lista más repos y contratos
+  es la base y lo de cada repo sale de su propia copia. No pisa uno que existe sin `--forzar` (que deja el anterior en `proyecto.yaml.anterior`).
+- **`resumen --todos`** manda un aviso de ntfy por proyecto, con lo que está en rojo o lo que no se pudo mirar, o «Todo en verde», al
+  `NTFY_TEMA` (y `NTFY_SERVIDOR`, opcional) de `~/.config/orquestador/maquina.env`. **`instalar-resumen`** deja el timer de systemd de usuario
+  `proyectos-resumen.timer` (cada día a las 08:00 de La Paz, `Persistent=true`) que corre `sincronizar --todos` y `resumen --todos`: lo
+  corre la persona, una vez (con `loginctl enable-linger "$USER"` para que siga sin sesión).
+
+Se prueba en `scripts/proyecto/proyecto.test.mjs` con un `gh` falso de dos cuentas (`proyecto-gh-falso.mjs`), un ntfy falso y un
+`systemctl` falso. **Sin verificar con GitHub y systemd reales:** los puntos de entrada de la API (`search/issues` para la retro, el
+`Accept: application/vnd.github.raw` de `contents`) y `OnCalendar` con zona horaria corren de verdad con la primera instalación.
 
 ## Lo que no está verificado
 

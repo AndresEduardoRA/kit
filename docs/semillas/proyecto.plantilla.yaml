@@ -1,11 +1,11 @@
 # Manifiesto de un proyecto (esquema proyecto/v1). Vive suelto, sin versionar, en proyectos/z_<proyecto>/proyecto.yaml.
 # Cada repo lleva una copia en .proyecto/proyecto.yaml (ésa sí versionada) y sólo lee la suya: ninguna sesión abre la
-# carpeta de un hermano. Si este archivo se pierde, se rehace con las copias de los repos.
+# carpeta de un hermano. Si este archivo se pierde, `proyecto.sh reconstruir` lo rehace con las copias de los repos.
 #
 # Quién manda en cada campo:
 #   - lo del proyecto (repos, nombres, github, puertos, contratos y sus consumidores) → este archivo; si cambia, una
 #     tarea «sincronizar manifiesto» en cada repo actualiza su copia;
-#   - lo de cada repo (etapa, semilla, versiones que provee) → la copia del repo; `proyecto estado` lo trae aquí.
+#   - lo de cada repo (etapa, semilla, versiones que provee) → la copia del repo; `proyecto.sh sincronizar` lo trae aquí (y abre un issue en el repo si lo del proyecto difiere en su copia).
 # Lo escribe semilla-a-repo; lo revisa `python3 validar_semilla.py --manifiesto proyecto.yaml`.
 
 esquema: proyecto/v1
