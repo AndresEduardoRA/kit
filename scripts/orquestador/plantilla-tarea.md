@@ -1,9 +1,9 @@
 ---
-id: {{ID}}
-# Mientras diga «borrador: si» el orquestador no la lanza. Bórrala cuando la spec esté lista.
+# Mientras diga «borrador: si» (en el issue, la etiqueta cola:borrador) el orquestador no la lanza. Quítala cuando esté lista.
 borrador: si
 titulo: qué cambia, en una frase en infinitivo (va en el aviso y en el PR)
 rama: feat/{{TEMA}}
+# depende: T<n> (una tarea de esta cola) o <repo>:<rama> (un PR integrado; kit:<rama> es el kit), separadas por espacios.
 depende:
 conflicto:
 planificar: no
