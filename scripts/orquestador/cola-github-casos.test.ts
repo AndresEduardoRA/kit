@@ -159,3 +159,25 @@ it(
   },
   TIEMPO,
 )
+
+it(
+  'cola en issues › un issue con una versión fija de modelo queda en borrador con un comentario; con un nivel, listo',
+  () => {
+    const t = escenario()
+    // Armada en tiempo de ejecución: escrita tal cual, la guarda de versiones (scripts/guardas) marcaría este archivo.
+    const version = ['claude', 'sonnet', '4', '5'].join('-')
+    t.issue(30, cuerpo('feat/fija', `modelo: ${version}\n`))
+    t.issue(31, cuerpo('feat/nivel', 'nivel: capaz\n'))
+    t.orq('espejo')
+    const g = t.gh()
+    expect(g.issues[30]!.labels).toContain('cola:borrador')
+    expect(g.issues[30]!.comentarios.at(-1)!.body).toContain(
+      `«modelo: ${version}» es una versión fija de modelo`,
+    )
+    expect(g.issues[31]!.labels).toEqual(['cola'])
+    const plan = t.orq('plan').salida
+    expect(plan).toContain('T30  borrador')
+    expect(plan).toContain('T31  LISTA para lanzar')
+  },
+  TIEMPO,
+)

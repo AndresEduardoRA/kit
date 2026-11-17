@@ -217,7 +217,7 @@ buscar_respuestas() {
     n=$(est_get "$id" issue)
     cid=$(est_get "$id" trabada_comentario)
     en=$(est_get "$id" trabada_en)
-    [ -n "$n" ] && [ -n "$cid$en" ] || continue
+    [[ -n "$n" && -n "$cid$en" ]] || continue
     cs=$(ghc api --paginate "repos/{owner}/{repo}/issues/$n/comments?per_page=100") || return 0
     # Sólo cuenta quien puede escribir en el repo: en un repo público, cualquiera puede comentar.
     r=$(jq -s -r --arg bot "$BOT" --argjson cid "${cid:-0}" --arg en "$en" --argjson ok "$CON_PERMISO" \
@@ -252,7 +252,7 @@ cerrar_terminales() { # las integradas u omitidas cuyo issue no se pudo cerrar t
   for id in $(ids); do
     s=$(estado_de "$id")
     case "$s" in integrado | omitida) ;; *) continue ;; esac
-    [ -n "$(est_get "$id" issue)" ] && [ ! -f "$EST/$id/issue_cerrado" ] || continue
+    [[ -n "$(est_get "$id" issue)" && ! -f "$EST/$id/issue_cerrado" ]] || continue
     cerrar_issue_de "$id" || return 0
   done
 }

@@ -64,7 +64,7 @@ worktree. La base local y el e2e de una pila son de una sesión a la vez (`scrip
 Una tanda de varias actualizaciones que corre sola durante días va con el **orquestador** del proyecto (`scripts/orquestador/README.md`):
 una tarea por issue con la etiqueta `cola` (en espejo con `.orquestador/cola/`), cada una en su carril, su sesión de `claude -p` y su
 PR, que cierra su issue. Desde el celular se cargan tareas y se responde a una trabada comentando. Es de este repo: el de otro
-proyecto corre a la vez sin cruzarse (sólo comparten la RAM y el límite del plan de Claude).
+proyecto corre a la vez sin cruzarse (comparten la RAM y, por máquina, los turnos de sesión y la pausa por el límite del plan).
 
 Si dos PR tocan lo mismo, el segundo choca: `git merge origin/main` en su rama (nunca rebase con push forzado), se resuelve, se
 commitea y se vuelve a publicar. Una migración que quedó antes de una ya integrada se crea de nuevo con

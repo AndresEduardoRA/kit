@@ -7,6 +7,7 @@
 BOT="🤖 orquestador:"
 ETIQUETAS_COLA="cola cola:borrador cola:corriendo cola:esperando-ci cola:por-arreglar cola:trabada cola:integrada cola:omitida cola:urgente"
 SPEC_ISSUE="$ORQ/spec-issue.mjs"
+: "${REPO:?github.sh lo carga orquestador.sh}"
 # `cuenta/repo` del remoto origin; vacío si no es de GitHub (entonces la cola es sólo local).
 REPO_GH=$(git -C "$REPO" remote get-url origin 2>/dev/null | sed -nE 's#.*github\.com[:/]([^/]+/[^/]+)$#\1#p' | sed 's/\.git$//')
 

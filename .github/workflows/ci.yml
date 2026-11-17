@@ -79,6 +79,13 @@ jobs:
       - run: pnpm typecheck # corre `next typegen` antes de tsc
       # Las pruebas de `node --test` (`pnpm test` las corre después de vitest; vitest va en «pruebas», en 3 partes).
       - run: pnpm test:kit
+      # Todo guion de bash del repo con .shellcheckrc. shellcheck del apt del runner (sin acciones de terceros); la imagen suele traerlo.
+      - name: shellcheck
+        run: |
+          command -v shellcheck >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q shellcheck; }
+          shellcheck --version | sed -n 2p
+          shopt -s globstar
+          shellcheck scripts/**/*.sh .claude/hooks/*.sh
       - run: bash scripts/mapa.sh --check
 
   # vitest en 3 partes (`--shard`), cada una en su runner: en calesa-app, en un solo job, eran 14 de los 15 a 18 min del Nivel 1. Va

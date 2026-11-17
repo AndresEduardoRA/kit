@@ -1,3 +1,5 @@
 # Las piezas de scripts/ se cargan unas a otras con `source`: una variable que define una la lee otra (SC2034 no lo ve).
 external-sources=true
+# Un `source "$ORQ/x.sh"` se busca junto al guion que lo carga.
+source-path=SCRIPTDIR
 disable=SC2034

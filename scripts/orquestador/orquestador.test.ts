@@ -49,6 +49,9 @@ describe('orquestador.sh: la cola', () => {
     const spec = readFileSync(join(datos, 'cola', 'T07-avisos-nuevos.md'), 'utf8')
     expect(spec).toContain('\nid: T07\n')
     expect(spec).toContain('\nrama: feat/avisos-nuevos\n')
+    // La plantilla nombra el nivel, nunca un modelo (niveles.sh).
+    expect(spec).toContain('\nnivel: normal\n')
+    expect(spec).not.toMatch(/^modelo:/m)
     expect(spec).not.toContain('{{')
     expect(orquestador('plan').salida).toContain('T07  borrador')
   })
@@ -94,7 +97,15 @@ describe('orquestador.sh: la cola', () => {
 // PROYECTO (el servicio y los avisos) sale del manifiesto del repo si config.env y config.local.env no lo fijan. Se prueba con una
 // copia del guion en un repo temporal: sin manifiesto ni PROYECTO el guion se niega con el motivo; con uno de los dos, corre.
 describe('orquestador.sh › quién es el repo', () => {
-  function repoCon({ manifiesto, local }: { manifiesto?: string; local?: string }) {
+  function repoCon({
+    manifiesto,
+    local,
+    kit,
+  }: {
+    manifiesto?: string
+    local?: string
+    kit?: boolean
+  }) {
     const repo = mkdtempSync(join(tmpdir(), 'orquestador-repo-'))
     raices.push(repo)
     execFileSync('git', ['init', '-q', '-b', 'main', repo])
@@ -108,6 +119,10 @@ describe('orquestador.sh › quién es el repo', () => {
     if (manifiesto) {
       mkdirSync(join(repo, '.proyecto'))
       writeFileSync(join(repo, '.proyecto/proyecto.yaml'), manifiesto)
+    }
+    if (kit) {
+      mkdirSync(join(repo, '.kit'))
+      writeFileSync(join(repo, '.kit/plantilla'), '')
     }
     const datos = join(repo, '.orquestador')
     mkdirSync(datos)
@@ -143,6 +158,15 @@ contratos: []
     const r = repoCon({ local: 'PROYECTO="viejo"\n' })
     expect(r.salida).not.toContain('falta PROYECTO')
     expect(r.estado).toBe(0)
+  })
+
+  it('en el kit (.kit/plantilla) es «kit», aunque su manifiesto sea el del proyecto de ejemplo; un PROYECTO fijado manda', () => {
+    const kit = repoCon({ manifiesto: MANIFIESTO, kit: true })
+    expect(kit.estado).toBe(0)
+    expect(kit.salida).toMatch(/^kit · turnos de la máquina: 3 de 3 libres/)
+    const otro = repoCon({ manifiesto: MANIFIESTO, kit: true, local: 'PROYECTO="otro"\n' })
+    expect(otro.salida).toMatch(/^otro · /)
+    expect(repoCon({ manifiesto: MANIFIESTO }).salida).toMatch(/^tienda-app · /)
   })
 
   it('un manifiesto inválido no se traga: el motivo sale y el guion se niega', () => {

@@ -26,13 +26,13 @@ rechazar() {
 }
 
 case "$CMD" in
-  *'$('* | *'`'*) rechazar "sustitución de comandos (\$( o comillas invertidas)." ;;
+  *"\$("* | *"\`"*) rechazar "sustitución de comandos (\$( o comillas invertidas)." ;;
 esac
 
 SEP=$'\037'
 # Partir en segmentos y palabras (una línea por segmento, palabras separadas por \037). Una redirección sin comillas deja \002
 # (`>`) o \003 (`<`) dentro de su palabra, para validarla después.
-TOKENIZAR='
+TOKENIZAR=$(cat <<'AWK'
 BEGIN { SEP = "\037"; RS = "\001" }
 function flush() { if (has && tok != "") line = line (line == "" ? "" : SEP) tok; tok = ""; has = 0 }
 function fin() { flush(); if (line != "") print line; line = "" }
@@ -61,7 +61,9 @@ function fin() { flush(); if (line != "") print line; line = "" }
     tok = tok c; has = 1
   }
   fin()
-}'
+}
+AWK
+)
 
 # Una redirección admitida: sólo a /dev/null o entre descriptores.
 redireccion_admitida() {
@@ -123,7 +125,7 @@ revisar_git() {
 
 revisar_sed() {
   local n="${#A[@]}" script
-  [ "$n" -ge 2 ] && [ "${A[0]}" = -n ] || rechazar "sed sólo como sed -n '<n>p' <archivo>."
+  [[ "$n" -ge 2 && "${A[0]}" = -n ]] || rechazar "sed sólo como sed -n '<n>p' <archivo>."
   script="${A[1]}"
   [[ "$script" =~ ^([0-9]+|\$)(,([0-9]+|\$))?p$ ]] || [[ "$script" =~ ^/[^/]+/p$ ]] ||
     rechazar "sed -n con «$script»: sólo líneas (<n>p, <a>,<b>p) o /patrón/p."
@@ -179,7 +181,7 @@ revisar_segmento() {
       done ;;
     sed) revisar_sed ;;
     gh)
-      [ "${A[0]:-}" = run ] && { [ "${A[1]:-}" = list ] || [ "${A[1]:-}" = view ]; } ||
+      { [ "${A[0]:-}" = run ] && { [ "${A[1]:-}" = list ] || [ "${A[1]:-}" = view ]; }; } ||
         rechazar "gh sólo como gh run list|view." ;;
     node)
       [ "${A[0]:-}" = scripts/nivel.mjs ] || rechazar "node sólo corre scripts/nivel.mjs." ;;

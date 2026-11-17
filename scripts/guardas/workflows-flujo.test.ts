@@ -19,6 +19,14 @@ describe('ci.yml › lo que pide el flujo de un PR', () => {
     expect(nivel1.match(/if: github\.event_name == 'pull_request'/g)).toHaveLength(2)
   })
 
+  it('el Nivel 1 corre shellcheck sobre todo guion de bash, con el del apt del runner y sin acciones de terceros', () => {
+    const nivel1 = job('nivel-1')
+    expect(nivel1).toContain('- name: shellcheck')
+    expect(nivel1).toContain('sudo apt-get install -y -q shellcheck')
+    expect(nivel1).toContain('shopt -s globstar')
+    expect(nivel1).toContain('shellcheck scripts/**/*.sh .claude/hooks/*.sh')
+  })
+
   it('`listo` espera a todos los demás, corre siempre y cae si alguno cayó o se canceló', () => {
     const listo = job('listo')
     const otros = jobsDe(ci)

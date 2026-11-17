@@ -274,4 +274,8 @@ Si ya no aplica (cambió la herramienta o el código), se quita.
 - La cuenta de líneas de `max-lines` (300) vale también para un `.test.ts`: una prueba nueva que no cabe va en su propio archivo.
 - `db diff --linked` muestra triggers de `storage.buckets` que llaman a funciones de `storage`: son del Storage de la nube, más nuevo
   que la pila local, no de las migraciones. Fíltralos; un trigger propio llama a una función de `public`.
+- Un fd abierto con `exec 9>lock` para `flock` lo heredan todos los hijos, y con él el candado: cierra el fd (`9>&-`) al lanzar lo que pueda sobrevivir al proceso (una sesión, un `pnpm dev`), o un huérfano lo retiene para siempre.
+- `exec` conserva los fds abiertos: un bucle que se relanza con `exec` no reabre su candado (`exec 8>lock` soltaría el que comparten sus hijos y el `flock -n` nuevo chocaría con ellos).
+- En el CI git no tiene autor: una prueba que commitea pasa `-c user.name=… -c user.email=…` en cada `git commit`.
+- Una versión de modelo escrita en un archivo versionado envejece sin aviso: va el alias (`opus`) o el nivel (`capaz`), y `orquestador.sh verificar` dice qué modelo es hoy (`scripts/guardas/versiones-de-modelo.test.ts`).
 - No dejes que Prettier formatee una plantilla con marcadores `{{X}}`: en un frontmatter YAML los reescribe como `{ { X } }` y el reemplazo deja de encontrarlos. Va en `.prettierignore` y con una prueba que use la plantilla real (`scripts/orquestador/orquestador.test.ts`).
