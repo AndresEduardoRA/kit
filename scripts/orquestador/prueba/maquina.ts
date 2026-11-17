@@ -195,5 +195,6 @@ export function matarTodo(m: Maquina) {
   }
   for (const pid of sesionesDe) spawnSync('pkill', ['-KILL', '-s', String(pid)])
   for (const s of sesiones(m)) if (vivo(s.pid)) process.kill(s.pid, 'SIGKILL')
-  rmSync(m.raiz, { recursive: true, force: true })
+  // Un proceso recién matado puede alcanzar a crear un archivo mientras se borra la carpeta (ENOTEMPTY): se reintenta.
+  rmSync(m.raiz, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 }

@@ -23,6 +23,7 @@ Primero entiende el estado: `git log --oneline origin/main..HEAD`, `git status -
 No hagas: preguntar · empujar `main` o forzar · desactivar una regla de lint o un test · cambiar dependencias · tocar variables,
 secretos, funciones, la base remota o Vercel de producción.
 
+{{PERMITE}}
 Tu última línea, siempre: `RESULTADO: PUBLICADO #{{PR}}` o `RESULTADO: TRABADA — <motivo>`.
 
 ---

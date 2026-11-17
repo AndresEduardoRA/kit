@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cómo está el flujo ahora mismo, en pocas líneas (docs/FLUJO.md): la rama y el árbol, los PR abiertos con su CI, el último CI de
-# `main` y el e2e completo de la noche. Para empezar una sesión sabiendo si hay algo rojo que va antes que lo pedido: nadie más mira
-# la corrida de la noche. Sin red o sin `gh` dice sólo lo local y sale con 0: nunca frena.
+# `main`, el e2e completo de la noche y el issue `noche-roja` abierto (el aviso de la noche, scripts/flujo/noche.mjs). Para empezar una
+# sesión sabiendo si hay algo rojo que va antes que lo pedido. Sin red o sin `gh` dice sólo lo local y sale con 0: nunca frena.
 #
 #   bash scripts/flujo/estado.sh
 #
@@ -70,6 +70,14 @@ if [ -n "${conclusion:-}" ]; then
 fi
 IFS=$'\t' read -r conclusion cuando id sha <<<"$(ultimo schedule)"
 if [ -n "${conclusion:-}" ]; then
-  echo "$(marca "$conclusion") e2e completo de la noche ($sha, $cuando)$([ "$(marca "$conclusion")" = '✗' ] && echo " — rojo: gh run view $id --log-failed; si cae dos noches seguidas, se arregla (.claude/rules/e2e.md)")"
+  echo "$(marca "$conclusion") e2e completo de la noche ($sha, $cuando)$([ "$(marca "$conclusion")" = '✗' ] && echo " — rojo: gh run view $id --log-failed; el aviso de la noche abre el issue noche-roja (scripts/flujo/noche.mjs)")"
+fi
+# El issue `noche-roja` abierto: las noches seguidas en rojo (su marca `<!-- noches: N -->`) y si ya es una tarea de la cola.
+if NOCHES=$(timeout 20 gh issue list --label noche-roja --state open --limit 5 --json number,body,labels 2>/dev/null); then
+  jq -r '.[]? | [(.number | tostring), ((.body // "") | (capture("<!--\\s*noches:\\s*(?<n>[0-9]+)\\s*-->").n // "1")),
+                 (if any(.labels[]?; .name == "cola") then "si" else "no" end)] | @tsv' <<<"${NOCHES:-[]}" 2>/dev/null |
+    while IFS=$'\t' read -r numero noches cola; do
+      echo "✗ issue #$numero «e2e de la noche en rojo» ($noches noche$([ "$noches" = 1 ] || echo s); $([ "$cola" = si ] && echo 'ya en la cola' || echo 'si cae otra noche, pasa a la cola'))"
+    done
 fi
 exit 0

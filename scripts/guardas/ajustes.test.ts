@@ -35,7 +35,6 @@ const DENEGADAS = [
   'npx supabase link*',
   'npx supabase db push*',
   'pnpm add*',
-  'pnpm up*',
   'npx next upgrade*',
   'pnpm next upgrade*',
   'pnpm exec next upgrade*',
@@ -44,6 +43,12 @@ const DENEGADAS = [
 describe('.claude/settings.json › permisos', () => {
   it.each(DENEGADAS)('deniega Bash(%s)', (regla) => {
     expect(ajustes.permissions.deny).toContain(`Bash(${regla})`)
+  })
+
+  // Un deny vale en todo modo y le gana al hook: con `pnpm up*` aquí, la tarea de dependencias no podría correr `pnpm update`.
+  it('no deniega pnpm up*: la tarea de dependencias lo corre con ORQ_PERMITE y el hook decide', () => {
+    expect(ajustes.permissions.deny.some((r) => r.startsWith('Bash(pnpm up'))).toBe(false)
+    expect(ajustes.permissions.deny).toContain('Bash(pnpm add*)')
   })
 
   it('sigue leyendo sin permiso los .env', () => {

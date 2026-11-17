@@ -104,6 +104,23 @@ esac`)
     expect(r.salida).toContain('· 1 cambios apartados (git stash list)')
   })
 
+  it('un issue noche-roja abierto va marcado con sus noches y si ya está en la cola', () => {
+    gh(`case "$1 $2" in
+  "auth token") exit 1 ;;
+  "pr list") echo '[]' ;;
+  "run list") echo '[]' ;;
+  "issue list")
+    [[ "$*" == *"--label noche-roja"* ]] || exit 1
+    echo '[{"number":9,"body":"\`\`\`yaml\\ntitulo: x\\n\`\`\`\\n<!-- noches: 2 -->\\n","labels":[{"name":"noche-roja"},{"name":"cola"}]},{"number":12,"body":"<!-- noches: 1 -->","labels":[{"name":"noche-roja"}]}]' ;;
+esac`)
+    const r = estado()
+    expect(r.estado).toBe(0)
+    expect(r.salida).toContain('✗ issue #9 «e2e de la noche en rojo» (2 noches; ya en la cola)')
+    expect(r.salida).toContain(
+      '✗ issue #12 «e2e de la noche en rojo» (1 noche; si cae otra noche, pasa a la cola)',
+    )
+  })
+
   it('un PR abierto con «Listo» en rojo va marcado: se arregla o se cierra antes que lo nuevo', () => {
     gh(`case "$1 $2" in
   "auth token") exit 1 ;;

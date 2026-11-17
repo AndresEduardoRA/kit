@@ -14,12 +14,15 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll } from 'vitest'
 
-// El escenario de las pruebas de la cola en los issues (cola-github*.test.ts): el guion real en un repo temporal con su
-// manifiesto, y un `gh` falso primero en el PATH (gh-falso.mjs) que guarda un «GitHub» en un JSON y anota cada llamada con su
-// token. Nada sale a la red. Cada llamada al guion ronda un segundo (lanza node varias veces): las pruebas llevan TIEMPO.
+// El escenario de las pruebas de la cola en los issues (cola-github*.test.ts, dependencias.test.ts, pedidos.test.ts): el guion real en
+// un repo temporal con su manifiesto, y un `gh` y un `claude` falsos primeros en el PATH (gh-falso.mjs guarda un «GitHub» en un JSON y
+// anota cada llamada con su token; claude-falso.sh). Nada sale a la red. Con `conOrigen`, el repo tiene un commit y su origin/main
+// (para la copia de main que lee la redacción de un pedido). Cada llamada al guion ronda un segundo (lanza node varias veces): las
+// pruebas llevan TIEMPO.
 const raices: string[] = []
 afterAll(() => {
-  for (const r of raices) rmSync(r, { recursive: true, force: true })
+  for (const r of raices)
+    rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 export const TIEMPO = 60_000
@@ -69,7 +72,16 @@ type Issue = {
   labels: string[]
   state: string
   autor?: string
-  comentarios: { id: number; body: string; created_at: string; author_association?: string }[]
+  login?: string
+  tipo?: string
+  created_at?: string
+  comentarios: {
+    id: number
+    body: string
+    created_at: string
+    author_association?: string
+    user?: { login: string; type: string }
+  }[]
 }
 type Gh = {
   repo: string
@@ -85,7 +97,7 @@ type Gh = {
 }
 
 /** Un repo temporal con el guion, el manifiesto, su `.orquestador/` y el `gh` falso; devuelve sus carpetas. */
-function prepararRepo(local: string) {
+function prepararRepo(local: string, conOrigen: boolean) {
   const repo = mkdtempSync(join(tmpdir(), 'orq-issues-'))
   raices.push(repo)
   execFileSync('git', ['init', '-q', '-b', 'main', repo])
@@ -105,7 +117,8 @@ function prepararRepo(local: string) {
   writeFileSync(join(repo, '.proyecto/proyecto.yaml'), MANIFIESTO)
   const datos = join(repo, '.orquestador')
   mkdirSync(join(datos, 'cola'), { recursive: true })
-  writeFileSync(join(datos, 'config.local.env'), local)
+  // La tarea mensual de dependencias, apagada: crearía un issue en cada escenario (dependencias.test.ts la enciende).
+  writeFileSync(join(datos, 'config.local.env'), `DEPS_MENSUAL="no"\n${local}`)
   const falso = join(repo, '.gh-falso')
   mkdirSync(join(falso, 'bin'), { recursive: true })
   writeFileSync(
@@ -113,11 +126,24 @@ function prepararRepo(local: string) {
     `#!/usr/bin/env bash\nexec node ${resolve('scripts/orquestador/prueba/gh-falso.mjs')} "$@"\n`,
     { mode: 0o755 },
   )
+  writeFileSync(
+    join(falso, 'bin/claude'),
+    `#!/usr/bin/env bash\nexec bash ${resolve('scripts/orquestador/prueba/claude-falso.sh')} "$@"\n`,
+    { mode: 0o755 },
+  )
+  if (conOrigen) {
+    // Git sin autor en el CI: el commit lleva el suyo. origin/main sin red: la referencia, a mano.
+    writeFileSync(join(repo, '.gitignore'), '.orquestador/\n.gh-falso/\nnode_modules\n')
+    execFileSync('git', ['-C', repo, 'add', '-A'])
+    const autor = ['-c', 'user.name=prueba', '-c', 'user.email=prueba@ejemplo.test']
+    execFileSync('git', ['-C', repo, ...autor, 'commit', '-q', '-m', 'inicio'])
+    execFileSync('git', ['-C', repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD'])
+  }
   return { repo, datos, falso }
 }
 
-export function escenario(local = '') {
-  const { repo, datos, falso } = prepararRepo(local)
+export function escenario(local = '', { conOrigen = false } = {}) {
+  const { repo, datos, falso } = prepararRepo(local, conOrigen)
   const ruta = join(falso, 'estado.json')
   const inicial: Gh = {
     repo: 'Cuenta/tienda-app',
@@ -142,7 +168,8 @@ export function escenario(local = '') {
       g.issues[n] = { number: n, title: `issue ${n}`, body, labels, state: 'open', comentarios: [] }
       g.siguiente = Math.max(g.siguiente, n + 1)
     })
-  const orq = (...args: string[]) => {
+  // `env`: lo que se suma al entorno (el modo del claude falso; GIT_ALLOW_PROTOCOL=file para que un fetch no salga a la red).
+  const orqCon = (env: Record<string, string>, ...args: string[]) => {
     const r = spawnSync('bash', [join(repo, 'scripts/orquestador/orquestador.sh'), ...args], {
       encoding: 'utf8',
       env: {
@@ -150,10 +177,12 @@ export function escenario(local = '') {
         HOME: datos,
         PATH: `${join(falso, 'bin')}:${process.env['PATH'] ?? ''}`,
         GH_FALSO: falso,
+        ...env,
       },
     })
     return { estado: r.status, salida: r.stdout + r.stderr }
   }
+  const orq = (...args: string[]) => orqCon({}, ...args)
   // Las llamadas a GitHub (sin `gh auth token`, que lee la sesión local).
   const llamadas = (): { args: string[]; token: string }[] =>
     existsSync(join(falso, 'llamadas.log'))
@@ -174,5 +203,20 @@ export function escenario(local = '') {
     writeFileSync(join(datos, 'estado', id, k), `${v}\n`)
   }
   const log = () => readFileSync(join(datos, 'estado/orquestador.log'), 'utf8')
-  return { datos, gh, cambiarGh, issue, orq, llamadas, cola, spec, est, ponerEst, log }
+  return {
+    repo,
+    datos,
+    falso,
+    gh,
+    cambiarGh,
+    issue,
+    orq,
+    orqCon,
+    llamadas,
+    cola,
+    spec,
+    est,
+    ponerEst,
+    log,
+  }
 }

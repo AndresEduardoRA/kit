@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { BLOQUEA, PASA } from './bloquear-peligrosos.casos'
+import { BLOQUEA, CON_DEPENDENCIAS, PASA } from './bloquear-peligrosos.casos'
 
 // `bloquear-peligrosos.sh` es el hook PreToolUse de Bash: lo irreversible, lo de afuera, las dependencias y saltarse el candado de
 // la base se rechazan siempre; una etiqueta nueva sí se empuja.
@@ -30,7 +30,11 @@ function repo(nombre: string, rama: string): string {
   return dir
 }
 
-function correr(command: string, opciones: { cwd?: string; agente?: string } = {}) {
+// `permite`: el ORQ_PERMITE del entorno del hook, el que el orquestador le da al proceso `claude` de una tarea.
+function correr(
+  command: string,
+  opciones: { cwd?: string; agente?: string; permite?: string } = {},
+) {
   const r = spawnSync('bash', [HOOK], {
     input: JSON.stringify({
       tool_name: 'Bash',
@@ -42,6 +46,7 @@ function correr(command: string, opciones: { cwd?: string; agente?: string } = {
     env: {
       NODE_ENV: 'test',
       PATH: process.env['PATH'] ?? '',
+      ...(opciones.permite === undefined ? {} : { ORQ_PERMITE: opciones.permite }),
     },
   })
   return { estado: r.status, motivo: r.stderr }
@@ -74,6 +79,30 @@ describe('bloquear-peligrosos.sh', () => {
       const r = spawnSync('bash', [HOOK], { input: entrada, encoding: 'utf8' })
       expect(r.status, entrada).toBe(0)
     }
+  })
+})
+
+// La tarea de dependencias corre con ORQ_PERMITE=dependencias: `pnpm update` dentro de los rangos y `pnpm dedupe`, nada más.
+describe('con permite: dependencias (ORQ_PERMITE)', () => {
+  it.each(CON_DEPENDENCIAS.PASA)('deja pasar: %s', (comando) => {
+    expect(correr(comando, { permite: 'dependencias' }).estado).toBe(0)
+  })
+
+  it.each(CON_DEPENDENCIAS.BLOQUEA)('sigue bloqueando: %s', (comando) => {
+    const { estado, motivo } = correr(comando, { permite: 'dependencias' })
+    expect({ estado, motivo: motivo.trim().length > 0 }).toEqual({ estado: 2, motivo: true })
+  })
+
+  it('otro permiso, o uno vacío, no lo da; en una lista con comas, sí', () => {
+    expect(correr('pnpm update', { permite: 'otra' }).estado).toBe(2)
+    expect(correr('pnpm update', { permite: '' }).estado).toBe(2)
+    expect(correr('pnpm dedupe', { permite: 'otra' }).estado).toBe(2)
+    expect(correr('pnpm update', { permite: 'otra,dependencias' }).estado).toBe(0)
+  })
+
+  it('el permiso es el del entorno del hook: escrito en el comando no cuenta', () => {
+    expect(correr('ORQ_PERMITE=dependencias pnpm update').estado).toBe(2)
+    expect(correr('env ORQ_PERMITE=dependencias pnpm dedupe').estado).toBe(2)
   })
 })
 

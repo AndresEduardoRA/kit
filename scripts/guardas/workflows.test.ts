@@ -81,6 +81,7 @@ describe('los workflows del repo cumplen', () => {
       'e2e-build',
       'e2e',
       'ejemplo',
+      'aviso-noche',
       'listo',
     ])
   })
@@ -95,7 +96,7 @@ describe('ci.yml por niveles', () => {
 
   it('los jobs de proyecto se saltan en la plantilla (.kit/plantilla) y en su lugar corre el proyecto de ejemplo', () => {
     expect(job('cambios')).toContain('plantilla: ${{ steps.marca.outputs.plantilla }}')
-    for (const nombre of ['base', 'e2e-build', 'e2e']) {
+    for (const nombre of ['base', 'e2e-build', 'e2e', 'aviso-noche']) {
       expect(job(nombre), nombre).toContain("needs.cambios.outputs.plantilla != 'true'")
     }
     for (const nombre of ['nivel-1', 'pruebas']) {

@@ -39,7 +39,6 @@
       "Bash(supabase secrets*)",
       "Bash(npx supabase secrets*)",
       "Bash(pnpm add*)",
-      "Bash(pnpm up*)",
       "Bash(npx next upgrade*)",
       "Bash(pnpm next upgrade*)",
       "Bash(pnpm exec next upgrade*)",

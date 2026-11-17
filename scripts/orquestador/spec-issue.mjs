@@ -111,6 +111,10 @@ export function problemaDeModelo(clave, v) {
     : `«${clave}: ${v}» no es un alias de modelo (minúsculas, como sonnet): va «${nivel}: rapido|normal|capaz»`
 }
 
+/** Lo que una spec puede pedir con `permite:` (README.md › «La tarea mensual de dependencias»): el orquestador corre sus sesiones con
+ * `ORQ_PERMITE=<permite>` y el hook de Bash lo lee. Otra palabra deja la spec rota. */
+export const PERMISOS = ['dependencias']
+
 /** @param {{ campos: [string, string][] }} t */
 function exigir(t) {
   if (!valor(t, 'titulo')) throw new SpecRota('falta «titulo»')
@@ -122,6 +126,11 @@ function exigir(t) {
     const problema = problemaDeModelo(k, valor(t, k))
     if (problema) throw new SpecRota(problema)
   }
+  for (const p of valor(t, 'permite')
+    .split(/[\s,]+/)
+    .filter(Boolean))
+    if (!PERMISOS.includes(p))
+      throw new SpecRota(`«permite: ${p}» no es un permiso conocido (${PERMISOS.join(', ')})`)
 }
 
 /**

@@ -279,3 +279,6 @@ Si ya no aplica (cambió la herramienta o el código), se quita.
 - En el CI git no tiene autor: una prueba que commitea pasa `-c user.name=… -c user.email=…` en cada `git commit`.
 - Una versión de modelo escrita en un archivo versionado envejece sin aviso: va el alias (`opus`) o el nivel (`capaz`), y `orquestador.sh verificar` dice qué modelo es hoy (`scripts/guardas/versiones-de-modelo.test.ts`).
 - No dejes que Prettier formatee una plantilla con marcadores `{{X}}`: en un frontmatter YAML los reescribe como `{ { X } }` y el reemplazo deja de encontrarlos. Va en `.prettierignore` y con una prueba que use la plantilla real (`scripts/orquestador/orquestador.test.ts`).
+- Un `deny` de `.claude/settings.json` vale en todo modo y le gana al hook: lo que el hook deja pasar con `ORQ_PERMITE` (`pnpm update` en la tarea de dependencias) no puede estar en el deny.
+- Un issue que abre un workflow con `GITHUB_TOKEN` es de `github-actions[bot]`, sin asociación de escritura (`author_association: NONE`): el espejo de la cola lo acepta por su usuario sólo con la etiqueta `noche-roja`, y ningún comentario de un bot cuenta como respuesta.
+- El hook de Bash parte también por comillas invertidas y paréntesis: un texto que nombre un comando bloqueado entre `` ` `` (un doc, un mensaje de commit) se escribe con Write o va en `git commit -F <archivo>`.

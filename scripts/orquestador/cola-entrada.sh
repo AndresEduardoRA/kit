@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 # Lo que entra a la cola en los issues desde esta máquina (scripts/orquestador/README.md › «La cola en los issues»): la entrada
-# (.orquestador/entrada/, donde dejan sus specs la skill que escribe tareas y `nueva`) y la adopción de las tareas locales de
-# antes. Lo carga orquestador.sh con `source`, después de github.sh y cola-github.sh; lo llaman `espejo` en cada vuelta y el
-# comando `entrada`.
+# (.orquestador/entrada/, donde dejan sus specs la skill que escribe tareas y `nueva`), la tarea mensual de dependencias y la
+# adopción de las tareas locales de antes. Lo carga orquestador.sh con `source`, después de github.sh y cola-github.sh; lo llaman
+# `espejo` en cada vuelta y el comando `entrada`.
 
 # ------------------------------------------------------------------------------------------------------------------ entrada
 
@@ -20,8 +20,8 @@ procesar_entrada() {
   done
 }
 
-publicar_entrada() { # archivo — deja en PUBLICADA el id de la tarea nueva
-  local f=$1 err j rama otra cuerpo n id gen etiquetas=(cola)
+publicar_entrada() { # archivo [etiquetas extra…] — deja en PUBLICADA el id de la tarea nueva
+  local f=$1 err j rama otra cuerpo n id gen etiquetas=(cola "${@:2}")
   PUBLICADA=""
   [ -f "$f.error" ] && [ "$f.error" -nt "$f" ] && return 0
   err=$(mktemp)
@@ -64,6 +64,36 @@ publicar_respuesta() { # entrada/respuesta-T<n>.md → comentario (sin el prefij
   ghc api -X POST "repos/{owner}/{repo}/issues/$n/comments" -F body=@"$f" >/dev/null || return 1
   rm -f "$f"
   log "T$n: la respuesta de entrada/ quedó como comentario en el issue #$n"
+}
+
+# ------------------------------------------------------------------------------------------------- la tarea mensual de dependencias
+
+# README.md › «La tarea mensual de dependencias»: si en el mes (UTC) no se creó ningún issue `deps` y no queda uno abierto de antes,
+# la crea desde plantillas/dependencias.md y la publica con `cola` y `deps`. El mes resuelto queda en estado/.deps-mes: una llamada a
+# la API al mes. La spec se arma en estado/, no en la entrada: si GitHub no responde, la entrada la publicaría sin `deps` y el mes
+# siguiente no la vería. Apagada con DEPS_MENSUAL="no". Devuelve 1 si GitHub no respondió.
+deps_del_mes() {
+  [ "${DEPS_MENSUAL:-si}" = si ] || return 0
+  local mes salida f
+  mes=$(date -u +%Y-%m)
+  [ "$(cat "$EST/.deps-mes" 2>/dev/null)" = "$mes" ] && return 0
+  salida=$(ghc api --paginate "repos/{owner}/{repo}/issues?labels=deps&state=all&per_page=100") || return 1
+  if jq -s -e --arg mes "$mes" '[add[]? | select(has("pull_request") | not)
+      | select(.state == "open" or ((.created_at // "")[0:7] == $mes))] | length > 0' <<<"$salida" >/dev/null; then
+    echo "$mes" >"$EST/.deps-mes"
+    return 0
+  fi
+  f="$EST/dependencias-$mes.md"
+  [ -e "$f" ] || sed "s/{{MES}}/$mes/g" "$ORQ/plantillas/dependencias.md" >"$f"
+  publicar_entrada "$f" deps || return 1
+  if [ -n "$PUBLICADA" ]; then
+    echo "$mes" >"$EST/.deps-mes"
+    log "$PUBLICADA: la tarea de dependencias de $mes, a la cola"
+  elif [ -f "$f.error" ]; then
+    # Una plantilla que no se lee es del repo: se dice una vez y no se reintenta hasta el mes siguiente.
+    echo "$mes" >"$EST/.deps-mes"
+    log "✗ la tarea de dependencias de $mes no se publica: plantillas/dependencias.md no se lee ($(cat "$f.error"))"
+  fi
 }
 
 # ----------------------------------------------------------------------------------------------------------------- adopción

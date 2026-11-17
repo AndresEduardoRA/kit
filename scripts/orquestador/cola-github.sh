@@ -3,8 +3,9 @@
 # verdad): scripts/orquestador/README.md › «La cola en los issues». Lo carga orquestador.sh con `source`, después de github.sh.
 #
 # Una vuelta de `espejo`: la entrada → los issues abiertos → la adopción de lo local sin issue (esas dos, en cola-entrada.sh) → los
-# issues cerrados a mano → las etiquetas de estado → las respuestas a las trabadas → los cierres pendientes. Sin red o con el
-# límite de la API, se salta entera y la cola local sigue: nada de lo local se pierde, y la vuelta siguiente lo reintenta.
+# issues cerrados a mano → las etiquetas de estado → las respuestas a las trabadas → los cierres pendientes → la tarea mensual de
+# dependencias (cola-entrada.sh). Sin red o con el límite de la API, se salta entera y la cola local sigue: nada de lo local se
+# pierde, y la vuelta siguiente lo reintenta.
 #
 # Cada tarea con issue lleva en estado/<ID>/: `issue` (su número), `issue_base` (la huella de la última forma en que archivo e
 # issue coincidieron: con ella se sabe cuál de los dos cambió), y las marcas de lo que ya se avisó.
@@ -24,6 +25,7 @@ espejo() {
   while IFS= read -r j; do sincronizar_etiquetas "$j"; done < <(jq -c '.[]' <<<"$abiertos")
   buscar_respuestas
   cerrar_terminales
+  deps_del_mes || sin_red
 }
 
 sin_red() {
@@ -209,7 +211,7 @@ revisar_cerrados() { # " números de los abiertos "
   done
 }
 
-# La respuesta a una trabada: el primer comentario posterior al de la trabada que no es del orquestador.
+# La respuesta a una trabada: el primer comentario posterior al de la trabada que no es del orquestador ni de un bot.
 buscar_respuestas() {
   local id n cid en cs r
   for id in $(ids); do
@@ -219,9 +221,10 @@ buscar_respuestas() {
     en=$(est_get "$id" trabada_en)
     [[ -n "$n" && -n "$cid$en" ]] || continue
     cs=$(ghc api --paginate "repos/{owner}/{repo}/issues/$n/comments?per_page=100") || return 0
-    # Sólo cuenta quien puede escribir en el repo: en un repo público, cualquiera puede comentar.
+    # Sólo cuenta quien puede escribir en el repo (en un repo público, cualquiera puede comentar), y nunca un bot.
     r=$(jq -s -r --arg bot "$BOT" --argjson cid "${cid:-0}" --arg en "$en" --argjson ok "$CON_PERMISO" \
       '[add[]? | select((.body // "" | startswith($bot)) | not) | select(.author_association as $a | $ok | index($a))
+        | select((.user.type // "User") != "Bot")
         | select(if $cid > 0 then .id > $cid else .created_at > $en end)] | first | .body // empty' <<<"$cs")
     [ -n "$r" ] && aplicar_respuesta "$id" "$n" "$r"
   done

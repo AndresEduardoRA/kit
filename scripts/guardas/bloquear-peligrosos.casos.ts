@@ -66,6 +66,16 @@ export const BLOQUEA = [
   'pnpm update',
   'pnpm upgrade',
   'pnpm up zod@latest',
+  'pnpm dedupe',
+  // las opciones del principio no esconden el subcomando
+  'pnpm -r update',
+  'pnpm --filter web add zod',
+  'pnpm -C apps/web install zod',
+  'pnpm --store-dir /tmp/x add zod',
+  'pnpm -s add zod',
+  'pnpm -r --filter web update',
+  'pnpm -r exec pnpm add zod',
+  'pnpm exec pnpm update',
   'pnpm i zod',
   'pnpm install zod',
   'pnpm install -D zod',
@@ -186,6 +196,12 @@ export const PASA = [
   'npm i < /dev/null',
   'pnpm install --filter web',
   'pnpm install --dir apps/web 2>&1',
+  'pnpm -s test:kit',
+  'pnpm -r run build',
+  'pnpm --filter web test',
+  'pnpm -r exec eslint .',
+  // sólo mira si el lock tiene duplicados: no lo reescribe
+  'pnpm dedupe --check',
   'npx playwright test --list 2>&1',
   'npx playwright test --list > lista.txt',
   'npx playwright test e2e/a.spec.ts --list | head',
@@ -240,3 +256,42 @@ export const PASA = [
   'echo "listo" > test-salidas/nota.md',
   '',
 ]
+
+// La tarea de dependencias (`permite: dependencias` en su spec): el orquestador corre su sesión con ORQ_PERMITE=dependencias. Sólo
+// `pnpm update` dentro de los rangos de package.json y `pnpm dedupe`; lo demás que cambia dependencias sigue bloqueado.
+export const CON_DEPENDENCIAS = {
+  PASA: [
+    'pnpm update',
+    'pnpm up',
+    'pnpm upgrade',
+    'pnpm update -r',
+    'pnpm -r update',
+    'pnpm update zod',
+    'pnpm update @types/node',
+    'pnpm update --recursive --depth Infinity',
+    'pnpm update --no-save -D',
+    'pnpm --filter web update',
+    'pnpm dedupe',
+    'pnpm update 2>&1 | tail -5',
+  ],
+  BLOQUEA: [
+    'pnpm update --latest',
+    'pnpm up --latest=true',
+    // pnpm acepta una opción larga abreviada: --lat es --latest y --glob es --global
+    'pnpm update --lat',
+    'pnpm update --glob',
+    'pnpm update --workspace',
+    'pnpm up -L',
+    'pnpm update -rL',
+    'pnpm up zod@latest',
+    'pnpm update @types/node@24',
+    'pnpm update -g',
+    'pnpm update --global zod',
+    'pnpm update -i',
+    'pnpm add zod',
+    'pnpm install zod',
+    'pnpm remove zod',
+    'npx ncu -u',
+    'pnpm next upgrade',
+  ],
+}

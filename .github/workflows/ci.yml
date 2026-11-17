@@ -3,7 +3,8 @@ name: ci
 # Viene de calesa-app. Las reglas de este archivo las prueban scripts/guardas/workflows.test.ts y workflows-flujo.test.ts. semilla-a-repo reemplaza {{API_PORT}} y {{DB_PORT}} con los puertos del
 # bloque del proyecto y {{FUNCIONES}} con e2e/funciones.txt. Por niveles (docs/FLUJO.md, .claude/rules/e2e.md): un PR
 # corre el Nivel 1 y los e2e dirigidos a lo tocado (el completo de escritorio si toca un disparador del Nivel 2:
-# scripts/e2e-dirigidos.mjs); cada noche, el completo de escritorio sobre main si hubo commits; antes de desplegar, el completo con los
+# scripts/e2e-dirigidos.mjs); cada noche, el completo de escritorio sobre main si hubo commits (y el aviso de la noche abre el issue
+# `noche-roja`, que a la segunda noche seguida entra a la cola: scripts/flujo/noche.mjs); antes de desplegar, el completo con los
 # dos proyectos a mano (workflow_dispatch, `proyectos: ambos`). El job `listo` resume a todos: es el único check que main exige, y con
 # él en verde GitHub integra el PR solo (auto-merge). En la plantilla del kit (.kit/plantilla, la salida «plantilla» de `cambios`) los
 # jobs de proyecto se saltan y corre en su lugar «kit · proyecto de ejemplo».
@@ -338,13 +339,47 @@ jobs:
           pnpm test
           pnpm db:probar
 
+  # El aviso de la noche (scripts/flujo/noche.mjs): después del e2e completo de cada noche abre, comenta o cierra el issue `noche-roja`
+  # (a la segunda noche seguida en rojo lo vuelve una tarea urgente de la cola: .claude/rules/e2e.md). Es el único job con un permiso
+  # de escritura, `issues: write`, y sólo corre con `schedule` (la guarda de scripts/guardas/workflows.ts lo ata a este job y a este
+  # `if:`). Sus permisos reemplazan a los del workflow: `contents: read` para el checkout, `actions: read` para los jobs de la corrida.
+  # Sin pnpm install: noche.mjs sólo usa node y gh. En la plantilla del kit no hay e2e que avisar y se salta.
+  aviso-noche:
+    name: Noche · avisar el e2e en rojo
+    needs: [cambios, e2e-build, e2e]
+    if: always() && github.event_name == 'schedule' && needs.cambios.outputs.plantilla != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      # Los artefactos de los bloques que cayeron (cada uno con su e2e-fallos/<fecha>/caidos.txt). Sin ninguno, noche.mjs nombra los
+      # jobs caídos.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          pattern: e2e-bloque-*
+          path: ${{ runner.temp }}/fallos
+      - name: abrir, comentar o cerrar el issue noche-roja
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NECESIDADES: ${{ toJSON(needs) }}
+          FALLOS: ${{ runner.temp }}/fallos
+        run: node scripts/flujo/noche.mjs
+
   # El veredicto del CI en un solo check: verde si ningún job cayó ni se canceló (uno que no tocaba correr cuenta como verde). Es el
   # único que la protección de main exige: los demás cambian de nombre con la matriz o no corren en todo PR, y GitHub no puede esperar
   # a un check que nunca aparece. Con éste en verde el PR se integra solo (docs/FLUJO.md). Mismo nombre que en calesa-app.
   listo:
     name: Listo · todo en verde
     if: always()
-    needs: [nivel-1, pruebas, cambios, base, e2e-build, e2e, ejemplo]
+    needs: [nivel-1, pruebas, cambios, base, e2e-build, e2e, ejemplo, aviso-noche]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

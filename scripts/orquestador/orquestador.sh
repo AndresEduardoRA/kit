@@ -3,7 +3,9 @@
 # Cada proyecto lleva el suyo dentro de su repo y no sabe de los otros: su cola, su estado, su servicio y su lock son propios.
 #
 # La cola vive en los issues del repo con la etiqueta `cola` (el issue 57 es la tarea T57); .orquestador/cola/T*.md es su copia de
-# trabajo, en espejo en cada vuelta (cola-github.sh). Por cada tarea lista (dependencias integradas, área libre, carril libre):
+# trabajo, en espejo en cada vuelta (cola-github.sh). Entran solas la tarea mensual de dependencias, el aviso de la noche y un pedido en
+# texto libre (`pedido`), que una sesión en modo plan redacta como spec (pedidos.sh). Por cada tarea lista (dependencias integradas,
+# área libre, carril libre):
 #   1. crea su worktree desde origin/main (en .orquestador/worktrees/) y lo vuelve un carril (scripts/worktree/preparar.sh);
 #   2. si la spec lo pide, una sesión de `claude -p` en modo plan escribe el plan (el nivel capaz);
 #   3. una sesión nueva de `claude -p` implementa, verifica y publica el PR con auto-merge (`publicar.sh --sin-esperar`);
@@ -67,6 +69,11 @@ source "$ORQ/github.sh"
 source "$ORQ/cola-github.sh"
 # shellcheck source=cola-entrada.sh
 source "$ORQ/cola-entrada.sh"
+# Un pedido en texto libre (un issue con `pedido`), redactado como spec por una sesión en modo plan.
+# shellcheck source=pedidos.sh
+source "$ORQ/pedidos.sh"
+# shellcheck source=pedidos-salida.sh
+source "$ORQ/pedidos-salida.sh"
 # Los niveles de modelo (rapido, normal, capaz) y qué alias es cada uno.
 # shellcheck source=niveles.sh
 source "$ORQ/niveles.sh"
@@ -212,6 +219,7 @@ bucle() {
     espejo
     if ! pausado; then
       lanzar
+      lanzar_redaccion
       cola_terminada
     fi
     sleep "${INTERVALO:-60}"
@@ -502,6 +510,13 @@ soltar_carril() { [ -f "$WT/.env.carril" ] && (cd "$WT" && bash scripts/worktree
 reemplazar() { # plantilla → prompt (las llaves {{X}} se reemplazan)
   local t
   t=$(<"$1")
+  # Lo que la spec permite (`permite: dependencias`): un párrafo que levanta el «cambiar dependencias» de «No hagas». Va antes que
+  # la spec y el plan, que podrían nombrar la llave como texto.
+  local permite=""
+  if [[ " $(campo "$SPEC" permite | tr ',' ' ') " == *" dependencias "* ]]; then
+    permite=$(<"$PROMPTS/permite-dependencias.md")$'\n\n'
+  fi
+  t=${t//$'{{PERMITE}}\n'/$permite}
   t=${t//'{{ID}}'/$ID}
   t=${t//'{{TITULO}}'/$TITULO}
   t=${t//'{{RAMA}}'/$RAMA}
@@ -528,8 +543,10 @@ claude_en_el_worktree() { # nombre modelo effort modo prompt_archivo [args extra
   shift 5
   local salida="$EST/$ID/$nombre.jsonl" rc
   ln -sfn "$salida" "$EST/$ID/sesion-actual.jsonl"
-  log "$ID: sesión $nombre ($modelo · $effort · $modo)"
-  (cd "$WT" && timeout --kill-after=120 "${TIEMPO_MAX_SESION:-5h}" \
+  log "$ID: sesión $nombre ($modelo · $effort · $modo${PERMITE_SESION:+ · permite $PERMITE_SESION})"
+  # ORQ_PERMITE siempre explícito (vacío si la spec no permite nada): el hook de Bash lo lee del entorno del proceso `claude`, y el
+  # del servicio no se hereda.
+  (cd "$WT" && ORQ_PERMITE="${PERMITE_SESION:-}" timeout --kill-after=120 "${TIEMPO_MAX_SESION:-5h}" \
     claude -p --model "$modelo" --effort "$effort" --permission-mode "$modo" \
     --output-format stream-json --verbose "$@" <"$prompt") >"$salida" 2>"$salida.err" 9>&-
   # (`9>&-`: un proceso que la sesión deje vivo no retiene el turno de la máquina.)
@@ -544,16 +561,11 @@ claude_en_el_worktree() { # nombre modelo effort modo prompt_archivo [args extra
     retomar_luego "La sesión anterior ($nombre) se pasó de ${TIEMPO_MAX_SESION} y se cortó."
     return 1
   fi
-  if { [ "$rc" != 0 ] || [ "$es_error" = true ] || [ -z "$RESULTADO_JSON" ]; } &&
-    grep -qiE 'usage limit|limit reached|hit your limit|limit will reset|resets at|out of (extra )?usage|rate[ _-]?limit' "$salida.err" <(tail -n 5 "$salida"); then
+  if { [ "$rc" != 0 ] || [ "$es_error" = true ] || [ -z "$RESULTADO_JSON" ]; } && es_limite_del_plan "$salida"; then
     soltar_carril
-    local hasta=$(($(date +%s) + ${PAUSA_POR_LIMITE_MIN:-30} * 60))
-    # El límite es de la cuenta: la pausa es de todos los orquestadores de la máquina (si otro puso una más tardía, queda ésa).
-    fijar_pausa_compartida "$hasta" || log "no se pudo escribir la pausa compartida ($PAUSA_COMPARTIDA)"
-    hasta=$(pausa_compartida_hasta) || hasta=$(($(date +%s) + ${PAUSA_POR_LIMITE_MIN:-30} * 60))
     est_set "$ID" motivo_retomar "La sesión anterior ($nombre) se cortó por el límite del plan de Claude."
     est_set "$ID" estado "$([ "$PREVIO" = por_arreglar ] && echo por_arreglar || echo por_retomar)"
-    avisar "Pausa: límite del plan" "$ID se cortó por el límite de Claude. Reintento a las $(date -d "@$hasta" '+%H:%M') (vale para todos los orquestadores de la máquina)." low hourglass
+    pausar_por_limite "$ID"
     return 1
   fi
   if [ "$rc" != 0 ] && [ -z "$RESULTADO_JSON" ]; then
@@ -562,6 +574,20 @@ claude_en_el_worktree() { # nombre modelo effort modo prompt_archivo [args extra
     return 1
   fi
   return 0
+}
+
+# La salida de una sesión (el stream-json y su .err) dice que llegó al límite del plan de Claude. La usan esta sesión y la redacción
+# de un pedido (pedidos.sh).
+es_limite_del_plan() { # salida
+  grep -qiE 'usage limit|limit reached|hit your limit|limit will reset|resets at|out of (extra )?usage|rate[ _-]?limit' "$1.err" <(tail -n 5 "$1")
+}
+
+# El límite es de la cuenta: la pausa es de todos los orquestadores de la máquina (si otro puso una más tardía, queda ésa).
+pausar_por_limite() { # quien (lo que se cortó, para el aviso)
+  local hasta=$(($(date +%s) + ${PAUSA_POR_LIMITE_MIN:-30} * 60))
+  fijar_pausa_compartida "$hasta" || log "no se pudo escribir la pausa compartida ($PAUSA_COMPARTIDA)"
+  hasta=$(pausa_compartida_hasta) || hasta=$(($(date +%s) + ${PAUSA_POR_LIMITE_MIN:-30} * 60))
+  avisar "Pausa: límite del plan" "$1 se cortó por el límite de Claude. Reintento a las $(date -d "@$hasta" '+%H:%M') (vale para todos los orquestadores de la máquina)." low hourglass
 }
 
 retomar_luego() {
@@ -578,6 +604,7 @@ retomar_luego() {
 planificar() {
   local p="$EST/$ID/prompt-plan.md" modelo=$MODELO_PLAN effort
   effort=$(campo "$SPEC" effort_plan); effort=${effort:-$EFFORT_PLANIFICAR}
+  PERMITE_SESION="" # el plan sólo lee: ningún permiso
   reemplazar "$PROMPTS/planificar.md" >"$p"
   claude_en_el_worktree plan "$modelo" "$effort" plan "$p" --disallowedTools ExitPlanMode || return 1
   if [ "${#RESULTADO_TEXTO}" -lt 800 ]; then
@@ -604,6 +631,7 @@ sesion() { # tarea | retomar | arreglar
   p="$EST/$ID/prompt-$n-$tipo.md"
   modelo=$MODELO_SESION
   effort=$(campo "$SPEC" effort); effort=${effort:-$EFFORT_EJECUTAR}
+  PERMITE_SESION=$(campo "$SPEC" permite)
   CONTEXTO=""
   case "$tipo" in
     retomar)
@@ -736,6 +764,11 @@ cmd_plan() {
     id=$(basename "$(dirname "$f")")
     spec_de "$id" >/dev/null || echo "$id  borrador (su issue no se lee: el motivo está en el comentario del orquestador)"
   done
+  # Los pedidos en texto libre que se están redactando como spec (pedidos.sh).
+  for f in "$EST"/P*/estado; do
+    [ -e "$f" ] && linea_de_pedido "$(basename "$(dirname "$f")")"
+  done
+  return 0
 }
 
 cmd_prompt() { # lo que recibiría ahora la sesión de ejecutar de una tarea (no lanza nada)
@@ -825,7 +858,7 @@ cmd_verificar() {
   elif [ -z "$REPO_GH" ]; then
     echo "✗ el remoto origin no es de GitHub: la cola queda sólo local"; ok=0
   elif asegurar_etiquetas; then
-    echo "✓ issues de $REPO_GH con las etiquetas $ETIQUETAS_COLA"
+    echo "✓ issues de $REPO_GH con las etiquetas $ETIQUETAS_COLA y las de lo que entra solo: $ETIQUETAS_ENTRADA"
   else
     echo "✗ no se pudieron crear las etiquetas de la cola en $REPO_GH: $(cat "$EST/.gh-ultimo-error" 2>/dev/null)"; ok=0
   fi
@@ -970,6 +1003,7 @@ cmd_desinstalar() {
 case "${1:-bucle}" in
   bucle) bucle ;;
   correr) correr "$2" ;;
+  redactar) redactar "$2" ;;
   estado) cmd_estado ;;
   plan) cmd_plan ;;
   ver) cmd_ver "$2" ;;
@@ -988,5 +1022,5 @@ case "${1:-bucle}" in
   espejo) token_gh && espejo && echo "Espejo hecho (lo que pasó: .orquestador/estado/orquestador.log)." ;;
   instalar) cmd_instalar ;;
   desinstalar) cmd_desinstalar ;;
-  *) sed -n '2,27p' "$0"; exit 64 ;;
+  *) sed -n '2,29p' "$0"; exit 64 ;;
 esac

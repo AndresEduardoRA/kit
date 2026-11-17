@@ -81,7 +81,7 @@ niveles_invalidos() { # imprime cada NIVEL_* de la configuración que no vale y 
       echo "$v=«${!v:-}» no es un alias de modelo (minúsculas, como sonnet)"
     fi
   done
-  for v in NIVEL_EJECUTAR NIVEL_PLANIFICAR NIVEL_ARREGLAR_DIFICIL; do
+  for v in NIVEL_EJECUTAR NIVEL_PLANIFICAR NIVEL_ARREGLAR_DIFICIL NIVEL_REDACTAR; do
     nivel_valido "${!v:-}" && continue
     hay=0
     echo "$v=«${!v:-}» no es rapido, normal ni capaz"
@@ -127,7 +127,7 @@ verificar_niveles() { # la sección «Niveles» de verificar; devuelve 1 si algo
       ok=1
     fi
   done
-  for tipo in EJECUTAR PLANIFICAR ARREGLAR_DIFICIL; do
+  for tipo in EJECUTAR PLANIFICAR ARREGLAR_DIFICIL REDACTAR; do
     nivel="NIVEL_$tipo"
     echo "  ${tipo,,}: nivel ${!nivel:-?} → $(modelo_de_nivel "${!nivel:-}" || echo '(sin alias válido)')"
   done
