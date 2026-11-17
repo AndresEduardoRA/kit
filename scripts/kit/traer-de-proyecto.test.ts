@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -225,7 +233,9 @@ it(
     const r = m.correr('Cuenta/tienda-app', '40')
     expect(r.estado).toBe(3)
     expect(r.salida).toContain('scripts/flujo/estado.sh: el cambio del PR choca con el kit')
-    const copias = join(m.raiz, 'traer-tienda-app-40')
+    const carpeta = readdirSync(m.raiz).find((n) => n.startsWith('traer-tienda-app-40-')) ?? ''
+    expect(r.salida).toContain(`quedaron en ${join(m.raiz, carpeta)}`)
+    const copias = join(m.raiz, carpeta)
     for (const lado of ['antes', 'despues', 'kit'])
       expect(existsSync(join(copias, lado, 'scripts/flujo/estado.sh')), lado).toBe(true)
     expect(m.leer('scripts/flujo/estado.sh')).toBe(LINEAS.replace('siete', 'Siete'))

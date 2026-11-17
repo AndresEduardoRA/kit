@@ -91,6 +91,8 @@ function traerRuta(c, ruta) {
   const d = archivoDe(c.despues, ruta)
   const k = archivoDe(c.raiz, ruta)
   const choque = (motivo) => {
+    // Una carpeta nueva por corrida (nunca una ruta fija que se borra): las tres versiones de cada choque.
+    c.copias ??= mkdtempSync(join(tmpdir(), `traer-${c.nombreCorto}-`))
     for (const [lado, x] of [
       ['antes', a],
       ['despues', d],
@@ -178,7 +180,8 @@ function traer(repo, pr) {
       raiz,
       antes: join(tmp, 'antes'),
       despues: join(tmp, 'despues'),
-      copias: join(tmpdir(), `traer-${repo.split('/')[1]}-${pr}`),
+      copias: undefined,
+      nombreCorto: `${repo.split('/')[1]}-${pr}`,
     }
     const enAntes = bajarArbol(gh, repo, padre, c.antes)
     const enDespues = bajarArbol(gh, repo, p.merge_commit_sha, c.despues)
@@ -196,7 +199,6 @@ function traer(repo, pr) {
       lecciones: [],
     }
     const ctx = { ...c, valores, r, nombres: nombresDe(valores.nombre, valores.slug) }
-    rmSync(c.copias, { recursive: true, force: true })
     const cambiaron = [...new Set([...enAntes, ...enDespues])].filter((f) => {
       if (f === 'docs/LECCIONES.md' || !esFlujo(f, patrones)) return false
       const a = archivoDe(c.antes, f)
@@ -216,7 +218,7 @@ function traer(repo, pr) {
     if (!cambiaron.length && !r.lecciones.length) console.log('· nada de flujo cambió en este PR')
     if (!r.choques.length) return 0
     seccion(
-      `✗ choques: las tres versiones (antes, despues, kit) quedaron en ${c.copias}`,
+      `✗ choques: las tres versiones (antes, despues, kit) quedaron en ${ctx.copias}`,
       r.choques,
     )
     return 3
