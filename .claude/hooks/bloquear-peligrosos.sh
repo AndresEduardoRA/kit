@@ -77,10 +77,13 @@ hay_posicional() {
 # refs/tags/<nombre>`) sí se empuja, desde cualquier rama: no mueve ninguna.
 # El primer push de main de un repo recién creado (la skill semilla-a-repo, docs/semillas/LECCIONES.md › «GitHub»): sólo
 # `git [-C <carpeta>] push [-u|--set-upstream|-q] origin main`, desde main, a un `origin` que existe y no tiene main todavía
-# (`ls-remote --exit-code` sale con 2). Sin red, sin remoto, con main ya publicado o con cualquier otra forma, no hay excepción.
+# (`ls-remote --exit-code` sale con 2). Sin red, sin remoto, con main ya publicado o con cualquier otra forma, no hay excepción:
+# tampoco con una variable `GIT_*`, un `git -c`, más de un `-C` o una URL de push distinta de la de origin (el ls-remote miraría
+# otro remoto que el push).
 primer_push_de_main() {
   local dir="$1" t d rc=0 pos=()
   shift
+  case "$CMD" in *GIT_* | *" -c "* | *" -C "*" -C "*) return 1 ;; esac
   for t in "$@"; do
     case "$t" in
       -u | --set-upstream | -q | --quiet) ;;
@@ -96,6 +99,7 @@ primer_push_de_main() {
     /*) d="$dir" ;;
     *) d="$CWD/$dir" ;;
   esac
+  [ "$(git -C "$d" remote get-url --push origin 2>/dev/null)" = "$(git -C "$d" remote get-url origin 2>/dev/null)" ] || return 1
   GIT_TERMINAL_PROMPT=0 timeout 30 git -C "$d" ls-remote --exit-code --heads origin main >/dev/null 2>&1 || rc=$?
   [ "$rc" = 2 ]
 }

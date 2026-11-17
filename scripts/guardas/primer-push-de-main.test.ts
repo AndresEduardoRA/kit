@@ -13,6 +13,7 @@ let raiz = ''
 let nuevo = ''
 let publicado = ''
 let sinRemoto = ''
+let conPushUrl = ''
 
 function git(cwd: string, ...args: string[]) {
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@ejemplo.test', ...args], {
@@ -52,6 +53,9 @@ beforeAll(() => {
   nuevo = repo('nuevo', 'vacio')
   publicado = repo('publicado', 'con-main')
   sinRemoto = repo('sin-remoto', null)
+  // origin sin main, pero su URL de push va a un remoto que ya lo tiene.
+  conPushUrl = repo('con-push-url', 'vacio')
+  git(conPushUrl, 'remote', 'set-url', '--push', 'origin', join(raiz, 'publicado.git'))
 })
 
 afterAll(() => {
@@ -79,8 +83,16 @@ describe('el primer push de main de un repo nuevo', () => {
     ['junto a un cd', 'cd NUEVO && git push -u origin main'],
     ['con otra opción', 'git -C NUEVO push --dry-run origin main'],
     ['sin nombrar la rama', 'git -C NUEVO push -u origin'],
+    [
+      'con una variable GIT_ que cambia el repo',
+      'GIT_DIR=PUBLICADO/.git git -C NUEVO push origin main',
+    ],
+    ['con git -c', 'git -c remote.origin.pushurl=PUBLICADO -C NUEVO push origin main'],
+    ['con dos -C', 'git -C PUBLICADO -C NUEVO push origin main'],
+    ['con una URL de push distinta', 'git -C CONPUSHURL push -u origin main'],
   ])('bloquea: %s', (_caso, comando) => {
     const real = comando
+      .replace('CONPUSHURL', conPushUrl)
       .replace('PUBLICADO', publicado)
       .replace('SINREMOTO', sinRemoto)
       .replace('NUEVO', nuevo)
