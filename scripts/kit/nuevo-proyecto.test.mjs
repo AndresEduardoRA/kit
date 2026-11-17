@@ -1,416 +1,245 @@
-// semilla-a-repo, la parte determinista: una semilla de prueba que pasa el validador real de idea-a-semilla, el proyecto que sale, y
-// lo que se niega a hacer. El validador v1 (el que el generador entiende hoy) va con el kit en scripts/kit/fixtures/; KIT_VALIDADOR
-// lo cambia. Sin python3 con PyYAML las pruebas con validador se saltan, diciéndolo.
+// semilla-a-repo, la parte determinista: el ejemplo v2 (turnero: app y web) en una raíz temporal, los repos que salen, volver a
+// correr, --sumar, y lo que se niega a hacer. Corre el validador de verdad: sin python3 con PyYAML se salta diciéndolo (salvo con
+// SEMILLA_EXIGE_PYYAML=1, que lo exige: el job «kit · proyecto de ejemplo»).
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { readdirSync, statSync } from 'node:fs'
-import { test } from 'node:test'
+import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { leerManifiesto } from '../proyecto/manifiesto.mjs'
-import {
-  crear,
-  marcadoresSueltos,
-  moverPuertos,
-  problemasDelCss,
-  scopesDelPlan,
-  seccion,
-} from './nuevo-proyecto.mjs'
-
-/** Los archivos de una carpeta, relativos a ella (sin node_modules). */
-function listarArchivos(raiz, pre = '') {
-  return readdirSync(join(raiz, pre)).flatMap((n) => {
-    const rel = pre + n
-    if (n === 'node_modules') return []
-    return statSync(join(raiz, rel)).isDirectory() ? listarArchivos(raiz, rel + '/') : [rel]
-  })
-}
+import { crear, resumen } from './nuevo-proyecto.mjs'
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const hayPyYaml = (() => {
-  try {
-    execFileSync('python3', ['-c', 'import yaml'], { stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
-})()
-const VALIDADOR = [
-  process.env.KIT_VALIDADOR,
-  hayPyYaml ? join(KIT, 'scripts/kit/fixtures/validar_semilla_v1.py') : undefined,
-  join(KIT, '../semillas/_herramientas/validar_semilla.py'),
-  '/home/claude/idea-a-semilla/validar_semilla.py',
-].find((r) => r && existsSync(r))
-const conValidador = VALIDADOR ? test : test.skip
+const hayPyYaml = spawnSync('python3', ['-c', 'import yaml']).status === 0
+const exige = process.env.SEMILLA_EXIGE_PYYAML === '1'
+if (!hayPyYaml && !exige)
+  console.log('# aviso: sin python3 con PyYAML se saltan las pruebas del generador')
+const conValidador = hayPyYaml || exige ? describe : describe.skip
 
-const tokensKit = readFileSync(join(KIT, 'design/tokens.css'), 'utf8')
-const cssKit = tokensKit
-  .slice(
-    tokensKit.indexOf('*/', tokensKit.indexOf('semilla:inicio')) + 2,
-    tokensKit.lastIndexOf('/*', tokensKit.indexOf('semilla:fin')),
-  )
-  .trim()
-const cssSemilla = cssKit.replace(
-  /--color-primario:\s*[^;]+;/,
-  '--color-primario: oklch(0.6 0.2 30);',
-)
+/** Una raíz de proyectos temporal con la semilla de ejemplo en z_turnero/semilla, con `cambio(dir)` aplicado. */
+function proyecto(cambio = () => {}) {
+  const raiz = mkdtempSync(join(tmpdir(), 'proyectos-'))
+  const semilla = join(raiz, 'z_turnero', 'semilla')
+  cpSync(join(KIT, 'scripts/semilla/ejemplo/semilla'), semilla, { recursive: true })
+  cambio(semilla)
+  return { raiz, z: join(raiz, 'z_turnero') }
+}
+const editar = (archivo, fn) => writeFileSync(archivo, fn(readFileSync(archivo, 'utf8')))
 
-const ruteo =
-  'ruteo: {agente: claude, modelo: sonnet, effort: high, modo: auto, sesion: nueva, revisor: ninguno}'
-const PLAN = `esquema: plan/v1
-agentes_disponibles: [claude]
-carriles:
-  - {id: datos, dueno_de: [supabase/, src/modules/turnos/infra/]}
-  - {id: ui, dueno_de: [src/modules/turnos/features/, src/app/turnos/]}
-pasos:
-  - id: P01
-    titulo: Esquema de turnos
-    depende_de: []
-    carril: datos
-    riesgo: rojo
-    modulos: [supabase/migrations/]
-    decisiones: [A1]
-    ruteo: {agente: claude, modelo: opus, effort: xhigh, modo: plan→manual, sesion: nueva, revisor: claude-sesion-nueva}
-    verificacion: {nivel: 1, comando: "pnpm db:probar"}
-    terminado: db:probar verde
-  - id: P02
-    titulo: Lista de turnos
-    depende_de: [P01]
-    carril: ui
-    riesgo: ambar
-    modulos: [src/modules/turnos/features/lista/, src/app/turnos/]
-    decisiones: [F1]
-    ${ruteo}
-    verificacion: {nivel: 1, comando: "pnpm test"}
-    terminado: test verde
-`
-const SEMILLA = `---
-esquema: semilla/v1
-nombre: Turnos del consultorio
-slug: turnos
-version: 2
-tamano: chico
-tipo: interno
-plataforma: PWA
-arquitectura: features
-stack: {next: "16.4.3"}
-servicios: [supabase, vercel]
-agentes: [claude]
-tope_cuota: {ventana_5h_pct: 30, semanal_pct: 20}
-funciones_edge: [push, storage-gc]
-generada_con: {modelo: opus, effort: high, confirmado_por: dueño}
----
-
-## 1. Visión y alcance
-
-Agenda de turnos para un consultorio chico, con recepción y dueño (A1, F1).
-
-## 6. Experiencia
-
-- /turnos: lista con sus estados vacío, carga, error, sin permiso y sin conexión.
-
-## 7. Escala y rendimiento
-
-- La lista lleva cursor y página de 25.
-
-## 8. Sistema de diseño
-
-\`\`\`css
-${cssSemilla}
-\`\`\`
-
-## 11. Glosario
-
-- **Turno:** una hora reservada.
-`
-const REGISTRO = `| ID | tema | decisión | estado | fuente |
-|---|---|---|---|---|
-| A1 | usuarios | recepción y dueño | cerrada | dueño |
-| F1 | stack | Next | recomendado aceptado | dueño |
-`
-
-function semilla(cambio = (x) => x) {
-  const raiz = mkdtempSync(join(tmpdir(), 'semillas-'))
-  const dir = join(raiz, 'turnos')
-  mkdirSync(dir)
-  const f = cambio({
-    'semilla.md': SEMILLA,
-    'plan.yaml': PLAN,
-    'registro.md': REGISTRO,
-    'CHANGELOG.md': '# v2\n',
+/** Los archivos de una carpeta, relativos a ella (sin .git). */
+function listar(raiz, pre = '') {
+  return readdirSync(join(raiz, pre)).flatMap((n) => {
+    const rel = pre + n
+    if (n === '.git') return []
+    return statSync(join(raiz, rel)).isDirectory() ? listar(raiz, rel + '/') : [rel]
   })
-  for (const [n, t] of Object.entries(f)) writeFileSync(join(dir, n), t)
-  // `proyectos`: la raíz de proyectos de la prueba, donde van los z_<proyecto>/proyecto.yaml de los demás.
-  return { dir, destino: join(raiz, 'proyectos', 'turnos'), proyectos: join(raiz, 'z') }
 }
 
-/** Escribe `<proyectos>/z_<slug>/proyecto.yaml` con un repo por bloque (`bloques`) o con puertos heredados (`{ heredado }`). */
-function manifiestoSuelto(proyectos, slug, ...puertos) {
-  const carpeta = join(proyectos, `z_${slug}`)
-  mkdirSync(carpeta, { recursive: true })
-  const repos = puertos.map((p, i) => {
-    const rol = ['app', 'web', 'crm'][i]
-    return `  - rol: ${rol}
-    nombre: ${slug}-${rol}
-    github: Duena/${slug}-${rol}
-    etapa: construccion
-    semilla: null
-    puertos: ${typeof p === 'number' ? `{ bloque: ${p} }` : `{ heredado: { api: 54621, base: 54622, app: 3000 } }`}
-    provee: []
-    consume: []`
+conValidador('nuevo-proyecto.mjs sobre el ejemplo turnero', () => {
+  test('en seco: dos repos, bloques 5 y 6, ningún marcador y nada escrito', () => {
+    const p = proyecto()
+    const r = crear('turnero', { raiz: p.raiz, enSeco: true })
+    assert.deepEqual(
+      r.repos.map((x) => [x.nombre, x.bloque, x.marcadores.length, x.secretos.length]),
+      [
+        ['turnero-app', 5, 0, 0],
+        ['turnero-web', 6, 0, 0],
+      ],
+    )
+    assert.deepEqual(readdirSync(p.z), ['semilla'])
+    const texto = resumen(r, true)
+    assert.match(texto, /^manifiesto: z_turnero\/proyecto\.yaml · nuevo \(ensayo: nada escrito\)$/m)
+    assert.match(
+      texto,
+      /^ {2}cola: 3 pasos \+ cierre · rojos: ninguno · espera a: turnero-app:P02$/m,
+    )
+    assert.match(texto, /^ {2}contratos: consume agenda-publica@1 en P01 · publica: nada$/m)
+    assert.equal(texto.split('\n').length, 1 + 6 + 6)
   })
-  writeFileSync(
-    join(carpeta, 'proyecto.yaml'),
-    `esquema: proyecto/v1\nproyecto: ${slug}\nnombre: ${slug}\nsemilla: null\nrepos:\n${repos.join('\n')}\ncontratos: []\n`,
-  )
-  return join(carpeta, 'proyecto.yaml')
-}
 
-test('los puertos del bloque 5 pasan al del proyecto, y nada más', () => {
-  assert.equal(
-    moverPuertos('port = 55321\nshadow = 55320\nhttp://localhost:8000 e2e 8210 id 4000-8000-x', 6),
-    'port = 56321\nshadow = 56320\nhttp://localhost:9000 e2e 9210 id 4000-9000-x'.replace(
-      '4000-9000',
-      '4000-9000',
-    ),
-  )
-})
-
-test('los scopes salen de los módulos del plan', () => {
-  const plan = {
-    carriles: [
-      { id: 'datos', dueno_de: ['supabase/', 'src/modules/turnos/infra/'] },
-      { id: 'ui', dueno_de: [] },
-    ],
-    pasos: [{ modulos: ['src/modules/pagos/features/x/'] }],
-  }
-  assert.deepEqual(scopesDelPlan(plan), ['pagos', 'turnos'])
-  assert.deepEqual(scopesDelPlan(null), [])
-})
-
-test('el contrato de tokens: nombres del kit y tema oscuro', () => {
-  assert.deepEqual(problemasDelCss(cssSemilla, cssKit), [])
-  const p = problemasDelCss(':root { --color-primario: red; --fondo: x; }', cssKit)
-  assert.match(p[0], /le faltan tokens del contrato del kit: .*--color-paper/)
-  assert.match(p.join('\n'), /no trae el tema oscuro/)
-})
-
-test('seccion', () => {
-  assert.equal(seccion('## 1. A\nx\n## 2. B\ny', 'A'), 'x')
-  assert.equal(seccion('## 1. A\nx', 'Z'), null)
-})
-
-conValidador(
-  'un proyecto de punta a punta: reemplazos, docs derivados, commit y sin marcadores',
-  () => {
-    const s = semilla()
-    // ningún otro manifiesto en la raíz: el bloque es el 5
-    const r = crear(s.dir, s.destino, { validador: VALIDADOR, raizProyectos: s.proyectos })
-    assert.equal(r.bloque, 5)
-    const leer = (f) => readFileSync(join(s.destino, f), 'utf8')
-    assert.match(leer('e2e/funciones.txt'), /^push\nstorage-gc\n$/m)
-    assert.match(leer('supabase/config.toml'), /^project_id = "turnos"$/m)
-    assert.match(
-      leer('.github/workflows/ci.yml'),
-      /SUPABASE_API_LOCAL: http:\/\/127\.0\.0\.1:55321/,
-    )
-    assert.match(leer('AGENTS.md'), /^# Turnos del consultorio$/m)
-    assert.match(leer('AGENTS.md'), /Scopes: .*\(turnos\)/)
-    assert.match(leer('commitlint.config.mjs'), /'turnos',\n/)
-    assert.match(leer('src/shared/config/app.ts'), /COLOR_TEMA = 'oklch\(0\.6 0\.2 30\)'/)
-    // Los marcadores del flujo (de calesa-app): el orquestador, los puertos de la pila del CI, el revisor y las skills.
-    // El nombre del repo no se fija: PROYECTO va vacío y sale del manifiesto (`turnos-app`).
-    assert.match(leer('scripts/orquestador/config.env'), /^PROYECTO=""$/m)
-    assert.match(leer('scripts/orquestador/README.md'), /orquestador-turnos-app/)
-    // La copia del manifiesto: el slug, el nombre, la cuenta del kit, el bloque; válida y sin marcadores.
-    const manifiesto = leerManifiesto(leer('.proyecto/proyecto.yaml'))
-    assert.equal(manifiesto.proyecto, 'turnos')
-    assert.equal(manifiesto.nombre, 'Turnos del consultorio')
-    assert.equal(manifiesto.repos[0].nombre, 'turnos-app')
-    assert.equal(manifiesto.repos[0].github, 'AndresEduardoRA/turnos-app')
-    assert.deepEqual(manifiesto.repos[0].puertos, { bloque: 5 })
-    assert.equal(r.cuenta, 'AndresEduardoRA')
-    assert.match(
-      leer('.github/acciones/pila/action.yml'),
-      /ip_local_reserved_ports=54300-54399,55320-55329$/m,
-    )
-    assert.match(leer('.github/acciones/pila/action.yml'), /Puertos del bloque 5\./)
-    assert.match(leer('.claude/agents/revisor.md'), /Eres el revisor de Turnos del consultorio\./)
-    assert.match(
-      leer('.claude/skills/entregar/SKILL.md'),
-      /trabajo actual de Turnos del consultorio/,
-    )
-    assert.match(
-      leer('scripts/orquestador/prompts/tarea.md'),
-      /orquestador de Turnos del consultorio\./,
-    )
-    assert.match(
-      leer('scripts/orquestador/prompts/tarea.md'),
-      /# Tarea \{\{ID\}\} — \{\{TITULO\}\}/,
-    )
-    assert.match(
-      leer('scripts/orquestador/prompts/redactar.md'),
-      /sesión de redacción del orquestador de Turnos del consultorio, en modo plan/,
-    )
-    assert.match(leer('design/tokens.css'), /--color-primario: oklch\(0\.6 0\.2 30\);/)
-    assert.match(leer('docs/UX.md'), /versión 2[\s\S]*\/turnos: lista/)
-    assert.match(leer('docs/GLOSARIO.md'), /\*\*Turno:\*\*/)
-    assert.ok(existsSync(join(s.destino, 'docs/semilla/plan.yaml')))
-    assert.ok(!existsSync(join(s.destino, 'docs/pasos')), 'ni docs/pasos')
-    // Nada del flujo viejo (el regex se arma en pedazos: el grep de K04 no cuenta esta prueba). Ni archivos ni texto, salvo docs/semilla.
-    const viejo = new RegExp(
-      ['pilo', 'to|coordina', 'dor|compuer', 'ta|PILO', 'TO_|COORD', '_'].join(''),
-      'i',
-    )
-    const sueltos = []
-    for (const f of listarArchivos(s.destino)) {
-      if (f.startsWith('docs/semilla/') || f.startsWith('.git/') || f === 'docs/KIT.md') continue
-      if (viejo.test(f) || viejo.test(readFileSync(join(s.destino, f), 'utf8'))) sueltos.push(f)
+  test('de verdad: los dos repos, cada uno con su nombre, su bloque, su copia del manifiesto y lo que nace de la semilla', () => {
+    const p = proyecto()
+    crear('turnero', { raiz: p.raiz })
+    const suelto = readFileSync(join(p.z, 'proyecto.yaml'), 'utf8')
+    execFileSync('python3', [
+      join(KIT, 'scripts/semilla/validar_semilla.py'),
+      '--manifiesto',
+      join(p.z, 'proyecto.yaml'),
+    ])
+    const kitHead = execFileSync('git', ['-C', KIT, 'rev-parse', 'HEAD'], { encoding: 'utf8' })
+    for (const [rol, bloque, scopes, descripcion] of [
+      [
+        'app',
+        5,
+        "'agenda',\n        'equipo',",
+        'Panel interno de la barbería y dueño de la base de turnos',
+      ],
+      ['web', 6, "'reserva',", 'Web pública para ver horas libres y reservar un turno'],
+    ]) {
+      const dir = join(p.z, rol)
+      const leer = (f) => readFileSync(join(dir, f), 'utf8')
+      const copia = leerManifiesto(leer('.proyecto/proyecto.yaml'))
+      assert.deepEqual(copia, leerManifiesto(suelto), `${rol}: la copia es el manifiesto entero`)
+      assert.deepEqual(
+        copia.repos.map((x) => [x.rol, x.puertos, x.provee, x.consume]),
+        [
+          ['app', { bloque: 5 }, [], []],
+          ['web', { bloque: 6 }, [], []],
+        ],
+      )
+      assert.deepEqual(copia.contratos?.[0]?.vigentes, [1])
+      assert.match(leer('supabase/config.toml'), new RegExp(`^project_id = "turnero-${rol}"$`, 'm'))
+      assert.match(leer('supabase/config.toml'), new RegExp(`^port = 5${bloque}321$`, 'm'))
+      assert.equal(JSON.parse(leer('package.json')).name, `turnero-${rol}`)
+      assert.ok(!/"(kit:|test:generador)/.test(leer('package.json')), 'sin los scripts del kit')
+      assert.match(leer('AGENTS.md'), new RegExp(`^# turnero-${rol}\n\n${descripcion}\n`))
+      assert.match(
+        leer('AGENTS.md'),
+        /`docs\/semilla\/`: `semilla\.md` y `plan\.yaml` de este repo, y `comun\.md`/,
+      )
+      assert.ok(leer('commitlint.config.mjs').includes(scopes), `${rol}: scopes`)
+      assert.match(leer('src/shared/config/app.ts'), /^export const NOMBRE_APP = 'Turnero'$/m)
+      assert.match(leer('src/shared/config/app.ts'), /COLOR_TEMA = 'oklch\(0\.45 0\.12 250\)'/)
+      assert.match(leer('design/tokens.css'), /--color-primario: oklch\(0\.45 0\.12 250\);/)
+      assert.match(
+        leer('design/tokens.css'),
+        /docs\/semilla\/comun\.md › Marca y sistema de diseño/,
+      )
+      assert.equal(leer('.kit/version'), kitHead)
+      assert.match(leer('scripts/orquestador/README.md'), new RegExp(`orquestador-turnero-${rol}`))
+      assert.match(
+        leer('.claude/agents/revisor.md'),
+        new RegExp(`Eres el revisor de turnero-${rol}\\.`),
+      )
+      for (const f of ['comun.md', 'semilla.md', 'plan.yaml', 'registro.md'])
+        assert.ok(existsSync(join(dir, 'docs/semilla', f)), `${rol}: docs/semilla/${f}`)
+      assert.match(leer('docs/semilla/semilla.md'), new RegExp(`^rol: ${rol}$`, 'm'))
+      for (const doc of ['UX', 'RENDIMIENTO', 'GLOSARIO']) {
+        assert.ok(!/no se edita a mano/i.test(leer(`docs/${doc}.md`)), `${doc} se edita`)
+        assert.match(leer(`docs/${doc}.md`), /^> Nació de la semilla v1 /m)
+      }
+      assert.match(leer('docs/GLOSARIO.md'), /\*\*Código de cancelación:\*\*/)
+      assert.match(leer('docs/GLOSARIO.md'), /docs\/semilla\/comun\.md/)
+      assert.equal(
+        execFileSync('git', ['-C', dir, 'log', '--format=%s'], { encoding: 'utf8' }).trim(),
+        `chore(kit): arrancar turnero-${rol} desde el kit (semilla v1)`,
+      )
+      assert.equal(
+        execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' }),
+        '',
+      )
+      for (const f of [
+        'scripts/kit',
+        'scripts/semilla',
+        'docs/semillas',
+        '.kit/plantilla',
+        'node_modules',
+      ])
+        assert.ok(!existsSync(join(dir, f)), `${rol}: ${f} no viaja`)
+      assert.ok(existsSync(join(KIT, '.kit/plantilla')), 'el kit sí tiene la marca de plantilla')
+      // Nada del flujo viejo (el regex se arma en pedazos: el grep de K04 no cuenta esta prueba). Ni archivos ni texto, salvo docs/semilla.
+      const viejo = new RegExp(
+        ['pilo', 'to|coordina', 'dor|compuer', 'ta|PILO', 'TO_|COORD', '_'].join(''),
+        'i',
+      )
+      const sueltos = listar(dir).filter(
+        (f) =>
+          !f.startsWith('docs/semilla/') &&
+          f !== 'docs/KIT.md' &&
+          (viejo.test(f) || viejo.test(readFileSync(join(dir, f), 'utf8'))),
+      )
+      assert.deepEqual(sueltos, [], `${rol}: sin rastro del flujo viejo`)
     }
-    assert.deepEqual(sueltos, [], 'el proyecto generado no trae rastro del flujo viejo')
-    assert.ok(!existsSync(join(s.destino, 'scripts/kit')), 'el generador no viaja')
-    assert.ok(!existsSync(join(s.destino, 'scripts/semilla')), 'la semilla de ejemplo no viaja')
-    assert.ok(
-      existsSync(join(KIT, '.kit/plantilla')),
-      'el kit tiene la marca de plantilla que salta los jobs de proyecto',
+    assert.match(
+      readFileSync(join(p.z, 'app/docs/UX.md'), 'utf8'),
+      /\| Agenda del día \| `\/agenda`/,
     )
-    assert.ok(
-      !existsSync(join(s.destino, '.kit/plantilla')),
-      'un proyecto generado no la tiene: sus jobs corren',
+    assert.match(readFileSync(join(p.z, 'web/docs/UX.md'), 'utf8'), /\| Reservar \| `\/reservar`/)
+    // Volver a correr: todo se salta y el manifiesto queda byte a byte.
+    const otra = crear('turnero', { raiz: p.raiz })
+    assert.deepEqual(otra.repos, [])
+    assert.deepEqual(
+      otra.saltados.map((s) => s.rol),
+      ['app', 'web'],
     )
-    assert.ok(!existsSync(join(s.destino, 'node_modules')))
-    assert.equal(
-      execFileSync('git', ['-C', s.destino, 'log', '--format=%s'], { encoding: 'utf8' }).trim(),
-      'chore(kit): arrancar turnos desde el kit (semilla v2)',
-    )
-    assert.equal(JSON.parse(leer('package.json')).name, 'turnos')
-  },
-)
+    assert.equal(readFileSync(join(p.z, 'proyecto.yaml'), 'utf8'), suelto)
+  })
 
-test('marcadoresSueltos nombra cada marcador que quedó y en qué archivo', () => {
-  assert.deepEqual(
-    marcadoresSueltos({ 'a.md': 'sin nada', 'b.yml': 'x {{PUERTOS_PILA}} y cambiar-slug' }),
-    ['b.yml: {{PUERTOS_PILA}}', 'b.yml: cambiar-slug'],
-  )
-  // Los del orquestador no son del generador: los reemplaza orquestador.sh al armar cada prompt.
-  assert.deepEqual(marcadoresSueltos({ 'tarea.md': '# Tarea {{ID}} — {{TITULO}}' }), [])
-})
-
-conValidador(
-  'en seco aplica los reemplazos en memoria: ningún marcador suelto y nada escrito',
-  () => {
-    const s = semilla()
-    const r = crear(s.dir, s.destino, {
-      validador: VALIDADOR,
-      raizProyectos: s.proyectos,
-      enSeco: true,
-    })
-    assert.equal(r.marcadores_sueltos, 0)
-    assert.ok(r.revisados > 100, `revisó ${r.revisados} archivos`)
-    assert.ok(!existsSync(s.destino), 'en seco no escribe')
-  },
-)
-
-conValidador('el bloque salta los que ya usan los manifiestos de la raíz', () => {
-  const s = semilla()
-  const opciones = { validador: VALIDADOR, raizProyectos: s.proyectos, enSeco: true }
-  manifiestoSuelto(s.proyectos, 'otro', 5)
-  assert.equal(crear(s.dir, s.destino, opciones).bloque, 6)
-  // Un repo con puertos heredados (546xx) no ocupa ningún bloque; el segundo repo de otro proyecto, sí.
-  manifiestoSuelto(s.proyectos, 'viejo', { heredado: true }, 6)
-  assert.equal(crear(s.dir, s.destino, opciones).bloque, 7)
-})
-
-conValidador('un proyecto pide su bloque: si un manifiesto ya lo usa, se niega nombrándolo', () => {
-  const s = semilla()
-  const ajeno = manifiestoSuelto(s.proyectos, 'otro', 6)
-  const opciones = { validador: VALIDADOR, raizProyectos: s.proyectos, enSeco: true }
-  assert.equal(crear(s.dir, s.destino, { ...opciones, bloque: 7 }).bloque, 7)
-  assert.throws(
-    () => crear(s.dir, s.destino, { ...opciones, bloque: 6 }),
-    (e) =>
-      e.message.includes('bloque 6') && e.message.includes('otro-app') && e.message.includes(ajeno),
-  )
-})
-
-conValidador('dos manifiestos con el mismo bloque: el generador falla nombrando los dos', () => {
-  const s = semilla()
-  const uno = manifiestoSuelto(s.proyectos, 'uno', 5)
-  const dos = manifiestoSuelto(s.proyectos, 'dos', 5)
-  for (const bloque of [undefined, 8])
-    assert.throws(
-      () =>
-        crear(s.dir, s.destino, {
-          validador: VALIDADOR,
-          raizProyectos: s.proyectos,
-          enSeco: true,
-          bloque,
-        }),
-      (e) =>
-        e.message.includes('mismo bloque') &&
-        e.message.includes(uno) &&
-        e.message.includes(dos) &&
-        e.message.includes('uno-app') &&
-        e.message.includes('dos-app'),
-    )
-})
-
-conValidador('un manifiesto ajeno inválido corta nombrando el archivo y el campo', () => {
-  const s = semilla()
-  const roto = manifiestoSuelto(s.proyectos, 'roto', 5)
-  writeFileSync(roto, readFileSync(roto, 'utf8').replace('esquema: proyecto/v1', 'esquema: otro'))
-  assert.throws(
-    () =>
-      crear(s.dir, s.destino, { validador: VALIDADOR, raizProyectos: s.proyectos, enSeco: true }),
-    (e) =>
-      e.message.includes(roto) &&
-      e.message.includes('esquema:') &&
-      e.message.includes('--manifiesto'),
-  )
-})
-
-conValidador(
-  'el manifiesto del proyecto generado pasa el validador de manifiestos (si está)',
-  (t) => {
-    const validador = join(KIT, '../semillas/validar_semilla.py')
-    if (!existsSync(validador)) return t.skip('no está ../semillas/validar_semilla.py')
-    const s = semilla()
-    crear(s.dir, s.destino, { validador: VALIDADOR, raizProyectos: s.proyectos, cuenta: 'Duena' })
-    execFileSync(
-      'python3',
-      [validador, '--manifiesto', join(s.destino, '.proyecto/proyecto.yaml')],
-      {
-        stdio: 'pipe',
-      },
+  test('una carpeta ocupada se salta; después --sumar la crea con el bloque siguiente', () => {
+    const p = proyecto()
+    mkdirSync(join(p.z, 'web'))
+    writeFileSync(join(p.z, 'web', 'algo'), 'x')
+    const r = crear('turnero', { raiz: p.raiz })
+    assert.deepEqual(
+      r.repos.map((x) => x.rol),
+      ['app'],
     )
     assert.match(
-      readFileSync(join(s.destino, '.proyecto/proyecto.yaml'), 'utf8'),
-      /github: Duena\/turnos-app/,
+      resumen(r),
+      /^turnero-web · z_turnero\/web · se salta: z_turnero\/web ya existe y no está vacía$/m,
     )
-  },
-)
+    assert.deepEqual(
+      leerManifiesto(readFileSync(join(p.z, 'proyecto.yaml'), 'utf8')).repos.map((x) => x.rol),
+      ['app'],
+    )
+    rmSync(join(p.z, 'web'), { recursive: true })
+    assert.throws(() => crear('turnero', { raiz: p.raiz }), /para sumar web usa --sumar/)
+    const sumado = crear('turnero', { raiz: p.raiz, sumar: 'web' })
+    assert.deepEqual(
+      sumado.repos.map((x) => [x.rol, x.bloque]),
+      [['web', 6]],
+    )
+    assert.equal(sumado.manifiesto.estado, 'se suma web')
+    const copia = leerManifiesto(readFileSync(join(p.z, 'web/.proyecto/proyecto.yaml'), 'utf8'))
+    assert.deepEqual(copia.contratos?.[0]?.consumidores, ['web'])
+  })
 
-conValidador('se niega: semilla que no valida, tokens fuera de contrato, destino ocupado', () => {
-  const opciones = { validador: VALIDADOR, enSeco: true, raizProyectos: '/no/hay/raiz' }
-  const s1 = semilla((f) => ({
-    ...f,
-    'semilla.md': f['semilla.md'].replace('(A1, F1)', '(A1, F1) etc.'),
-  }))
-  assert.throws(() => crear(s1.dir, s1.destino, opciones), /no pasa el validador[\s\S]*etc\./)
-  const s2 = semilla((f) => ({
-    ...f,
-    'semilla.md': f['semilla.md'].replace(/--color-paper:/g, '--color-fondo:'),
-  }))
-  assert.throws(() => crear(s2.dir, s2.destino, opciones), /contrato del kit[\s\S]*--color-paper/)
-  const s3 = semilla()
-  mkdirSync(s3.destino, { recursive: true })
-  writeFileSync(join(s3.destino, 'algo'), 'x')
-  assert.throws(() => crear(s3.dir, s3.destino, opciones), /ya existe y no está vacía/)
+  test('un .creando-* que dejó un corte se borra al empezar', () => {
+    const p = proyecto()
+    mkdirSync(join(p.z, '.app.creando-999999999', 'x'), { recursive: true })
+    crear('turnero', { raiz: p.raiz })
+    assert.deepEqual(readdirSync(p.z).sort(), ['app', 'proyecto.yaml', 'semilla', 'web'])
+  })
+
+  test('se niega: sin semilla, semilla que no valida, marcas «verificar», sin auditoría', () => {
+    const vacia = mkdtempSync(join(tmpdir(), 'proyectos-'))
+    assert.throws(() => crear('turnero', { raiz: vacia }), /no hay semilla en .*z_turnero\/semilla/)
+    const rota = proyecto((s) =>
+      editar(join(s, 'comun.md'), (t) => t.replace('Pagos en línea,', 'Pagos en línea, etc.,')),
+    )
+    assert.throws(
+      () => crear('turnero', { raiz: rota.raiz, enSeco: true }),
+      /no pasa el validador:[\s\S]*texto prohibido «etc\.»[\s\S]*idea-a-semilla/,
+    )
+    const marcas = proyecto((s) =>
+      editar(join(s, 'comun.md'), (t) =>
+        t.replace('Tipografía Inter.', 'Tipografía Inter «verificar».'),
+      ),
+    )
+    assert.throws(
+      () => crear('turnero', { raiz: marcas.raiz, enSeco: true }),
+      /cierra las marcas «verificar» en idea-a-semilla/,
+    )
+    const mediano = proyecto((s) =>
+      editar(join(s, 'repos/app/semilla.md'), (t) => t.replace('tamano: chico', 'tamano: mediano')),
+    )
+    assert.throws(
+      () => crear('turnero', { raiz: mediano.raiz, enSeco: true }),
+      /falta la auditoría independiente \(tamaño mediano\): Fase 5 de idea-a-semilla/,
+    )
+    writeFileSync(join(mediano.z, 'semilla/ESTADO.md'), '- auditoría independiente: hecha\n')
+    assert.equal(crear('turnero', { raiz: mediano.raiz, enSeco: true }).repos.length, 2)
+  })
 })
-
-if (!VALIDADOR)
-  console.log(
-    '# aviso: sin validar_semilla.py (KIT_VALIDADOR): se saltan las pruebas de punta a punta',
-  )

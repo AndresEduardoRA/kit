@@ -353,31 +353,47 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-  # Sólo en la plantilla del kit (la salida «plantilla» de `cambios`): genera con scripts/kit/nuevo-proyecto.mjs un proyecto desde la
-  # semilla de scripts/kit/fixtures/ y le corre lo que corre un proyecto. Así «verde» en el kit significa que lo que sale del kit
-  # funciona. En un proyecto generado se salta (y para `listo` cuenta como verde).
+  # Sólo en la plantilla del kit (la salida «plantilla» de `cambios`): genera con scripts/kit/nuevo-proyecto.mjs los dos repos (app y
+  # web) de la semilla de ejemplo v2 (scripts/semilla/ejemplo/) y le corre a cada uno lo que corre un proyecto. Así «verde» en el kit
+  # significa que lo que sale del kit funciona. El validador de semillas corre con PyYAML exigido (SEMILLA_EXIGE_PYYAML): sin él sus
+  # pruebas se saltarían. En un proyecto generado se salta (y para `listo` cuenta como verde).
   ejemplo:
     name: kit · proyecto de ejemplo
     needs: cambios
     if: needs.cambios.outputs.plantilla == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Dos repos generados, cada uno con su install, lint, tipos y pruebas: el doble que uno.
+    timeout-minutes: 45
     env:
-      # El generador hace el primer commit del proyecto: en el runner git no tiene autor.
+      # El generador hace el primer commit de cada repo: en el runner git no tiene autor.
       GIT_AUTHOR_NAME: ci
       GIT_AUTHOR_EMAIL: ci@ejemplo.test
       GIT_COMMITTER_NAME: ci
       GIT_COMMITTER_EMAIL: ci@ejemplo.test
+      SEMILLA_EXIGE_PYYAML: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/acciones/preparar
       - name: PyYAML para el validador de la semilla
         run: python3 -c 'import yaml' 2>/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q python3-yaml; }
       - run: pnpm test:generador
-      - name: generar el proyecto de ejemplo
-        run: node scripts/kit/nuevo-proyecto.mjs scripts/kit/fixtures/semilla-v1 "$RUNNER_TEMP/ejemplo" --bloque 5 --validador scripts/kit/fixtures/validar_semilla_v1.py
-      - name: el proyecto instala y pasa lint, tipos, pruebas y db:probar
-        working-directory: ${{ runner.temp }}/ejemplo
+      - name: el validador de semillas sobre el ejemplo y sus variantes rotas
+        run: pnpm exec vitest run scripts/semilla
+      - name: generar los repos del ejemplo v2
+        run: |
+          mkdir -p "$RUNNER_TEMP/proyectos/z_turnero"
+          cp -r scripts/semilla/ejemplo/semilla "$RUNNER_TEMP/proyectos/z_turnero/semilla"
+          node scripts/kit/nuevo-proyecto.mjs turnero --raiz "$RUNNER_TEMP/proyectos"
+      - name: app instala y pasa lint, tipos, pruebas y db:probar
+        working-directory: ${{ runner.temp }}/proyectos/z_turnero/app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm db:probar
+      - name: web instala y pasa lint, tipos, pruebas y db:probar
+        working-directory: ${{ runner.temp }}/proyectos/z_turnero/web
         run: |
           pnpm install --frozen-lockfile
           pnpm lint
