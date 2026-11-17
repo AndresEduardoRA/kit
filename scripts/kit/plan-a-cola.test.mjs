@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
-import { issueDeArchivo, leerArchivo } from '../orquestador/spec-issue.mjs'
+import { archivoDeIssue, issueDeArchivo, leerArchivo } from '../orquestador/spec-issue.mjs'
 import {
   ordenDelProyecto,
   ramaDelPaso,
@@ -60,6 +60,11 @@ test('el orden de todo el proyecto: determinista, el repo de comun primero y web
     b: { pasos: [{ id: 'P01', depende_de: ['a:P01'] }] },
   }
   assert.throws(() => ordenDelProyecto(ciclo, ['a', 'b']), /ciclo de dependencias/)
+  const huerfano = { a: { pasos: [{ id: 'P01', depende_de: ['b:P99'] }] } }
+  assert.throws(
+    () => ordenDelProyecto(huerfano, ['a']),
+    /a:P01 depende de b:P99, que no es un paso del proyecto/,
+  )
 })
 
 test('la rama: el tipo por la primera palabra, el tema sin tildes y cortado en un guion', () => {
@@ -138,6 +143,24 @@ test('app:P02 publica el contrato; web:P01 lo adopta desde turnero-app; P03 trae
     spec('web', 'P03'),
     /^- \*\*Cancelar\*\* \(`\/cancelar\/\[codigo\]`\): código inválido, fuera de plazo, hecho$/m,
   )
+})
+
+test('un título con «: », «#», corchetes y comillas vuelve igual del issue (si no, el paso se recrearía en cada vuelta)', () => {
+  const titulo = 'probar: pagos #2 [x] "y"'
+  const texto = specDelPaso({
+    slug: 'turnero',
+    rol: 'app',
+    paso: { ...paso('app', 'P03'), titulo },
+    registro,
+    pantallas: [],
+    versionSemilla: 1,
+    depende: 'T1',
+  })
+  const issue = issueDeArchivo(texto)
+  const vuelta = campos(archivoDeIssue({ number: 7, title: issue.titulo, body: issue.cuerpo }))
+  assert.equal(vuelta.titulo, titulo)
+  assert.equal(vuelta.paso, 'P03')
+  assert.equal(vuelta.rama, 'test/p03-probar-pagos-2-x-y')
 })
 
 test('cada spec del ejemplo y el cierre pasan issueDeArchivo, con el bloque yaml que lee el orquestador', () => {

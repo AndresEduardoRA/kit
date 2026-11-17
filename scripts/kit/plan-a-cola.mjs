@@ -22,12 +22,15 @@ export function ordenDelProyecto(planes, roles) {
       deps.set(n, new Set((p.depende_de ?? []).map((d) => nodoDe(rol, d))))
     }
   const prioridad = new Map(nodos.map((n, i) => [n, i]))
+  // Una dependencia a un paso que no está en ningún plan saldría en silencio en el `depende` del issue (el validador ya la ataja).
+  for (const [n, ds] of deps)
+    for (const d of ds)
+      exigir(prioridad.has(d), `${n} depende de ${d}, que no es un paso del proyecto`)
   const hechos = new Set()
   const orden = []
   while (orden.length < nodos.length) {
     const listo = nodos.find(
-      (n) =>
-        !hechos.has(n) && [...(deps.get(n) ?? [])].every((d) => hechos.has(d) || !prioridad.has(d)),
+      (n) => !hechos.has(n) && [...(deps.get(n) ?? [])].every((d) => hechos.has(d)),
     )
     exigir(listo, `ciclo de dependencias entre ${nodos.filter((n) => !hechos.has(n)).join(', ')}`)
     hechos.add(listo)

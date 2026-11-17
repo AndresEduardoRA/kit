@@ -52,8 +52,13 @@ export function issuesPorPaso(gh, github) {
   if (!r.ok && r.tipo === '404') return new Map()
   if (!r.ok) fallo(r, `no pude leer los issues de ${github}`)
   const porPaso = new Map()
-  for (const linea of r.salida.split('\n').filter(Boolean)) {
-    const issue = JSON.parse(linea)
+  // De la más vieja a la más nueva: ante dos issues con el mismo `paso:` vale el original.
+  const lista = r.salida
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+    .sort((a, b) => a.number - b.number)
+  for (const issue of lista) {
     if (issue.pull_request || !CON_PERMISO.includes(issue.author_association)) continue
     let tarea
     try {
