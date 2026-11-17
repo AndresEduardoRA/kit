@@ -29,6 +29,7 @@
     "contrato:generar": "bash scripts/candado.sh contrato:generar -- tsx scripts/contratos/contrato.ts generar",
     "contrato:probar": "bash scripts/candado.sh contrato:probar -- tsx scripts/contratos/contrato.ts probar",
     "contrato:tipos": "tsx scripts/contratos/contrato.ts tipos",
+    "contrato:usar": "tsx scripts/contratos/contrato.ts usar",
     "kit:nuevo": "node scripts/kit/nuevo-proyecto.mjs",
     "test:generador": "node --test scripts/kit/*.test.mjs"
   },

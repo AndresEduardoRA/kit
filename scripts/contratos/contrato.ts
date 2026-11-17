@@ -1,10 +1,11 @@
 // La CLI de los contratos de base entre repos (`.claude/rules/contratos.md`):
 //
-//   tsx scripts/contratos/contrato.ts generar [<id>] | probar | tipos | rol
+//   tsx scripts/contratos/contrato.ts generar [<id>] | probar | tipos | usar | rol
 //
 // - generar: escribe `contratos/<id>@<n>.json` (la versión de `provee`) desde la base local, según `contratos/<id>.config.json`.
 // - probar:  la base local cumple cada versión de `vigentes` y la de `provee`.
 // - tipos:   `src/shared/types/contratos/<id>.ts` desde cada copia fijada de `consume`; borra los de lo que ya no se consume.
+// - usar:    cada llamada de `src/**/infra/**` a un esquema fijado está en su copia (scripts/contratos/usar.ts).
 // - rol:     `provee=true|false` y `consume=true|false`, para `$GITHUB_OUTPUT` (el job `contrato` levanta la pila sólo si provee).
 //
 // Errores a stderr; sale con 1 si hay problemas y con 64 si el uso está mal. Si no hay nada que hacer lo dice y sale con 0. Por
@@ -31,6 +32,7 @@ import {
 import { cargarVersion, probarVersion, versionesAProbar } from './probar'
 import { baseDePublicados, leerPublicados } from './publicados'
 import { tiposDeTs } from './tipos'
+import { archivosDeInfra, problemasDeUso } from './usar'
 
 type Propio = NonNullable<ReturnType<typeof repoDeEsteWorktree>>
 type Comando = (raiz: string, propio: Propio, args: string[]) => Promise<number>
@@ -152,13 +154,30 @@ const tipos: Comando = (raiz, propio) => {
   return Promise.resolve(0)
 }
 
+const usar: Comando = (raiz, propio) => {
+  const { copias, problemas } = copiasDelRepo(raiz, propio)
+  if (problemas.length) return Promise.resolve(fallar(problemas))
+  if (!copias.length) {
+    decir('Este repo no consume contratos (`consume` del manifiesto está vacío): nada que revisar.')
+    return Promise.resolve(0)
+  }
+  const archivos = archivosDeInfra(raiz)
+  const caidas = archivos.flatMap((a) =>
+    problemasDeUso(a, readFileSync(join(raiz, a), 'utf8'), copias),
+  )
+  if (caidas.length) return Promise.resolve(fallar(caidas))
+  const fijadas = copias.map((c) => `${c.contrato}@${String(c.version)}`).join(', ')
+  decir(`✓ src/**/infra usa sólo lo que está en ${fijadas} (${String(archivos.length)} archivos)`)
+  return Promise.resolve(0)
+}
+
 const rol: Comando = (_raiz, propio) => {
   const { provee, consume } = contratosDelRepo(propio.manifiesto, propio.repo)
   decir(`provee=${String(provee.length > 0)}`, `consume=${String(consume.length > 0)}`)
   return Promise.resolve(0)
 }
 
-const COMANDOS: Record<string, Comando> = { generar, probar, tipos, rol }
+const COMANDOS: Record<string, Comando> = { generar, probar, tipos, usar, rol }
 const USO = `uso: tsx scripts/contratos/contrato.ts ${Object.keys(COMANDOS).join(' | ')} (generar acepta un <id>)`
 
 /** Corre un comando en el repo de `raiz` y devuelve el código de salida. */

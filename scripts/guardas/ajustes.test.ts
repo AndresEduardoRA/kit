@@ -121,6 +121,13 @@ describe('package.json › el candado de la base', () => {
     expect(scripts[nombre]).not.toContain('candado.sh')
   })
 
+  it.each(['contrato:tipos', 'contrato:usar'])(
+    '%s no lo toma: lee archivos, no la base',
+    (nombre) => {
+      expect(scripts[nombre]).not.toContain('candado.sh')
+    },
+  )
+
   it('test:e2e construye fuera del candado y le deja a playwright los argumentos', () => {
     expect(scripts['test:e2e']).toMatch(/next build && .*candado\.sh test:e2e -- playwright test$/)
   })
