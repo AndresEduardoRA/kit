@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -20,6 +19,7 @@ import {
   retroDeCuerpo,
   unidadesDelResumen,
 } from './proyecto-texto.mjs'
+import { carpetaTemporal } from '../lib/temporal.mjs'
 
 // `proyecto.sh` con un `gh` falso de dos repos de cuentas distintas (cuentaa/demo-app y cuentab/demo-web): estado, sincronizar, reconstruir,
 // resumen (a un ntfy falso) e instalar-resumen (con un `systemctl` falso). Lo puro, aparte, al principio.
@@ -65,7 +65,7 @@ const copia = (...cambios) => cambios.reduce((t, [de, a]) => t.replace(de, a), S
 const MANTENIMIENTO = ['    etapa: construccion   # lo manda el repo', '    etapa: mantenimiento']
 
 function mundo(estado = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'proyecto-'))
+  const dir = carpetaTemporal('proyecto-')
   const raiz = join(dir, 'proyectos')
   mkdirSync(join(raiz, 'z_demo'), { recursive: true })
   writeFileSync(join(raiz, 'z_demo/proyecto.yaml'), SUELTO)
