@@ -14,7 +14,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run && pnpm -s test:kit",
     "test:watch": "vitest",
-    "test:kit": "node --test scripts/lib/*.test.mjs scripts/proyecto/*.test.mjs",
+    "test:kit": "node --test scripts/lib/*.test.mjs scripts/proyecto/*.test.mjs scripts/orquestador/*.test.mjs",
     "test:guardas": "vitest run .test.ts",
     "test:e2e": "NEXT_DIST_DIR=.next-e2e next build && E2E_PROD=1 bash scripts/candado.sh test:e2e -- playwright test",
     "test:e2e:completo": "bash scripts/candado.sh test:e2e:completo -- node scripts/e2e-completo.mjs",
