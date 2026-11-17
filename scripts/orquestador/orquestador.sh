@@ -71,6 +71,9 @@ source "$ORQ/niveles.sh"
 # Lo que comparten los orquestadores de la máquina: los turnos de sesión.
 # shellcheck source=maquina.sh
 source "$ORQ/maquina.sh"
+# Ponerse al día con origin/main sin que nadie lo pida.
+# shellcheck source=al-dia.sh
+source "$ORQ/al-dia.sh"
 
 # ------------------------------------------------------------------------------------------------------------------ utilidades
 
@@ -193,7 +196,9 @@ corriendo_ahora() { local n=0 id; for id in $(ids); do [ "$(estado_de "$id")" = 
 bucle() {
   # Sin flock, el `flock -n` de abajo fallaría y diría que ya hay otro orquestador.
   command -v flock >/dev/null || { echo "Falta flock: sudo apt install util-linux" >&2; exit 69; }
-  exec 8>"$EST/.orquestador.lock"
+  # Relanzado con `exec` (al_dia_y_relanzar), el fd 8 sigue abierto con el candado: los hijos en curso comparten esa descripción, y
+  # reabrirlo la soltaría y el `flock -n` chocaría con ellos.
+  if [ "${ORQ_RELANZADO:-0}" != 1 ] || ! { : >&8; } 2>/dev/null; then exec 8>"$EST/.orquestador.lock"; fi
   flock -n 8 || { echo "Ya hay un orquestador corriendo (.orquestador/estado/.orquestador.lock)." >&2; exit 75; }
   local malos
   if malos=$(niveles_invalidos); then
@@ -207,6 +212,7 @@ bucle() {
   leer_turnos
   log "orquestador arriba · paralelo $PARALELO · turnos de la máquina $TURNOS · niveles rapido=$NIVEL_RAPIDO normal=$NIVEL_NORMAL capaz=$NIVEL_CAPAZ · $(ids | wc -w) tareas en la cola"
   while :; do
+    al_dia_y_relanzar
     avisar_turnos
     revisar_procesos
     vigilar_prs
@@ -217,6 +223,20 @@ bucle() {
     fi
     sleep "${INTERVALO:-60}"
   done
+}
+
+# Al empezar la vuelta, antes de lanzar nada con el código viejo: si la principal avanzó y cambió scripts/orquestador/, el bucle se
+# reemplaza a sí mismo por la versión nueva (mismo PID, mismo candado). Sólo si corre desde la principal.
+al_dia_y_relanzar() {
+  local rc=0
+  ponerse_al_dia || rc=$?
+  [ "$rc" = 3 ] || return 0
+  if [ "$(cd "$ORQ" && pwd -P)" != "$(cd "$REPO/scripts/orquestador" 2>/dev/null && pwd -P)" ]; then
+    [ -f "$EST/.no-me-relanzo" ] || { touch "$EST/.no-me-relanzo" && log "scripts/orquestador/ cambió en main, pero corro desde $ORQ y no desde la principal: no me relanzo"; }
+    return 0
+  fi
+  log "scripts/orquestador/ cambió en main: me relanzo con la versión nueva"
+  exec env ORQ_RELANZADO=1 bash "$ORQ/orquestador.sh" bucle
 }
 
 avisar_turnos() { # un TURNOS_MAQUINA inválido se avisa una vez por valor (el bucle sigue con 3)
@@ -720,6 +740,7 @@ cmd_plan() {
   [ -n "$TURNOS_AVISO" ] && echo "⚠ $TURNOS_AVISO"
   linea_de_pausa
   [ -f "$EST/.pausa-manual" ] && echo "⏸  en pausa manual: no lanza nuevas (bash scripts/orquestador/orquestador.sh reanudar)"
+  motivo=$(motivo_para_no_tocar_la_principal) && echo "· $motivo"
   [ "$libres" = 0 ] && sin_turno="espera: sin turno en la máquina ($TURNOS de $TURNOS ocupados: $(turnos_ocupados_por))"
   cola_invalida
   for id in $(ids); do

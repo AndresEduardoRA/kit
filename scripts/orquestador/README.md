@@ -21,6 +21,7 @@ Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquest
 | Dónde                                    | Qué es                                                                                                                                               |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scripts/orquestador/orquestador.sh`     | El bucle y los comandos (abajo)                                                                                                                      |
+| `scripts/orquestador/al-dia.sh`          | Ponerse al día solo: la principal en main, sin cambios y detrás de `origin/main` avanza con `--ff-only`                                              |
 | `scripts/orquestador/github.sh`          | Lo que le pide a GitHub: etiquetas, comentarios, editar y cerrar issues, dependencias por rama                                                       |
 | `scripts/orquestador/cola-github.sh`     | El espejo entre la cola local y los issues; respuestas a trabadas; issues cerrados a mano                                                            |
 | `scripts/orquestador/cola-entrada.sh`    | La entrada (`.orquestador/entrada/`) y la adopción de las tareas locales de antes                                                                    |
@@ -161,6 +162,10 @@ Si el servicio no encuentra `claude`, `pnpm` o `node`, agrega sus rutas a `PATH_
   `preparar.sh`) no lo hereda: un proceso que quede vivo no lo retiene. Sin turno libre no lanza, `plan` dice «sin turno en la
   máquina» y quién los ocupa, y el hijo que llegó tarde vuelve a su estado sin gastar intentos. Un `TURNOS_MAQUINA` inválido usa 3 y
   avisa una vez.
+- **Se pone al día solo**: al empezar cada vuelta, si la principal está en `main`, sin cambios y detrás de `origin/main`, hace
+  `git merge --ff-only origin/main` (nunca empuja). Si eso cambió `scripts/orquestador/`, se relanza con `exec` antes de lanzar nada
+  (mismo PID y mismo candado: las sesiones en curso siguen). En otra rama, con cambios o con commits que `origin/main` no tiene, no la
+  toca: lo dice una vez en el log y `plan` lo muestra en una línea. Sin red, lo reintenta en la vuelta siguiente.
 - **Publica** con `publicar.sh --sin-esperar`: el PR queda con auto-merge y el carril se suelta mientras corre el CI.
 - **Vigila** el PR cada minuto: integrado → borra worktree y rama. CI rojo o choque con main → una sesión de arreglo con el log del job
   caído (desde el 3.er intento, con el nivel `NIVEL_ARREGLAR_DIFICIL`). Rama atrasada → la pone al día (merge, nunca fuerza).
