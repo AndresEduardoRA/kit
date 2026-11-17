@@ -2,7 +2,8 @@
 # Un `claude` falso para las pruebas del orquestador (prueba/maquina.ts, prueba/escenario.ts): no habla con nadie. Anota en
 # $CLAUDE_FALSO_LOG «inicio <ns> <pwd> <modelo> <pid>» y, al terminar, «fin <ns> <pid>»; en $CLAUDE_FALSO_ARGS, una línea por llamada
 # con el ORQ_PERMITE que recibió («(sin definir)» si no vino) y sus argumentos; en $CLAUDE_FALSO_PROMPT, el prompt de la última
-# llamada. Según CLAUDE_FALSO_MODO:
+# llamada; en $CLAUDE_FALSO_TMPDIR, «<TMPDIR> <cuántas entradas tenía>», y deja ahí un `sobrante` (lo que una prueba no borra).
+# Según CLAUDE_FALSO_MODO:
 #   trabada (por defecto)  duerme CLAUDE_FALSO_DUERME segundos y devuelve «RESULTADO: TRABADA …»
 #   limite                 dice por stderr que llegó al límite del plan y sale con 1
 #   identidad              devuelve un resultado con modelUsage, como `claude -p --output-format json`
@@ -18,6 +19,10 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+if [ -n "${CLAUDE_FALSO_TMPDIR:-}" ]; then
+  printf '%s %s\n' "${TMPDIR-}" "$(find "${TMPDIR:-/no-existe}" -mindepth 1 2>/dev/null | wc -l)" >>"$CLAUDE_FALSO_TMPDIR"
+  [ -n "${TMPDIR:-}" ] && touch "$TMPDIR/sobrante"
+fi
 if [ -n "${CLAUDE_FALSO_PROMPT:-}" ]; then cat >"$CLAUDE_FALSO_PROMPT"; else cat >/dev/null; fi
 anotar() { [ -n "${CLAUDE_FALSO_LOG:-}" ] && printf '%s\n' "$*" >>"$CLAUDE_FALSO_LOG"; return 0; }
 anotar "inicio $(date +%s%N) $PWD ${modelo:-?} $$"
