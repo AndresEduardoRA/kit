@@ -49,8 +49,12 @@ export function resultadoDeLaNoche(necesidades) {
 /** Las noches seguidas que lleva el cuerpo (0 sin marca). Puro. @param {string} cuerpo */
 export const nochesDe = (cuerpo) => Number(MARCA.exec(cuerpo)?.[1] ?? 0)
 
+// Una noche anotada, como la escribe `decidir`: la fecha y el enlace de la corrida. Otra línea del cuerpo (alguien lo editó) no pasa a
+// la spec: el cuerpo es el prompt de una sesión.
+const LINEA_DE_NOCHE = /^- \d{4}-\d{2}-\d{2}: https:\/\/\S+\/actions\/runs\/\d+$/
+
 /**
- * Las líneas `- …` de la sección «Noches en rojo» del cuerpo. Puro.
+ * Las noches anotadas en la sección «Noches en rojo» del cuerpo (sólo las líneas con el formato de LINEA_DE_NOCHE). Puro.
  * @param {string} cuerpo
  */
 export function lineasDeNoches(cuerpo) {
@@ -59,7 +63,7 @@ export function lineasDeNoches(cuerpo) {
   if (ini < 0) return []
   const resto = lineas.slice(ini + 1)
   const fin = resto.findIndex((l) => /^#{1,2}\s/.test(l))
-  return (fin < 0 ? resto : resto.slice(0, fin)).filter((l) => l.startsWith('- '))
+  return (fin < 0 ? resto : resto.slice(0, fin)).filter((l) => LINEA_DE_NOCHE.test(l))
 }
 
 /** Si el texto nombra esa corrida (y no otra que empieza igual: …/runs/12 no es …/runs/123). Puro. */
