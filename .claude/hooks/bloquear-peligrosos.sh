@@ -208,34 +208,51 @@ permite() {
   [[ " ${p//,/ } " == *" $1 "* ]]
 }
 
-# `pnpm update` de la tarea de dependencias: dentro de los rangos de package.json. --latest (-L), global (-g), interactivo (-i) o una
-# versión pedida (`zod@4`) cambian los rangos: eso lo decide una persona.
+# `pnpm update` de la tarea de dependencias: dentro de los rangos de package.json. Sólo las opciones de esta lista (pnpm acepta una
+# opción larga abreviada, `--lat` es `--latest`: una lista negra no alcanza). --latest (-L), global (-g), interactivo (-i),
+# `--workspace` o una versión pedida (`zod@4`) salen de los rangos: eso lo decide una persona.
 revisar_update_permitido() {
   local t
   for t in "$@"; do
     case "$t" in
-      --latest* | --global* | --interactive*) bloquear "pnpm update $t sale de los rangos de package.json: lo decide una persona." ;;
-      --*) ;;
-      -*[Lgi]*) bloquear "pnpm update $t (-L, -g o -i) sale de los rangos de package.json: lo decide una persona." ;;
-      -*) ;;
+      --recursive | --depth | --depth=* | --dev | --prod | --no-optional | --no-save | --dir | --dir=* | --filter | --filter=* | \
+        --workspace-root | --yes | --stream | --use-stderr | --aggregate-output | --color | --no-color | --silent | \
+        --loglevel | --loglevel=* | --reporter=* | --help) ;;
+      --*) bloquear "pnpm update $t: con «permite: dependencias» sólo valen las opciones que no salen de los rangos de package.json (sin --latest, --global, --interactive ni --workspace)." ;;
+      -[DCPrwyhF]*) [[ "$t" =~ ^-[DCPrwyhF]+$ ]] || bloquear "pnpm update $t (-L, -g o -i) sale de los rangos de package.json: lo decide una persona." ;;
+      -*) bloquear "pnpm update $t (-L, -g o -i) sale de los rangos de package.json: lo decide una persona." ;;
       ?*@*) bloquear "pnpm update $t pide una versión: sólo dentro de los rangos de package.json." ;;
     esac
   done
 }
 
+# Un subcomando de pnpm que cambia dependencias o corre otro comando (`exec`): no es el valor de una opción.
+subcomando_que_importa() {
+  case "$1" in add* | up* | remove | rm | uninstall | un | i | install | dedupe | exec | dlx | x) return 0 ;; esac
+  return 1
+}
+
 revisar_pnpm() {
-  local i=0 sub
-  # Las opciones del principio no esconden el subcomando: `pnpm -r update`, `pnpm --filter web add zod`.
+  local i=0 sub k=0
+  # Las opciones del principio no esconden el subcomando: `pnpm -r update`, `pnpm --filter web add zod`, `pnpm --store-dir /x add`.
+  # Una opción sin `=` se lleva la palabra siguiente como valor, salvo que sea otra opción o un subcomando que importa.
   while [ "$i" -lt "${#A[@]}" ]; do
     case "${A[$i]}" in
-      --filter | -F | --dir | -C | --workspace-dir | --reporter | --loglevel) i=$((i + 2)) ;;
-      -*) i=$((i + 1)) ;;
+      --*=*) i=$((i + 1)) ;;
+      -*)
+        if [[ "${A[$((i + 1))]:--}" == -* ]] || subcomando_que_importa "${A[$((i + 1))]}"; then i=$((i + 1)); else i=$((i + 2)); fi
+        ;;
       *) break ;;
     esac
   done
   sub="${A[$i]:-}"
   local R=("${A[@]:$((i + 1))}")
   case "$sub" in
+    # `pnpm -r exec pnpm add zod`: lo que corre exec se revisa como un comando más.
+    exec | dlx | x)
+      while [[ "${R[$k]:-}" == -* ]]; do k=$((k + 1)); done
+      [ "$k" -lt "${#R[@]}" ] && revisar_segmento "${R[*]:$k}"
+      ;;
     up | update | upgrade)
       if permite dependencias; then
         revisar_update_permitido "${R[@]}"
