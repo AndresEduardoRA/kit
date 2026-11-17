@@ -96,6 +96,7 @@ describe('niveles.sh y spec-issue.mjs dicen lo mismo', () => {
       ['modelo', 'Opus'],
       ['nivel', 'capaz'],
       ['nivel', 'turbo'],
+      ['nivel', 'rapido normal'],
       ['nivel_plan', 'rapido'],
       ['nivel_plan', 'Rapido'],
       ['effort', 'high'],

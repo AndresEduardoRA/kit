@@ -8,13 +8,14 @@ NIVELES="rapido normal capaz"
 ALIAS_DE_MODELO='^[a-z]+(\[1m\])?$'
 
 alias_valido() { [[ "$1" =~ $ALIAS_DE_MODELO ]]; }
+nivel_valido() { case "$1" in rapido | normal | capaz) return 0 ;; *) return 1 ;; esac }
 
 problema_de_modelo() { # clave valor — imprime lo que está mal y devuelve 1; un valor vacío está bien
   local k=$1 v=$2
   [ -n "$v" ] || return 0
   case "$k" in
     nivel | nivel_plan)
-      [[ " $NIVELES " == *" $v "* ]] && return 0
+      nivel_valido "$v" && return 0
       echo "«$k: $v» no es rapido, normal ni capaz"
       ;;
     modelo | modelo_plan)
@@ -81,7 +82,7 @@ niveles_invalidos() { # imprime cada NIVEL_* de la configuración que no vale y 
     fi
   done
   for v in NIVEL_EJECUTAR NIVEL_PLANIFICAR NIVEL_ARREGLAR_DIFICIL; do
-    [[ " $NIVELES " == *" ${!v:-} "* ]] && continue
+    nivel_valido "${!v:-}" && continue
     hay=0
     echo "$v=«${!v:-}» no es rapido, normal ni capaz"
   done
