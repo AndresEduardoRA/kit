@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -21,6 +20,7 @@ import {
   raizDeProyectos,
   repoPropio,
 } from './manifiesto.mjs'
+import { carpetaTemporal } from '../lib/temporal.mjs'
 
 const AQUI = dirname(fileURLToPath(import.meta.url))
 // Una copia del manifiesto real de calesa (puertos heredados en app, bloque 5 en web), sólo de lectura.
@@ -50,7 +50,7 @@ contratos: []
 ${extra}`
 
 function raizConManifiestos(manifiestos) {
-  const raiz = mkdtempSync(join(tmpdir(), 'proyectos-'))
+  const raiz = carpetaTemporal('proyectos-')
   for (const [slug, texto] of Object.entries(manifiestos)) {
     mkdirSync(join(raiz, `z_${slug}`))
     writeFileSync(join(raiz, `z_${slug}`, 'proyecto.yaml'), texto)
@@ -151,7 +151,7 @@ test('bloque repetido: dos manifiestos con el mismo bloque fallan nombrando los 
 })
 
 test('manifiesto ausente: el repo funciona como antes (null) y una raíz sin z_* no tiene manifiestos', () => {
-  const vacio = mkdtempSync(join(tmpdir(), 'sin-manifiesto-'))
+  const vacio = carpetaTemporal('sin-manifiesto-')
   assert.equal(leerManifiestoDe(vacio), null)
   assert.deepEqual(manifiestosDeLaRaiz(vacio), [])
   assert.deepEqual(manifiestosDeLaRaiz(join(vacio, 'no-existe')), [])
@@ -213,7 +213,7 @@ test('la raíz de proyectos es <kit>/../..', () => {
 })
 
 test('la CLI da el nombre, la cuenta y el bloque del repo propio (por el remoto)', () => {
-  const raiz = mkdtempSync(join(tmpdir(), 'cli-'))
+  const raiz = carpetaTemporal('cli-')
   execFileSync('git', ['init', '-q', '-b', 'main', raiz])
   execFileSync('git', [
     '-C',
