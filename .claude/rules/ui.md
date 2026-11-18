@@ -52,6 +52,8 @@ Antes de construir una pantalla, lee su fila en `docs/UX.md` (patrón, roles, es
   `w-max min-w-full`.
 - El clic en la fila abre su resumen (`?<registro>=<id>`) salvo casilla, «⋯», enlace o botón propio
   (`data-no-abre`). Con teclado, un botón con el nombre del registro.
+  Si el registro tiene página propia y no resumen, el clic abre su página: `href` en la fila o la tarjeta y un enlace de verdad
+  en el nombre (Ctrl o el botón del medio abren otra pestaña; con texto elegido no navega).
 - El «⋯» de una tarjeta va siempre a la vista, en su esquina superior derecha y en un solo componente compartido de
   `@/shared/ui/lista`, nunca suelto en el contenido ni en el pie; sobre una foto, en la esquina de la foto, espejo de la casilla a la
   izquierda y sin quitarle ancho. En la tabla, en la columna pegada de la derecha.
