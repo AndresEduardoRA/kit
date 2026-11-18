@@ -52,6 +52,9 @@ Antes de construir una pantalla, lee su fila en `docs/UX.md` (patrón, roles, es
   `w-max min-w-full`.
 - El clic en la fila abre su resumen (`?<registro>=<id>`) salvo casilla, «⋯», enlace o botón propio
   (`data-no-abre`). Con teclado, un botón con el nombre del registro.
+- El «⋯» de una tarjeta va siempre a la vista, en su esquina superior derecha y en un solo componente compartido de
+  `@/shared/ui/lista`, nunca suelto en el contenido ni en el pie; sobre una foto, en la esquina de la foto, espejo de la casilla a la
+  izquierda y sin quitarle ancho. En la tabla, en la columna pegada de la derecha.
 - Una lista de tarjetas no ensancha la página con el texto al 200 %: `<ul>` con
   `grid-cols-[minmax(0,1fr)]`, `<li>` con `min-w-0`, `flex-wrap` en barras que se parten. Se comprueba
   en e2e que no hay scroll horizontal.
