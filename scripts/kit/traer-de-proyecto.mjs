@@ -150,7 +150,7 @@ function traerLecciones(c, pr) {
     const antes = existsSync(f) ? readFileSync(f, 'utf8') : `# Lecciones\n`
     const despues = sumarLeccion(antes, seccion, conOrigen(l.linea, c.valores.nombre, pr))
     if (despues !== antes) writeFileSync(f, despues)
-    c.r.lecciones.push(`${ruta} › ${seccion}: ${l.linea}`)
+    c.r.lecciones.push(`${ruta} › ${seccion}: ${l.linea.replace(/\n\s*/g, ' ')}`)
   }
 }
 

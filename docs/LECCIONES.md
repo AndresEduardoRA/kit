@@ -291,3 +291,5 @@ semilla, en `(semilla)`: al integrarse, el orquestador las sube solas al kit (`d
 - Protege main de un repo nuevo antes de encender su orquestador (`publicar-proyecto.mjs proteger`, tras el primer CI verde): sin protección, el auto-merge integra al instante.
 - Un repo recién creado vive en `z_<proyecto>/<rol>` y todavía no tiene remoto: el repo propio se busca también por su `rol`, o con un manifiesto de varios repos el orquestador no sabe quién es.
 - El hook de Bash parte también por comillas invertidas y paréntesis: un texto que nombre un comando bloqueado entre `` ` `` (un doc, un mensaje de commit) se escribe con Write o va en `git commit -F <archivo>`.
+- Lo que el orquestador comparte por enlace en cada worktree (`COMPARTIDAS` de `scripts/orquestador/config.env`) no lleva `.ts` ni enlaces rotos:
+  `typecheck` (`**/*.ts`) y `mapa.sh --check` lo recorren y el hook del commit cae por código ajeno. Si pasa, aparta el enlace del worktree (no su destino). (calesa-app, PR #348)

@@ -59,16 +59,26 @@ export const esFlujo = (ruta, patrones) =>
   !rutaProhibida(ruta) && patrones.some((p) => coincide(ruta, p))
 
 /**
- * Las líneas agregadas de un parche (el `patch` de `pulls/<n>/files`) que terminan en `(kit)` o `(semilla)`, sin el `+`. Puro.
+ * Las líneas agregadas de un parche (el `patch` de `pulls/<n>/files`) que terminan en `(kit)` o `(semilla)`, sin el `+`. Si la
+ * lección es una viñeta agregada que sigue en líneas sangradas, va entera, en una línea. Puro.
  * @param {string} patch
  */
 export function leccionesDelParche(patch) {
   /** @type {{ kit: string[], semilla: string[] }} */
   const out = { kit: [], semilla: [] }
+  /** @type {string[] | null} las líneas agregadas de la viñeta en curso */
+  let vineta = null
   for (const l of patch.split('\n')) {
-    if (!l.startsWith('+') || l.startsWith('+++')) continue
-    const m = LECCION_QUE_SUBE.exec(l)
-    if (m) out[/** @type {'kit' | 'semilla'} */ (m[1])].push(l.slice(1).trim())
+    if (!l.startsWith('+') || l.startsWith('+++')) {
+      vineta = null
+      continue
+    }
+    const t = l.slice(1)
+    if (/^\s*- /.test(t)) vineta = [t.trim()]
+    else if (vineta && /^\s+\S/.test(t)) vineta.push(t.trim())
+    else vineta = null
+    const m = LECCION_QUE_SUBE.exec(t)
+    if (m) out[/** @type {'kit' | 'semilla'} */ (m[1])].push((vineta ?? [t.trim()]).join(' '))
   }
   return out
 }

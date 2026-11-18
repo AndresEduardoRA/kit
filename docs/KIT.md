@@ -263,8 +263,8 @@ hace el generador, con el nombre, el slug, el bloque y las funciones del repo) y
 - **Responder una trabada,** por ruta: `--tomar-kit <ruta>` (la del kit), `--dejar <ruta>` (la del repo, esta vez) o una línea en
   `.kit/omitir` (nunca más). Un marcador suelto o los puertos sin bloque no se resuelven tomando la del kit (dejaría el marcador): sólo
   `--dejar` u `.kit/omitir`, y el marcador suelto es un defecto del kit.
-- **`docs/LECCIONES.md`** se mezcla con `--union` (las dos partes suman viñetas al final de la misma sección) y pierde la línea `… (kit)`
-  del repo que el kit ya absorbió con el sufijo `(<repo>, PR #<n>)`.
+- **`docs/LECCIONES.md`** se mezcla con `--union` (las dos partes suman viñetas al final de la misma sección) y pierde la viñeta `… (kit)`
+  del repo que el kit ya absorbió con el sufijo `(<repo>, PR #<n>)` (entera, con sus líneas de continuación).
 - **`--revisar`** (lo corre la tarea semanal): atrás si el `compare` de GitHub entre `.kit/version` y main cambió algún archivo de flujo
   del `flujo.txt` del repo (menos `.kit/omitir`), o si cortó la lista en 300. Un kit que sólo avanzó fuera del flujo está al día.
 - **Sale con** 0 (hecho o al día), 1 (no pudo: sin acceso al kit, sin `.kit/version` o uno que el kit no tiene, el árbol sucio, el
@@ -283,8 +283,8 @@ hace el generador, con el nombre, el slug, el bloque y las funciones del repo) y
   de flujo con una mezcla doble (el cambio del PR sobre el kit personalizado, y de ahí sobre el kit genérico: lo que el PR no tocó
   conserva sus marcadores). Un cambio pegado a una línea con marcador choca y lo aplica la sesión, con las tres versiones guardadas; un
   borrado queda por decidir. `traer-de-proyecto.mjs comprobar --nombre <repo> --slug <slug>` falla si quedó un nombre del proyecto.
-- **Lecciones:** una línea nueva del `docs/LECCIONES.md` del proyecto que termina en `(kit)` va al `docs/LECCIONES.md` del kit, en su
-  sección; una en `(semilla)`, a `docs/semillas/LECCIONES.md` › «Sugerencias de los proyectos». Las dos con `(<repo>, PR #<n>)` en
+- **Lecciones:** una viñeta nueva del `docs/LECCIONES.md` del proyecto que termina en `(kit)` (con sus líneas de continuación, si sigue
+  en líneas sangradas) va al `docs/LECCIONES.md` del kit, en su sección; una en `(semilla)`, a `docs/semillas/LECCIONES.md` › «Sugerencias de los proyectos». Las dos con `(<repo>, PR #<n>)` en
   lugar del sufijo.
 
 ### Lo que no hace
