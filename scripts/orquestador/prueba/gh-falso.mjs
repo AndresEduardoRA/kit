@@ -212,12 +212,20 @@ if (args[0] === 'api') {
       })),
   )
 } else if (args[0] === 'pr' && args[1] === 'list') {
+  // Los PR de una rama, por estado (como gh: abiertos si no se dice); `creado` es su createdAt.
   const repo = valor('-R') ?? e.repo
   const rama = valor('--head')
+  const estado = (valor('--state') ?? 'open').toUpperCase()
   imprimir(
     (e.prs[repo] ?? [])
-      .filter((/** @type {any} */ p) => p.rama === rama && p.estado === 'MERGED')
-      .map((/** @type {any} */ p) => ({ number: p.number })),
+      .filter((/** @type {any} */ p) => p.rama === rama)
+      .filter((/** @type {any} */ p) => estado === 'ALL' || p.estado === estado)
+      .map((/** @type {any} */ p) => ({
+        number: p.number,
+        state: p.estado,
+        createdAt: p.creado ?? ahora(),
+        headRefOid: p.sha ?? '',
+      })),
   )
 } else if (args[0] === 'pr' && args[1] === 'view') {
   const p = (e.prs[e.repo] ?? []).find((/** @type {any} */ x) => String(x.number) === args[2])
