@@ -169,6 +169,8 @@ sincronizar_etiquetas() { # el JSON del issue, como vino de la lista
   spec=$(spec_de "$id") || return 0
   [ "$(est_get "$id" issue)" = "$n" ] || return 0
   actuales=$(nombres_de_etiquetas "$j")
+  # Pendiente sin rastro aquí y el issue ya más allá: es de otra máquina. No se le borra la etiqueta (lanzar la adopta o la corre).
+  sin_rastro "$id" && estado_avanzado_en "$actuales" && return 0
   b=no
   borrador "$spec" && b=si
   deseadas="cola $(etiqueta_de_estado "$(estado_de "$id")" "$b")"

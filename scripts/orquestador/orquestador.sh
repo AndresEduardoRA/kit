@@ -92,6 +92,9 @@ source "$ORQ/al-integrar.sh"
 # Las mejoras del flujo entre el kit y este proyecto: la tarea semanal y lo que sube al kit al integrar.
 # shellcheck source=kit.sh
 source "$ORQ/kit.sh"
+# Cambiar de máquina: una tarea que otra máquina ya publicó se adopta en vez de lanzarla otra vez.
+# shellcheck source=otra-maquina.sh
+source "$ORQ/otra-maquina.sh"
 
 # ------------------------------------------------------------------------------------------------------------------ utilidades
 
@@ -309,6 +312,8 @@ lanzar() {
         nuevas:pendiente)
           deps_listas "$(spec_de "$id")" || continue
           quien=$(llave_ocupada_por "$id") && continue
+          # Sin rastro aquí, puede ser de otra máquina que ya abrió su PR: se adopta en vez de lanzarla (otra-maquina.sh).
+          mirar_otra_maquina "$id" || continue
           ;;
         *) continue ;;
       esac
@@ -936,6 +941,9 @@ cmd_verificar() {
     echo "✗ el remoto origin no es de GitHub: la cola queda sólo local"; ok=0
   elif asegurar_etiquetas; then
     echo "✓ issues de $REPO_GH con las etiquetas $ETIQUETAS_COLA y las de lo que entra solo: $ETIQUETAS_ENTRADA"
+    local ajenas
+    ajenas=$(tareas_de_otra_maquina | tr '\n' ' ')
+    [ -n "$ajenas" ] && echo "⚠ ${ajenas% } en curso según su issue y sin estado aquí: ¿corre este orquestador en otra máquina? páralo allí antes de encenderlo aquí"
   else
     echo "✗ no se pudieron crear las etiquetas de la cola en $REPO_GH: $(cat "$EST/.gh-ultimo-error" 2>/dev/null)"; ok=0
   fi

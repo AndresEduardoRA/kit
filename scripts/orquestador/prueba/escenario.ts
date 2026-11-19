@@ -90,6 +90,7 @@ type Gh = {
   siguienteComentario: number
   issues: Record<string, Issue>
   etiquetas: string[]
+  // Los PR por repo; `creado` es su createdAt (sin él, el momento de la llamada).
   prs: Record<
     string,
     {
@@ -97,6 +98,7 @@ type Gh = {
       rama: string
       estado: string
       sha?: string
+      creado?: string
       padre?: string
       titulo?: string
       cuerpo?: string
