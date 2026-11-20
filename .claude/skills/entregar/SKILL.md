@@ -8,7 +8,8 @@ description: Cierra el trabajo actual de {{NOMBRE}} — verificación, docs que 
 Una actualización está terminada cuando su PR quedó integrado en `main` (`docs/FLUJO.md`). En orden:
 
 1. **Rama.** Si estás en `main`, crea la rama del cambio (`git switch -c <tipo>/<tema>`); el trabajo sin commitear viaja con ella.
-2. **Verificar.** `bash scripts/mapa.sh`, `pnpm lint`, `pnpm typecheck`, `pnpm test`. Si tocaste `supabase/`: `pnpm db:reset`,
+2. **Verificar.** `bash scripts/flujo/verificar.sh` (una vez, al final: corre en paralelo `pnpm lint`, `pnpm typecheck`, `pnpm test` y
+   `bash scripts/mapa.sh --check`, y no repite si el árbol es el que ya pasó; `--forzar` lo corre igual). Si tocaste `supabase/`: `pnpm db:reset`,
    `pnpm db:types` y `pnpm db:probar:rapido`. Si tocaste una pantalla o su flujo: los e2e dirigidos (`pnpm test:e2e <spec>`; pide
    `pnpm funciones` si hay funciones edge). Si algo falla, arréglalo: no se entrega trabajo rojo.
 3. **Docs que toca el cambio** (la tabla de `docs/FLUJO.md`): borra de `docs/PENDIENTES.md` lo que cerraste y anota en una línea lo que
