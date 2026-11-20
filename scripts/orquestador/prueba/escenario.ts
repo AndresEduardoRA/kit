@@ -103,6 +103,11 @@ type Gh = {
       titulo?: string
       cuerpo?: string
       archivos?: { filename: string; previous_filename?: string; patch?: string }[]
+      // Lo que lee la vigilancia de los PR (vigilar_prs): el CI, el estado de la rama y cuántas veces GitHub la puso al día.
+      checks?: { __typename: string; name: string; conclusion: string; detailsUrl: string }[]
+      mergeable?: string
+      mergeState?: string
+      alDia?: number
     }[]
   >
   refs?: { ref: string; sha: string }[]
@@ -193,6 +198,25 @@ function traerElKit(repo: string, { dir, version }: ConKit) {
   writeFileSync(join(repo, '.kit/version'), `${version}\n`)
 }
 
+/** Corre bash con el `gh` y el `claude` falsos primeros en el PATH y el HOME del escenario. */
+function correrBash(
+  { datos, falso }: { datos: string; falso: string },
+  argv: string[],
+  env: Record<string, string> = {},
+) {
+  const r = spawnSync('bash', argv, {
+    encoding: 'utf8',
+    env: {
+      NODE_ENV: 'test',
+      HOME: datos,
+      PATH: `${join(falso, 'bin')}:${process.env['PATH'] ?? ''}`,
+      GH_FALSO: falso,
+      ...env,
+    },
+  })
+  return { estado: r.status, salida: r.stdout + r.stderr }
+}
+
 export function escenario(
   local = '',
   { conOrigen = false, conKit }: { conOrigen?: boolean; conKit?: ConKit } = {},
@@ -224,20 +248,15 @@ export function escenario(
       g.siguiente = Math.max(g.siguiente, n + 1)
     })
   // `env`: lo que se suma al entorno (el modo del claude falso; GIT_ALLOW_PROTOCOL=file para que un fetch no salga a la red).
-  const orqCon = (env: Record<string, string>, ...args: string[]) => {
-    const r = spawnSync('bash', [join(repo, 'scripts/orquestador/orquestador.sh'), ...args], {
-      encoding: 'utf8',
-      env: {
-        NODE_ENV: 'test',
-        HOME: datos,
-        PATH: `${join(falso, 'bin')}:${process.env['PATH'] ?? ''}`,
-        GH_FALSO: falso,
-        ...env,
-      },
-    })
-    return { estado: r.status, salida: r.stdout + r.stderr }
-  }
+  const orqCon = (env: Record<string, string>, ...args: string[]) =>
+    correrBash({ datos, falso }, [join(repo, 'scripts/orquestador/orquestador.sh'), ...args], env)
   const orq = (...args: string[]) => orqCon({}, ...args)
+  // Las funciones de orquestador.sh cargadas sin correr ningún comando (ORQ_SOLO_FUNCIONES=1): lo que pasa dentro de una sesión.
+  const funciones = (guion: string) =>
+    correrBash({ datos, falso }, [
+      '-c',
+      `ORQ_SOLO_FUNCIONES=1; source "${join(repo, 'scripts/orquestador/orquestador.sh')}"; ${guion}`,
+    ])
   // Las llamadas a GitHub (sin `gh auth token`, que lee la sesión local).
   const llamadas = (): { args: string[]; token: string }[] =>
     existsSync(join(falso, 'llamadas.log'))
@@ -267,6 +286,7 @@ export function escenario(
     issue,
     orq,
     orqCon,
+    funciones,
     llamadas,
     cola,
     spec,

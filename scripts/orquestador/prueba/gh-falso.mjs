@@ -147,6 +147,19 @@ if (args[0] === 'api') {
       prDe(e.repo, (x) => String(x.number) === m?.[1]) ??
       salir(1, `HTTP 404: Not Found (pulls/${m[1]}/files)`)
     imprimir(p.archivos ?? [])
+  } else if ((m = /^pulls\/(\d+)\/update-branch$/.exec(resto)) && metodo === 'PUT') {
+    // GitHub pone la rama al día con un merge: punta nueva y el CI empieza de cero.
+    const p =
+      prDe(e.repo, (x) => String(x.number) === m?.[1]) ??
+      salir(1, `HTTP 404: Not Found (pulls/${m[1]}/update-branch)`)
+    if (campos['expected_head_sha'] && campos['expected_head_sha'] !== (p.sha ?? ''))
+      salir(1, 'HTTP 422: expected head sha didn’t match current head ref')
+    p.sha = `al-dia-${String((p.alDia ?? 0) + 1)}`
+    p.alDia = (p.alDia ?? 0) + 1
+    p.checks = []
+    p.mergeState = 'CLEAN'
+    guardar()
+    imprimir({ message: 'Updating pull request branch.' })
   } else if ((m = /^pulls\/(\d+)$/.exec(resto)) && metodo === 'GET') {
     const p =
       prDe(e.repo, (x) => String(x.number) === m?.[1]) ??
@@ -232,5 +245,12 @@ if (args[0] === 'api') {
 } else if (args[0] === 'pr' && args[1] === 'view') {
   const p = (e.prs[e.repo] ?? []).find((/** @type {any} */ x) => String(x.number) === args[2])
   if (!p) salir(1, `no pull requests found (${args[2]})`)
-  imprimir({ state: p.estado })
+  // Lo que lee la vigilancia (`vigilar_prs`): el CI (`checks`), la punta (`sha`) y el estado de la rama frente a main.
+  imprimir({
+    state: p.estado,
+    mergeable: p.mergeable ?? 'MERGEABLE',
+    mergeStateStatus: p.mergeState ?? 'CLEAN',
+    headRefOid: p.sha ?? '',
+    statusCheckRollup: p.checks ?? [],
+  })
 } else salir(2, `gh falso: no conozco «gh ${args.join(' ')}»`)
