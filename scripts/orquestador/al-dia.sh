@@ -52,12 +52,20 @@ ponerse_al_dia() { # 3 si avanzó y cambió algo de scripts/orquestador/; 0 si n
 
 # -------------------------------------------------------------------------------------------------------- relanzarse (bucle)
 
-# Al empezar la vuelta, antes de lanzar nada con el código viejo: si la principal avanzó y cambió scripts/orquestador/, el bucle se
-# reemplaza a sí mismo por la versión nueva (mismo PID, mismo candado). Sólo si corre desde la principal.
+# Al empezar la vuelta, antes de lanzar nada con el código viejo: si la principal avanzó y cambió scripts/orquestador/ (o ya tiene
+# otra versión que la cargada), el bucle se reemplaza a sí mismo por la versión nueva (mismo PID, mismo candado). Sólo si corre desde
+# la principal.
+# La versión de scripts/orquestador/ en la principal: el árbol de git en HEAD. El bucle anota con cuál arrancó (ORQ_CARGADA): si la
+# principal avanzó por otro lado (alguien la trajo a mano), ponerse_al_dia no ve nada que traer, pero el código cargado es el viejo.
+version_del_orquestador() { git -C "$REPO" rev-parse -q --verify "HEAD:scripts/orquestador" 2>/dev/null; }
+
 al_dia_y_relanzar() {
-  local rc=0
+  local rc=0 ahora
   ponerse_al_dia || rc=$?
-  [ "$rc" = 3 ] || return 0
+  if [ "$rc" != 3 ]; then
+    ahora=$(version_del_orquestador)
+    [ -n "${ORQ_CARGADA:-}" ] && [ -n "$ahora" ] && [ "$ahora" != "$ORQ_CARGADA" ] || return 0
+  fi
   if [ "$(cd "$ORQ" && pwd -P)" != "$(cd "$REPO/scripts/orquestador" 2>/dev/null && pwd -P)" ]; then
     [ -f "$EST/.no-me-relanzo" ] || { touch "$EST/.no-me-relanzo" && log "scripts/orquestador/ cambió en main, pero corro desde $ORQ y no desde la principal: no me relanzo"; }
     return 0

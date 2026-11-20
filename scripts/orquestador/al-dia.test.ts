@@ -67,6 +67,28 @@ it(
   TIEMPO,
 )
 
+it(
+  'la principal puesta al día a mano (ya no hay nada que traer) con otro scripts/orquestador/: igual se relanza',
+  async () => {
+    m = maquina()
+    const a = repo(m, 'uno')
+    tarea(a, 'T1')
+    const pid = lanzarGuion(a, { CLAUDE_FALSO_DUERME: '20' })
+    expect(await esperar(() => sesiones(m!).length === 1)).toBe(true)
+    // Alguien commitea en la principal y empuja: origin/main y la principal quedan iguales, y ponerse_al_dia no trae nada.
+    const config = join(a.ruta, 'scripts/orquestador/config.env')
+    writeFileSync(config, `${leer(config)}# una línea nueva\n`)
+    const conAutor = ['-c', 'user.name=prueba', '-c', 'user.email=prueba@ejemplo.invalid']
+    execFileSync('git', ['-C', a.ruta, ...conAutor, 'commit', '-qam', 'a mano'])
+    execFileSync('git', ['-C', a.ruta, 'push', '-q', 'origin', 'main'])
+    expect(await esperar(() => /me relanzo[\s\S]*orquestador arriba/.test(logDe(a)))).toBe(true)
+    expect(vivo(pid)).toBe(true)
+    expect(logDe(a)).not.toContain('la principal se puso al día')
+    expect(logDe(a).match(/orquestador arriba/g)).toHaveLength(2)
+  },
+  TIEMPO,
+)
+
 it('un cambio de main fuera de scripts/orquestador/ avanza la principal sin relanzar', () => {
   m = maquina()
   const a = repo(m, 'uno')
