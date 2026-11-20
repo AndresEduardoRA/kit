@@ -607,6 +607,7 @@ reemplazar() { # plantilla → prompt (las llaves {{X}} se reemplazan)
   t=${t//'{{PR}}'/$(est_get "$ID" pr)}
   t=${t//'{{FECHA}}'/$(TZ=America/La_Paz date +%F)}
   t=${t//'{{CONTEXTO}}'/${CONTEXTO:-}}
+  t=${t//'{{PROMPT}}'/${PROMPT_ARCHIVO:-}}
   t=${t//'{{PLAN}}'/$(if [ -s "$EST/$ID/plan.md" ]; then cat "$EST/$ID/plan.md"; else echo "(Esta tarea no lleva plan previo: planifica tú mismo antes de tocar código.)"; fi)}
   t=${t//'{{MOTIVO}}'/$(cat "$EST/$ID/motivo.md" 2>/dev/null)}
   t=${t//'{{SPEC}}'/$(cuerpo "$SPEC")}
@@ -619,18 +620,24 @@ reemplazar() { # plantilla → prompt (las llaves {{X}} se reemplazan)
   printf '%s\n' "$t"
 }
 
+# El tope de contexto de una sesión (AUTOCOMPACT_SESION) como argumentos de `claude -p`: nada si está vacío o no es un número de 100000 a
+# 1000000 (`verificar` lo dice). Lo usan las sesiones de aquí y la redacción de un pedido (pedidos.sh).
+autocompact_valido() { [[ "${AUTOCOMPACT_SESION:-}" =~ ^[0-9]+$ ]] && [ "$AUTOCOMPACT_SESION" -ge 100000 ] && [ "$AUTOCOMPACT_SESION" -le 1000000 ]; }
+args_autocompact() { autocompact_valido && printf '%s\n%s\n' --autocompact "$AUTOCOMPACT_SESION"; return 0; }
+
 # Corre `claude -p` y deja la salida (stream-json) en estado/<ID>/. Devuelve 0 si la sesión terminó; 1 si hay que cortar aquí
 # (límite del plan o tiempo agotado: la tarea ya quedó en el estado que corresponde).
 claude_en_el_worktree() { # nombre modelo effort modo prompt_archivo [args extra…]
   local nombre=$1 modelo=$2 effort=$3 modo=$4 prompt=$5
   shift 5
-  local salida="$EST/$ID/$nombre.jsonl" rc
+  local salida="$EST/$ID/$nombre.jsonl" rc compacta=()
+  mapfile -t compacta < <(args_autocompact)
   ln -sfn "$salida" "$EST/$ID/sesion-actual.jsonl"
   log "$ID: sesión $nombre ($modelo · $effort · $modo${PERMITE_SESION:+ · permite $PERMITE_SESION})"
   # ORQ_PERMITE siempre explícito (vacío si la spec no permite nada): el hook de Bash lo lee del entorno del proceso `claude`, y el
   # del servicio no se hereda.
   (cd "$WT" && ORQ_PERMITE="${PERMITE_SESION:-}" timeout --kill-after=120 "${TIEMPO_MAX_SESION:-5h}" \
-    claude -p --model "$modelo" --effort "$effort" --permission-mode "$modo" \
+    claude -p --model "$modelo" --effort "$effort" --permission-mode "$modo" "${compacta[@]}" \
     --output-format stream-json --verbose "$@" <"$prompt") >"$salida" 2>"$salida.err" 9>&-
   # (`9>&-`: un proceso que la sesión deje vivo no retiene el turno de la máquina.)
   rc=$?
@@ -688,6 +695,7 @@ planificar() {
   local p="$EST/$ID/prompt-plan.md" modelo=$MODELO_PLAN effort
   effort=$(campo "$SPEC" effort_plan); effort=${effort:-$EFFORT_PLANIFICAR}
   PERMITE_SESION="" # el plan sólo lee: ningún permiso
+  PROMPT_ARCHIVO=$p
   reemplazar "$PROMPTS/planificar.md" >"$p"
   claude_en_el_worktree plan "$modelo" "$effort" plan "$p" --disallowedTools ExitPlanMode || return 1
   if [ "${#RESULTADO_TEXTO}" -lt 800 ]; then
@@ -712,6 +720,7 @@ sesion() { # tarea | retomar | arreglar
   n=$(($(num "$ID" sesiones) + 1))
   est_set "$ID" sesiones "$n"
   p="$EST/$ID/prompt-$n-$tipo.md"
+  PROMPT_ARCHIVO=$p
   modelo=$MODELO_SESION
   effort=$(campo "$SPEC" effort); effort=${effort:-$EFFORT_EJECUTAR}
   PERMITE_SESION=$(campo "$SPEC" permite)
@@ -866,6 +875,7 @@ cmd_prompt() { # lo que recibiría ahora la sesión de ejecutar de una tarea (no
   TITULO=$(campo "$SPEC" titulo)
   WT="$WTS/$ID"
   CONTEXTO=""
+  PROMPT_ARCHIVO="$EST/$ID/prompt-$(($(num "$ID" sesiones) + 1))-tarea.md"
   [ "$(estado_de "$ID")" = por_retomar ] && CONTEXTO=$(contexto_retomar)
   reemplazar "$PROMPTS/tarea.md"
 }
@@ -930,6 +940,14 @@ cmd_verificar() {
   done
   claude --version 2>/dev/null | sed 's/^/  claude /'
   claude --help 2>/dev/null | grep -q -- '--effort' || { echo "✗ tu claude no tiene --effort: claude update"; ok=0; }
+  if [ -z "${AUTOCOMPACT_SESION:-}" ]; then
+    echo "· AUTOCOMPACT_SESION vacío: las sesiones no compactan hasta el tope de la ventana (contexto caro en las largas)"
+  elif autocompact_valido; then
+    if claude --help 2>/dev/null | grep -q -- '--autocompact'; then echo "✓ las sesiones compactan su contexto a $AUTOCOMPACT_SESION tokens (--autocompact)"
+    else echo "✗ tu claude no tiene --autocompact: claude update (o AUTOCOMPACT_SESION vacío en config.local.env)"; ok=0; fi
+  else
+    echo "✗ AUTOCOMPACT_SESION=\"$AUTOCOMPACT_SESION\" no es un número de 100000 a 1000000: no se pasa --autocompact"; ok=0
+  fi
   echo "== Repo ($PROYECTO)"
   if [ -d "$REPO/.git" ]; then echo "✓ $REPO"; else echo "✗ no hay repo en $REPO"; ok=0; fi
   git -C "$REPO" check-ignore -q "$DATOS/estado" 2>/dev/null || [ "${DATOS#"$REPO"/}" = "$DATOS" ] ||

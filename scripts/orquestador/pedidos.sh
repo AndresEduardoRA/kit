@@ -178,6 +178,7 @@ reemplazar_redaccion() { # ronda conversación → el prompt (la conversación v
   local t
   t=$(<"$PROMPTS/redactar.md")
   t=${t//'{{NUMERO}}'/$N}
+  t=${t//'{{PROMPT}}'/$EST/$ID/prompt-$1.md}
   t=${t//'{{RONDA}}'/$1}
   t=${t//'{{FECHA}}'/$(TZ=America/La_Paz date +%F)}
   t=${t//'{{WT}}'/$WT}
@@ -192,11 +193,12 @@ reemplazar_redaccion() { # ronda conversación → el prompt (la conversación v
 
 # La sesión, en modo plan y sin permisos. Deja RESULTADO_TEXTO. 0 si terminó; 1 si se cortó (y ya quedó dicho qué sigue).
 claude_de_redaccion() { # prompt ronda
-  local salida="$EST/$ID/redaccion-$2.jsonl" modelo effort=${EFFORT_REDACTAR:-high} rc rj es_error
+  local salida="$EST/$ID/redaccion-$2.jsonl" modelo effort=${EFFORT_REDACTAR:-high} rc rj es_error compacta=()
+  mapfile -t compacta < <(args_autocompact)
   modelo=$(modelo_de_nivel "${NIVEL_REDACTAR:-capaz}") || modelo=$(modelo_de_nivel capaz)
   log "$ID: redacción del pedido #$N (ronda $2 · $modelo · $effort)"
   (cd "$WT" && ORQ_PERMITE="" timeout --kill-after=60 "${TIEMPO_MAX_REDACCION:-45m}" \
-    claude -p --model "$modelo" --effort "$effort" --permission-mode plan --disallowedTools ExitPlanMode \
+    claude -p --model "$modelo" --effort "$effort" --permission-mode plan --disallowedTools ExitPlanMode "${compacta[@]}" \
     --output-format stream-json --verbose <"$1") >"$salida" 2>"$salida.err" 9>&-
   rc=$?
   RESULTADO_JSON=$(jq -c 'select(.type == "result")' "$salida" 2>/dev/null | tail -n 1)

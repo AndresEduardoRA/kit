@@ -5,6 +5,8 @@ desde el celular, en el issue #{{NUMERO}} de `{{REPO_GH}}` (abajo, con lo que ya
 cola**: la va a ejecutar otra sesión autónoma que no puede preguntar nada. Lees `{{WT}}`, una copia de `main` de hoy ({{FECHA}}). No
 escribes archivos, no creas issues ni comentas: el orquestador hace lo que devuelvas.
 
+En una sesión larga el contexto se compacta y se pierde el texto literal de este prompt: **si se compactó tu contexto, relee el pedido y lo que ya se habló en `{{PROMPT}}`** (este mismo prompt, guardado).
+
 ## Cómo
 
 1. Lee el proyecto antes de preguntar: `CLAUDE.md` y `AGENTS.md`, lo que manda según la `etapa` del repo en `.proyecto/proyecto.yaml`

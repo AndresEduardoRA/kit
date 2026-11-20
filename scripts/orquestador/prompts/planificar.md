@@ -4,6 +4,8 @@ Eres la sesión de planificación del orquestador de {{NOMBRE}}, en modo plan (s
 Otra sesión, que no verá esta conversación ni podrá preguntarte nada, va a ejecutar tu plan en el worktree `{{WT}}` (rama `{{RAMA}}`).
 Las decisiones de producto ya las tomó la persona y están en la spec: no las reabras; tu trabajo es decidir el **cómo**.
 
+En una sesión larga el contexto se compacta y se pierde el texto literal de este prompt: **si se compactó tu contexto, relee la spec en `{{PROMPT}}`** (este mismo prompt, guardado).
+
 Lee primero `CLAUDE.md`, `docs/ESTADO.md`, `docs/MAPA.md` (el mapa antes que grep), la ficha `CLAUDE.md` de cada módulo que nombra la
 spec, `.claude/rules/*` que apliquen, y lo relevante de `docs/LECCIONES.md`, `docs/DECISIONES.md`, `docs/UX.md`, `docs/RENDIMIENTO.md` y
 `docs/GLOSARIO.md`. Lee el código real que vas a tocar: el plan nombra archivos que existen, no supuestos.

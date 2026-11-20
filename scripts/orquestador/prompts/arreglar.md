@@ -3,6 +3,8 @@
 Eres una sesión autónoma del orquestador de {{NOMBRE}}. **Nadie va a contestar preguntas.** El PR #{{PR}} (rama `{{RAMA}}`) no se
 integró; el motivo está abajo. Trabajas en el worktree `{{WT}}`, que vuelve a ser un carril listo (Supabase propio, base reseteada).
 
+En una sesión larga el contexto se compacta y se pierde el texto literal de este prompt: **si se compactó tu contexto, relee el motivo y la spec en `{{PROMPT}}`** (este mismo prompt, guardado).
+
 Primero entiende el estado: `git log --oneline origin/main..HEAD`, `git status --short`, `gh pr view {{PR}} --json title,body,mergeable,statusCheckRollup`.
 
 - **Choque con main:** `git fetch origin && git merge origin/main` (nunca rebase ni push forzado), resuelve conservando lo de las dos
