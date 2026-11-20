@@ -393,10 +393,15 @@ vigilar_prs() {
   done
 }
 
+# La primera línea nombra los jobs caídos: es la que llevan el log y el aviso al celular (`a_arreglar`).
 motivo_ci() { # pr json → texto con los jobs caídos y el final de su log
-  local pr=$1 j=$2 runs r
-  echo "El CI del PR #$pr cayó. Jobs en rojo:"
-  jq -r '.statusCheckRollup[]? | select(.__typename == "CheckRun" and (.conclusion == "FAILURE" or .conclusion == "CANCELLED") and ((.name | startswith("Listo")) | not)) | "- \(.name) (\(.conclusion)): \(.detailsUrl)"' <<<"$j"
+  local pr=$1 j=$2 runs r caidos filtro
+  filtro='.statusCheckRollup[]? | select(.__typename == "CheckRun" and (.conclusion == "FAILURE" or .conclusion == "CANCELLED") and ((.name | startswith("Listo")) | not))'
+  caidos=$(jq -r "[$filtro | .name] | join(\", \")" <<<"$j")
+  echo "El CI del PR #$pr cayó: ${caidos:-ningún job en rojo a la vista (sólo el agregador)}."
+  echo
+  echo "Jobs en rojo:"
+  jq -r "$filtro | \"- \\(.name) (\\(.conclusion)): \\(.detailsUrl)\"" <<<"$j"
   runs=$(jq -r '.statusCheckRollup[]? | select(.__typename == "CheckRun" and .conclusion == "FAILURE") | .detailsUrl' <<<"$j" |
     sed -nE 's#.*/actions/runs/([0-9]+).*#\1#p' | sort -u | head -n 3)
   for r in $runs; do
