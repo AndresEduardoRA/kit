@@ -20,6 +20,7 @@
 #   … nueva <tema>     crea la spec desde la plantilla, en borrador, y la publica como issue (ORQ_SOLO_LOCAL=1: nueva <ID> <tema>)
 #   … entrada          publica ya lo de .orquestador/entrada/ (specs nuevas como issues; respuesta-T<n>.md como comentario)
 #   … espejo           una vuelta del espejo entre la cola local y los issues, ahora
+#   … vigilar          una vuelta de la vigilancia de los PR (CI, choques, la espera a un e2e roto en main), ahora
 #   … estado           la tabla de la cola
 #   … plan             qué lanzaría ahora y por qué espera cada una (no lanza nada)
 #   … ver <ID>         lo que va diciendo la sesión en curso de esa tarea (Ctrl+C para salir)
@@ -89,6 +90,9 @@ source "$ORQ/al-dia.sh"
 # Lo que una tarea pide hacer al integrarse (`al_integrar: etiquetar <nombre>`).
 # shellcheck source=al-integrar.sh
 source "$ORQ/al-integrar.sh"
+# Un e2e que cae también en main no es de la rama que lo encuentra: su tarea urgente y la espera de quien lo encontró.
+# shellcheck source=ajeno-de-main.sh
+source "$ORQ/ajeno-de-main.sh"
 # Las mejoras del flujo entre el kit y este proyecto: la tarea semanal y lo que sube al kit al integrar.
 # shellcheck source=kit.sh
 source "$ORQ/kit.sh"
@@ -180,7 +184,9 @@ deps_listas() { # la spec no es un borrador y sus dependencias están listas (de
 
 retiene_llaves() {
   case "$1" in
-    corriendo | esperando_ci | por_arreglar | por_retomar) return 0 ;;
+    corriendo | por_arreglar | por_retomar) return 0 ;;
+    # Esperando a la urgente de un e2e roto en main no retiene su área: la urgente (`conflicto: e2e`) podría necesitarla.
+    esperando_ci) [ -z "$(est_get "${2:-}" espera_a)" ] ;;
     trabada) [ "${TRABADA_RETIENE_LLAVES:-no}" = si ] ;;
     *) return 1 ;;
   esac
@@ -193,7 +199,7 @@ llave_ocupada_por() { # id [retomando] → imprime la tarea que retiene alguna l
   for otra in $(ids); do
     [ "$otra" = "$id" ] && { despues=si; continue; }
     s=$(estado_de "$otra")
-    retiene_llaves "$s" || continue
+    retiene_llaves "$s" "$otra" || continue
     # Dos tareas por retomar o arreglar con una llave en común (las dos quedaron trabadas y se reintentaron): pasa primero la de
     # antes en la cola. Si cada una esperara a la otra, no correría ninguna.
     if [ -n "$retomando" ] && [ "$despues" = si ] && [[ "$s" == por_* ]]; then continue; fi
@@ -371,7 +377,9 @@ vigilar_prs() {
       MERGED) integrada "$id" "$pr"; continue ;;
       CLOSED) trabar "$id" "El PR #$pr se cerró sin integrarse."; continue ;;
     esac
-    if [ "$mergeable" = CONFLICTING ]; then
+    if esperar_al_arreglo_de_main "$id" "$pr" "$j"; then
+      continue # espera a la urgente de un e2e roto en main (ajeno-de-main.sh), o recién puesta al día tras ella
+    elif [ "$mergeable" = CONFLICTING ]; then
       a_arreglar "$id" "El PR #$pr choca con main (conflicto de merge). Lo integrado mientras tanto en main tocó lo mismo."
     elif [ "$listo" = FAILURE ] || [ "$listo" = CANCELLED ]; then
       a_arreglar "$id" "$(motivo_ci "$pr" "$j")"
@@ -416,6 +424,7 @@ motivo_ci() { # pr json → texto con los jobs caídos y el final de su log
 
 a_arreglar() {
   local id=$1 motivo=$2
+  ajeno_olvidar "$id"
   sumar "$id" arreglos
   if [ "$(num "$id" arreglos)" -gt "${MAX_ARREGLOS:-4}" ]; then
     trabar "$id" "Se intentó arreglar el PR $(est_get "$id" pr) ${MAX_ARREGLOS} veces y sigue sin integrarse. Último motivo: $(head -n 3 <<<"$motivo" | tr '\n' ' ')"
@@ -748,8 +757,14 @@ sesion() { # tarea | retomar | arreglar
 
 despues_de_la_sesion() {
   local linea pr local_head remoto
-  linea=$(grep -oE 'RESULTADO: (PUBLICADO #[0-9]+|TRABADA.*)' <<<"$RESULTADO_TEXTO" | tail -n 1)
+  linea=$(grep -oE 'RESULTADO: (PUBLICADO #[0-9]+|TRABADA.*|AJENO.*)' <<<"$RESULTADO_TEXTO" | tail -n 1)
   soltar_carril
+
+  # Un e2e que cae también en main: la tarea espera a su urgente (ajeno-de-main.sh); si el AJENO no vale, es una trabada.
+  if [[ "$linea" == "RESULTADO: AJENO"* ]]; then
+    ajeno_de_la_sesion "$ID" "$linea" || trabar "$ID" "$AJENO_MOTIVO"
+    return
+  fi
 
   if [[ "$linea" == "RESULTADO: TRABADA"* ]]; then
     trabar "$ID" "${linea#RESULTADO: }"
@@ -812,6 +827,7 @@ cmd_estado() {
     pr=$(est_get "$id" pr)
     extra=""
     [ "$s" = corriendo ] && ! vivo "$id" && extra=" (proceso muerto)"
+    [ "$s" = esperando_ci ] && extra=$(linea_de_espera "$id")
     printf '%-4s %-13s %-6s %-5s %s%s\n' "$id" "$s" "${pr:+#$pr}" "$(num "$id" retomas)/$(num "$id" arreglos)" \
       "$(campo "$(spec_de "$id")" titulo | cut -c1-70)" "$extra"
   done
@@ -851,7 +867,7 @@ cmd_plan() {
       por_arreglar | por_retomar)
         if quien=$(llave_ocupada_por "$id" retomando); then echo "$id  $s, espera el área que ocupa $quien"; else echo "$id  $s"; fi
         ;;
-      *) echo "$id  $s$(linea_al_integrar "$id")$(linea_aviso_kit "$id")" ;;
+      *) echo "$id  $s$(linea_de_espera "$id")$(linea_al_integrar "$id")$(linea_aviso_kit "$id")" ;;
     esac
   done
   # Un issue que nunca se pudo leer no tiene archivo en la cola, pero tampoco se lanza: se nombra igual.
@@ -900,6 +916,8 @@ reintentar_tarea() { # ID motivo-para-retomar
   local id=$1
   est_set "$id" retomas 0
   est_set "$id" arreglos 0
+  est_del "$id" ajenos
+  ajeno_olvidar "$id"
   est_del "$id" fallos_carril
   est_del "$id" espera_carril_hasta
   rm -f "$EST/$id/trabada.md"
@@ -1111,27 +1129,33 @@ cmd_desinstalar() {
   echo "✓ $SERVICIO quitado. La cola y el estado siguen en $DATOS."
 }
 
-case "${1:-bucle}" in
-  bucle) bucle ;;
-  correr) correr "$2" ;;
-  redactar) redactar "$2" ;;
-  estado) cmd_estado ;;
-  plan) cmd_plan ;;
-  ver) cmd_ver "$2" ;;
-  prompt) cmd_prompt "$2" ;;
-  reintentar) cmd_reintentar "$2" ;;
-  omitir) cmd_omitir "$2" ;;
-  parar) cmd_parar "$2" ;;
-  pausar) touch "$EST/.pausa-manual" && echo "En pausa: no lanza nuevas; las que corren terminan." ;;
-  reanudar)
-    rm -f "$EST/.pausa-manual" "$EST/.pausa-hasta" && quitar_pausa_compartida
-    echo "Reanudado (y sin la pausa compartida por el límite del plan, que es de todos los orquestadores de la máquina)."
-    ;;
-  verificar) cmd_verificar ;;
-  nueva) shift && cmd_nueva "$@" ;;
-  entrada) cmd_entrada ;;
-  espejo) token_gh && espejo && echo "Espejo hecho (lo que pasó: .orquestador/estado/orquestador.log)." ;;
-  instalar) cmd_instalar ;;
-  desinstalar) cmd_desinstalar ;;
-  *) sed -n '2,29p' "$0"; exit 64 ;;
-esac
+# Los comandos. Cargado con `source` y ORQ_SOLO_FUNCIONES=1 (las pruebas), sólo define las funciones: no corre ninguno.
+principal() {
+  case "${1:-bucle}" in
+    bucle) bucle ;;
+    correr) correr "$2" ;;
+    redactar) redactar "$2" ;;
+    estado) cmd_estado ;;
+    plan) cmd_plan ;;
+    ver) cmd_ver "$2" ;;
+    prompt) cmd_prompt "$2" ;;
+    reintentar) cmd_reintentar "$2" ;;
+    omitir) cmd_omitir "$2" ;;
+    parar) cmd_parar "$2" ;;
+    pausar) touch "$EST/.pausa-manual" && echo "En pausa: no lanza nuevas; las que corren terminan." ;;
+    reanudar)
+      rm -f "$EST/.pausa-manual" "$EST/.pausa-hasta" && quitar_pausa_compartida
+      echo "Reanudado (y sin la pausa compartida por el límite del plan, que es de todos los orquestadores de la máquina)."
+      ;;
+    verificar) cmd_verificar ;;
+    nueva) shift && cmd_nueva "$@" ;;
+    entrada) cmd_entrada ;;
+    espejo) token_gh && espejo && echo "Espejo hecho (lo que pasó: .orquestador/estado/orquestador.log)." ;;
+    vigilar) token_gh && vigilar_prs && echo "Vigilancia hecha (lo que pasó: .orquestador/estado/orquestador.log)." ;;
+    instalar) cmd_instalar ;;
+    desinstalar) cmd_desinstalar ;;
+    *) sed -n '2,32p' "$0"; exit 64 ;;
+  esac
+}
+
+[ "${ORQ_SOLO_FUNCIONES:-}" = 1 ] || principal "$@"
