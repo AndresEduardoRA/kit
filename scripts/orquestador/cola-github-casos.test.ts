@@ -283,3 +283,25 @@ it(
   },
   TIEMPO,
 )
+
+it(
+  'cola en issues › un issue con `cola` que la lista de abiertos todavía no trae no se avisa como si le hubieran quitado la etiqueta',
+  () => {
+    const t = escenario()
+    t.issue(5, cuerpo('feat/cinco'))
+    t.orq('espejo')
+    t.cambiarGh((g) => {
+      g.listaAtrasada = [5]
+    })
+    t.orq('espejo')
+    expect(t.log()).not.toContain('ya no tiene la etiqueta cola')
+    // Sin la etiqueta de verdad, sí se avisa.
+    t.cambiarGh((g) => {
+      g.listaAtrasada = []
+      g.issues[5]!.labels = []
+    })
+    t.orq('espejo')
+    expect(t.log()).toContain('T5: el issue #5 está abierto pero ya no tiene la etiqueta cola')
+  },
+  TIEMPO,
+)
