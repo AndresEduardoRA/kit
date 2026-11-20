@@ -300,3 +300,6 @@ semilla, en `(semilla)`: al integrarse, el orquestador las sube solas al kit (`d
   a que se integre, se pone al día y vuelve a correr el CI. (calesa-app, PR #440)
 - Lint, typecheck y la suite entera sobre el mismo árbol no verifican nada nuevo: corren una vez, al final y en paralelo; entre commits
   alcanzan los hooks (lefthook y `Stop`) y las pruebas de lo tocado. (calesa-app, PR #440)
+- Para que el orquestador tome un cambio suyo no reinicies el servicio: al integrarse en `main` se relanza solo con `exec` y las
+  sesiones en curso siguen. `systemctl --user restart` corta esas sesiones (`KillMode=control-group`) y cada una se retoma con otra
+  sesión que reconstruye lo hecho. Para frenar lanzamientos va `orquestador.sh pausar`. (calesa-app, PR #441)

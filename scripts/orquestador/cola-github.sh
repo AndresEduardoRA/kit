@@ -196,6 +196,9 @@ revisar_cerrados() { # " números de los abiertos "
     case "$s" in integrado | omitida) continue ;; esac
     j=$(api_issue "$n") || return 1
     if [ "$(jq -r .state <<<"$j")" = open ]; then
+      # Recién creado (la entrada de esta misma vuelta), la lista de abiertos de GitHub puede no traerlo todavía: si el issue
+      # sigue con `cola`, nadie se la quitó y no hay nada que avisar.
+      [[ " $(nombres_de_etiquetas "$j") " == *" cola "* ]] && continue
       [ -f "$EST/$id/sin-cola-avisada" ] || { log "$id: el issue #$n está abierto pero ya no tiene la etiqueta cola: no se toca"; touch "$EST/$id/sin-cola-avisada"; }
       continue
     fi

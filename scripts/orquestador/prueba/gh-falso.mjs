@@ -102,6 +102,8 @@ if (args[0] === 'api') {
       Object.values(e.issues)
         .filter((/** @type {any} */ i) => estado === 'all' || i.state === estado)
         .filter((/** @type {any} */ i) => quiere.every((l) => i.labels.includes(l)))
+        // La lista de GitHub tarda unos segundos en traer un issue recién creado.
+        .filter((/** @type {any} */ i) => !(e.listaAtrasada ?? []).includes(i.number))
         .map(issueDeApi),
     )
   } else if (resto === 'issues' && metodo === 'POST') {

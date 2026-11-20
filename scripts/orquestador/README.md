@@ -121,8 +121,9 @@ Las de lo que entra solo a la cola no son de estado, y el espejo no las toca:
 
 **El espejo, en cada vuelta** (o ya, con `espejo`):
 
-- La entrada: cada `entrada/<tema>.md` se vuelve un issue, pasa a la cola como `T<n>` y se borra; una spec rota queda con su motivo
-  en `<tema>.md.error`. `entrada/respuesta-T<n>.md` se publica como comentario en el issue `<n>`.
+- La entrada: cada `entrada/<tema>.md` se vuelve un issue, pasa a la cola como `T<n>` y se borra; una spec rota, o con la rama de una
+  tarea ya integrada, queda con su motivo en `<tema>.md.error`. `entrada/respuesta-T<n>.md` se publica como comentario en el issue
+  `<n>`. La publica un proceso por vez (`estado/.entrada.lock`): el comando `entrada` y la vuelta del bucle no la duplican.
 - Issues abiertos con `cola` → archivo nuevo o actualizado. Si cambió el archivo y no el issue, el archivo sube al issue; si
   cambiaron los dos, manda el issue (la copia del archivo queda en `estado/<ID>/`). Un issue editado mientras su tarea corre no
   toca la sesión en curso: se toma en la siguiente retoma y se avisa con un comentario.
