@@ -1,3 +1,4 @@
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
@@ -220,6 +221,37 @@ it(
     t.orq('espejo')
     expect(t.est('T40', 'estado')).toBe('trabada')
     expect(t.est('T40', 'respuesta.md')).toBe('')
+  },
+  TIEMPO,
+)
+
+it(
+  'cola en issues › la entrada se publica de a un proceso: con el candado tomado por otro, espera y no abre un issue de más',
+  async () => {
+    const t = escenario()
+    mkdirSync(join(t.datos, 'entrada'))
+    writeFileSync(
+      join(t.datos, 'entrada/nueva.md'),
+      '---\ntitulo: una nueva\nrama: feat/nueva\n---\n',
+    )
+    mkdirSync(join(t.datos, 'estado'), { recursive: true })
+    const candado = join(t.datos, 'estado/.entrada.lock')
+    // Otro proceso (la vuelta del bucle) publicando: tiene el candado.
+    const otro = spawn('flock', [candado, 'sleep', '30'])
+    while (spawnSync('flock', ['-n', candado, 'true']).status === 0)
+      await new Promise((r) => setTimeout(r, 50))
+    try {
+      expect(t.orqCon({ ENTRADA_ESPERA_S: '1' }, 'entrada').estado).toBe(0)
+      expect(t.gh().issues).toEqual({})
+      expect(existsSync(join(t.datos, 'entrada/nueva.md'))).toBe(true)
+      expect(t.log()).toContain('la entrada la está publicando otro proceso')
+    } finally {
+      otro.kill()
+    }
+    await new Promise((r) => otro.once('exit', r))
+    t.orq('entrada')
+    expect(Object.keys(t.gh().issues)).toEqual(['5'])
+    expect(existsSync(join(t.datos, 'entrada/nueva.md'))).toBe(false)
   },
   TIEMPO,
 )

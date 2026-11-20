@@ -8,16 +8,26 @@
 
 # `.orquestador/entrada/<tema>.md` (sin id: lo escribe la skill de tareas o `nueva`) → un issue nuevo; la tarea pasa a la cola con el
 # número del issue y se borra de la entrada. `entrada/respuesta-T<n>.md` → un comentario en el issue <n> (la respuesta a una trabada).
+# De a una publicación por vez (candado en estado/.entrada.lock): el comando `entrada` y la vuelta del bucle leían el mismo archivo en
+# el mismo segundo y abrían dos issues; el segundo espera al primero y encuentra la entrada ya vacía.
 procesar_entrada() {
-  local f
+  local f fd rc=0
   [ -d "$DATOS/entrada" ] || return 0
+  exec {fd}>"$EST/.entrada.lock"
+  if ! flock -w "${ENTRADA_ESPERA_S:-300}" "$fd"; then
+    exec {fd}>&-
+    log "la entrada la está publicando otro proceso desde hace más de ${ENTRADA_ESPERA_S:-300} s: la publico en la vuelta siguiente"
+    return 0
+  fi
   for f in "$DATOS/entrada"/*.md; do
     [ -e "$f" ] || continue
     case "$(basename "$f")" in
-      respuesta-T[0-9]*.md) publicar_respuesta "$f" || return 1 ;;
-      *) publicar_entrada "$f" || return 1 ;;
+      respuesta-T[0-9]*.md) publicar_respuesta "$f" || { rc=1; break; } ;;
+      *) publicar_entrada "$f" || { rc=1; break; } ;;
     esac
   done
+  exec {fd}>&-
+  return "$rc"
 }
 
 publicar_entrada() { # archivo [etiquetas extra…] — deja en PUBLICADA el id de la tarea nueva
