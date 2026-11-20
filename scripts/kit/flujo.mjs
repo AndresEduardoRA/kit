@@ -109,7 +109,7 @@ export function tocaFlujo(archivos, patrones) {
 
 // Lo que llega al issue del kit sale de un PR, no del kit: una lección queda en una línea con tope, y una ruta con caracteres de
 // control o comillas invertidas (que romperían su `código`) no se lista.
-const TOPE_DE_LECCION = 300
+const TOPE_DE_LECCION = 600
 const RUTA_RARA = /[\u0000-\u001f\u007f`]/
 /** @param {string} l */
 function vineta(l) {
