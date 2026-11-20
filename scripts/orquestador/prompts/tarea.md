@@ -8,6 +8,8 @@ Trabajas en el worktree `{{WT}}`, en la rama `{{RAMA}}`. Ya es un carril listo (
 `.env.local`, base reseteada con la semilla, mapa). Para entrar a la app crea las cuentas como lo hacen los e2e (`e2e/soporte/`). Ahí `pnpm dev`, `pnpm db:*` y `pnpm test:e2e` usan su pila. No toques la carpeta principal,
 otras ramas ni otros worktrees. Hoy es {{FECHA}}.
 
+En una sesión larga el contexto se compacta y se pierde el texto literal de este prompt: **si se compactó tu contexto, relee la spec y el plan en `{{PROMPT}}`** (este mismo prompt, guardado).
+
 ## Cómo
 
 1. Lee `CLAUDE.md` (dice qué docs mandan según la etapa del repo), `docs/ESTADO.md` si existe y `docs/MAPA.md` (el mapa antes que grep), la ficha `CLAUDE.md` de cada módulo que toques y, antes
