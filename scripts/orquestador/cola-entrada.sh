@@ -23,11 +23,28 @@ procesar_entrada() {
     [ -e "$f" ] || continue
     case "$(basename "$f")" in
       respuesta-T[0-9]*.md) publicar_respuesta "$f" || { rc=1; break; } ;;
-      *) publicar_entrada "$f" || { rc=1; break; } ;;
+      *) rama_integrada_en_entrada "$f" || publicar_entrada "$f" || { rc=1; break; } ;;
     esac
   done
   exec {fd}>&-
   return "$rc"
+}
+
+# Una spec de la entrada con la rama de una tarea ya integrada no se publica: `<repo>:<rama>` en un `depende` encuentra primero la
+# tarea vieja y daría por lista la dependencia antes de tiempo. Queda en la entrada con su motivo (0: no se publica; 1: sigue).
+rama_integrada_en_entrada() { # archivo
+  local f=$1 rama vieja
+  rama=$(sed -n '/^---$/,/^---$/s/^rama: *//p' "$f" | head -n 1)
+  [ -n "$rama" ] || return 1
+  for vieja in $(ids); do
+    [ "$(estado_de "$vieja")" = integrado ] || continue
+    [ "$(campo "$(spec_de "$vieja")" rama)" = "$rama" ] || continue
+    [ -f "$f.error" ] && [ "$f.error" -nt "$f" ] && return 0
+    echo "la rama «$rama» ya es de $vieja, que está integrada: usa una rama nueva (por ejemplo $rama-2)." >"$f.error"
+    log "entrada/$(basename "$f"): no se publica: $(cat "$f.error")"
+    return 0
+  done
+  return 1
 }
 
 publicar_entrada() { # archivo [etiquetas extra…] — deja en PUBLICADA el id de la tarea nueva

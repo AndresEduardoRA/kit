@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { cuerpo, escenario, TIEMPO } from './prueba/escenario'
@@ -252,6 +252,34 @@ it(
     t.orq('entrada')
     expect(Object.keys(t.gh().issues)).toEqual(['5'])
     expect(existsSync(join(t.datos, 'entrada/nueva.md'))).toBe(false)
+  },
+  TIEMPO,
+)
+
+it(
+  'cola en issues › una spec de la entrada con la rama de una tarea integrada no se publica y queda con su motivo',
+  () => {
+    const t = escenario()
+    t.issue(5, cuerpo('feat/cinco'))
+    t.orq('espejo')
+    t.ponerEst('T5', 'estado', 'integrado')
+    mkdirSync(join(t.datos, 'entrada'))
+    writeFileSync(
+      join(t.datos, 'entrada/otra.md'),
+      '---\ntitulo: otra vez\nrama: feat/cinco\n---\n',
+    )
+    expect(t.orq('entrada').estado).toBe(0)
+    expect(Object.keys(t.gh().issues)).toEqual(['5'])
+    expect(readFileSync(join(t.datos, 'entrada/otra.md.error'), 'utf8')).toContain(
+      'la rama «feat/cinco» ya es de T5, que está integrada',
+    )
+    // Con otra rama, se publica.
+    writeFileSync(
+      join(t.datos, 'entrada/otra.md'),
+      '---\ntitulo: otra vez\nrama: feat/cinco-2\n---\n',
+    )
+    t.orq('entrada')
+    expect(t.cola()).toEqual(['T5-cinco.md', 'T6-cinco-2.md'])
   },
   TIEMPO,
 )
