@@ -24,8 +24,9 @@ Primero entiende el estado: `git log --oneline origin/main..HEAD`, `git status -
   Si cae más de un spec ajeno, nombra el primero y los demás en la evidencia. Sólo vale con un spec y una línea reales y con el PR sin
   nada propio en rojo: si además cae algo de esta rama, arréglalo y publica (el ajeno lo verá la próxima vuelta). Lo que no es un
   e2e (lint, tipos, un servicio de afuera) sigue siendo `RESULTADO: TRABADA —` con el job y la evidencia.
-- Verifica (Nivel 1): `pnpm lint`, `pnpm typecheck`, `pnpm test`, lo de base si tocaste `supabase/`, y los e2e que cayeron más los del
-  módulo, nombrados.
+- Verifica (Nivel 1): primero lo que cayó en el CI (el comando o el e2e que falló, solo, hasta que pase) y al final, una vez y en segundo
+  plano, `bash scripts/flujo/verificar.sh` (lint, tipos, la suite y el mapa en paralelo; no corre si el árbol ya pasó). Además lo de
+  base si tocaste `supabase/`, y los e2e que cayeron más los del módulo, nombrados.
 - Publica de nuevo con `bash scripts/flujo/publicar.sh --sin-esperar --titulo '<el título actual del PR>'`. Agrega al cuerpo del PR
   (`gh pr edit` falla en este repo: `gh api -X PATCH 'repos/{owner}/{repo}/pulls/{{PR}}' -F body=@<archivo>`) qué cayó y cómo se arregló, en dos líneas.
 

@@ -26,18 +26,24 @@ del PR cuenta qué cambió, por qué y cómo se verificó: es la bitácora. No h
 
 ## Qué se verifica y dónde
 
-| Dónde                        | Qué corre                                                                                                                                                                                    |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Al editar (hook)             | ESLint del archivo; en `.sql`, `auth.uid()` envuelto y `security definer` con `search_path`                                                                                                  |
-| Al parar (hook `Stop`)       | Árbol sucio: typecheck, ESLint y `vitest related` de lo cambiado, `scripts/guardas`, mapa. Árbol limpio: typecheck y mapa                                                                    |
-| Al commitear (lefthook)      | ESLint y Prettier de lo que va en el commit, typecheck, `mapa.sh --check`, commitlint; al empujar SQL, `db:probar:rapido`                                                                    |
-| Antes de publicar (la skill) | `pnpm lint`, `pnpm typecheck`, `pnpm test`; con `supabase/` tocado: `pnpm db:reset`, `pnpm db:types`, `pnpm db:probar:rapido`; los e2e dirigidos a lo tocado (`pnpm test:e2e <spec>`)        |
-| CI del PR (la autoridad)     | Nivel 1 (lint, tipos, mapa, título, orden de migraciones, `pnpm test` en 3 partes); «Base» si cambia código (reset, tipos sin diff, `db:probar` completo, privilegios, `db:lint`, advisors); |
-|                              | los e2e dirigidos a lo tocado, o el completo de escritorio en 4 bloques si toca un disparador del Nivel 2 (`.claude/rules/e2e.md`). `Listo · todo en verde` los resume                       |
-|                              | Con contratos entre repos (`.claude/rules/contratos.md`): «Contrato · la base cumple sus versiones» (el proveedor) y «Contrato · el consumidor usa sólo lo fijado» (con los tipos sin diff)  |
-|                              | En el kit, además, «kit · proyecto de ejemplo»: genera los dos repos del ejemplo v2 y le corre a cada uno `install`, `lint`, `typecheck`, `test` y `db:probar`                               |
-| Cada noche (CI)              | El e2e completo de escritorio sobre `main`, si hubo commits; si cae dos noches seguidas, el issue `noche-roja` entra a la cola (`scripts/flujo/noche.mjs`)                                   |
-| Antes de desplegar           | El completo con los dos proyectos: Actions › ci › Run workflow, `proyectos: ambos` (lo dispara la persona), o `pnpm test:e2e:completo` en local                                              |
+| Dónde                        | Qué corre                                                                                                                                                                                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Al editar (hook)             | ESLint del archivo; en `.sql`, `auth.uid()` envuelto y `security definer` con `search_path`                                                                                                                                                                                 |
+| Al parar (hook `Stop`)       | Árbol sucio: typecheck, ESLint y `vitest related` de lo cambiado, `scripts/guardas`, mapa. Árbol limpio: typecheck y mapa                                                                                                                                                   |
+| Al commitear (lefthook)      | ESLint y Prettier de lo que va en el commit, typecheck, `mapa.sh --check`, commitlint; al empujar SQL, `db:probar:rapido`                                                                                                                                                   |
+| Antes de publicar (la skill) | `bash scripts/flujo/verificar.sh` (lint, tipos, `pnpm test` y mapa en paralelo, una vez al final; no repite si el árbol ya pasó); con `supabase/` tocado: `pnpm db:reset`, `pnpm db:types`, `pnpm db:probar:rapido`; los e2e dirigidos a lo tocado (`pnpm test:e2e <spec>`) |
+| CI del PR (la autoridad)     | Nivel 1 (lint, tipos, mapa, título, orden de migraciones, `pnpm test` en 3 partes); «Base» si cambia código (reset, tipos sin diff, `db:probar` completo, privilegios, `db:lint`, advisors);                                                                                |
+|                              | los e2e dirigidos a lo tocado, o el completo de escritorio en 4 bloques si toca un disparador del Nivel 2 (`.claude/rules/e2e.md`). `Listo · todo en verde` los resume                                                                                                      |
+|                              | Con contratos entre repos (`.claude/rules/contratos.md`): «Contrato · la base cumple sus versiones» (el proveedor) y «Contrato · el consumidor usa sólo lo fijado» (con los tipos sin diff)                                                                                 |
+|                              | En el kit, además, «kit · proyecto de ejemplo»: genera los dos repos del ejemplo v2 y le corre a cada uno `install`, `lint`, `typecheck`, `test` y `db:probar`                                                                                                              |
+| Cada noche (CI)              | El e2e completo de escritorio sobre `main`, si hubo commits; si cae dos noches seguidas, el issue `noche-roja` entra a la cola (`scripts/flujo/noche.mjs`)                                                                                                                  |
+| Antes de desplegar           | El completo con los dos proyectos: Actions › ci › Run workflow, `proyectos: ambos` (lo dispara la persona), o `pnpm test:e2e:completo` en local                                                                                                                             |
+
+`scripts/flujo/verificar.sh` es la verificación de una sesión: corre lint, tipos, `pnpm test` y `mapa.sh --check` en paralelo (la salida de
+cada uno en `$TMPDIR`, una línea de resumen por comando y la cola del que cayó) y, si pasan todos, guarda el árbol (lo commiteado más lo
+que haya sin commitear; lo ignorado no cuenta) en `verificado-<rama>` dentro del `.git` del worktree. Con el mismo árbol dice «ya
+verificado» y sale en 0 sin correr nada; `--forzar` lo corre igual. Se pide una vez, al final, en segundo plano: no tras cada commit
+ni en serie. El CI no lo usa: sigue corriéndolo todo.
 
 Rigor máximo (mutaciones, carreras, volumen) sólo en fórmulas, dinero, RLS y permisos. La interfaz decide sus
 microdecisiones sola (`.claude/rules/ui.md`).
