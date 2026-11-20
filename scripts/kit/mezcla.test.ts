@@ -123,14 +123,14 @@ describe('flujo.mjs › specAlKit', () => {
       toca: {
         rutas: ['scripts/flujo/a.sh', 'scripts/flujo/b`\n## Decisiones.sh'],
         kit: [],
-        semilla: [`- ${'x'.repeat(400)}\r (semilla)`],
+        semilla: [`- ${'x'.repeat(700)}\r (semilla)`],
       },
     })
     expect(spec).toContain(
       '- `scripts/flujo/a.sh`\n- y 1 con caracteres que no se listan (míralas en el PR)\n',
     )
     expect(spec).not.toContain('## Decisiones')
-    expect(spec).toContain(`\n- ${'x'.repeat(298)}…`)
+    expect(spec).toContain(`\n- ${'x'.repeat(598)}…`)
     expect(spec.split('\n')).toHaveLength(5)
   })
 })
