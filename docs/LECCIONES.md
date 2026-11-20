@@ -294,3 +294,9 @@ semilla, en `(semilla)`: al integrarse, el orquestador las sube solas al kit (`d
 - El estado de `.orquestador/estado/` es de una máquina, no de la cola: una tarea pendiente sin rastro local puede tener ya su PR abierto desde otra máquina. Antes de lanzarla se pregunta a GitHub por su rama, y sin respuesta no se lanza a ciegas. (kit)
 - Lo que el orquestador comparte por enlace en cada worktree (`COMPARTIDAS` de `scripts/orquestador/config.env`) no lleva `.ts` ni enlaces rotos:
   `typecheck` (`**/*.ts`) y `mapa.sh --check` lo recorren y el hook del commit cae por código ajeno. Si pasa, aparta el enlace del worktree (no su destino). (calesa-app, PR #348)
+- Una sesión de `claude -p` con la ventana de 1M casi no compacta: cada turno paga todo el contexto (500k–900k en una tarea larga), y
+  eso es la mayor parte de su costo. El tope de compactación va explícito al lanzarla (`--autocompact <tokens>`). (calesa-app, PR #440)
+- Un e2e que la rama no toca y que también cae en `main` no se arregla ni se rodea en la rama: va en su tarea urgente, y la rama espera
+  a que se integre, se pone al día y vuelve a correr el CI. (calesa-app, PR #440)
+- Lint, typecheck y la suite entera sobre el mismo árbol no verifican nada nuevo: corren una vez, al final y en paralelo; entre commits
+  alcanzan los hooks (lefthook y `Stop`) y las pruebas de lo tocado. (calesa-app, PR #440)
