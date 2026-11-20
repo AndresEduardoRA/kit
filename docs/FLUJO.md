@@ -67,7 +67,8 @@ Una tanda de varias actualizaciones que corre sola durante días va con el **orq
 una tarea por issue con la etiqueta `cola` (en espejo con `.orquestador/cola/`), cada una en su carril, su sesión de `claude -p` y su
 PR, que cierra su issue. Desde el celular se cargan tareas, se responde a una trabada comentando y se escribe un pedido en texto
 libre (un issue con la etiqueta `pedido`), que una sesión redacta como spec con tus respuestas. Una vez al mes entra sola la
-actualización de dependencias, y el e2e que cae dos noches seguidas entra como tarea urgente. Es de este repo: el de otro
+actualización de dependencias, y el e2e que cae dos noches seguidas entra como tarea urgente; el e2e roto en `main` que una sesión de
+arreglo encuentra sin haberlo tocado también, y la tarea que lo encontró lo espera. Es de este repo: el de otro
 proyecto corre a la vez sin cruzarse (comparten la RAM y, por máquina, los turnos de sesión y la pausa por el límite del plan).
 
 Si dos PR tocan lo mismo, el segundo choca: `git merge origin/main` en su rama (nunca rebase con push forzado), se resuelve, se
