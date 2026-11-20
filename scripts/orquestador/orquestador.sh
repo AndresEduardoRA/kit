@@ -226,6 +226,7 @@ bucle() {
   token_gh
   leer_turnos
   log "orquestador arriba · paralelo $PARALELO · turnos de la máquina $TURNOS · niveles rapido=$NIVEL_RAPIDO normal=$NIVEL_NORMAL capaz=$NIVEL_CAPAZ · $(ids | wc -w) tareas en la cola"
+  ORQ_CARGADA=$(version_del_orquestador)
   while :; do
     al_dia_y_relanzar
     avisar_turnos
