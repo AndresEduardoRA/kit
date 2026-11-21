@@ -37,7 +37,7 @@ paths:
   `src/app/(acceso)`; (4) RLS: una migración que crea, cambia o borra una policy, o enciende RLS en una
   tabla; (5) el layout: `src/app/layout.tsx`, `src/app/(app)/layout.tsx`, `src/app/(app)/_shell` y
   `src/app/(acceso)/layout.tsx`; (6) la estructura: una migración que crea, cambia o borra una tabla o un
-  índice. Además de lo dirigido, el e2e completo de escritorio: lo corre el CI del PR en sus cuatro bloques
+  índice. Además de lo dirigido, el e2e completo de escritorio: lo corre el CI del PR en sus ocho bloques
   (`scripts/e2e-dirigidos.mjs` pasa a modo completo cuando el PR toca un disparador o algo que mueve a todos los
   specs: dependencias, `playwright.config.ts`, `supabase/config.toml`, las migraciones), no la sesión. En local,
   sólo los afectados. Lo decide `node scripts/nivel.mjs <archivos>`, no el ojo.
@@ -81,7 +81,7 @@ inalcanzable, un monto mal dibujado, un dato que no se ve o un permiso que no se
 ## Escribir specs
 
 - Cada spec limpia lo que crea y nombra sus pruebas con prefijo `E2E` y el proyecto.
-- Un spec prepara todo el estado que usa y no depende de otro (CI corre en `--shard=i/4`, cada uno desde
+- Un spec prepara todo el estado que usa y no depende de otro (CI corre en `--shard=i/8`, cada uno desde
   `db:reset`): lo que necesita lo deja sin pisar lo existente y lo quita.
 - Antes de medir una caja o ver quién recibe un clic se espera el estado final, nunca un tiempo
   (`e2e/soporte/esperas.ts`; `waitForTimeout` no).

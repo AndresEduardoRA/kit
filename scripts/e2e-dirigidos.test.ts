@@ -110,12 +110,12 @@ describe('e2e-dirigidos › ninguno y la salida de GitHub', () => {
     ).toBe('ninguno')
   })
 
-  it('completo: 4 bloques en escritorio; dirigidos: 1 bloque con la lista', () => {
+  it('completo: 8 bloques en escritorio; dirigidos: 1 bloque con la lista', () => {
     expect(salidaDeGithub(elegir(['src/proxy.ts'])).split('\n')).toEqual([
       'e2e_modo=completo',
       'e2e_specs=',
-      'e2e_bloques=[1,2,3,4]',
-      'e2e_de=4',
+      'e2e_bloques=[1,2,3,4,5,6,7,8]',
+      'e2e_de=8',
       'e2e_proyectos=escritorio',
     ])
     expect(salidaDeGithub(elegir(['e2e/empresa.spec.ts'])).split('\n')).toEqual([
