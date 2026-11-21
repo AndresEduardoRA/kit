@@ -6,16 +6,22 @@
 # 1. Comprueba: una rama que no es main, el árbol limpio y commits propios sobre origin/main.
 # 2. El título del PR es el mensaje del commit que queda en main (squash): un commit convencional. Sin `--titulo` vale el asunto del
 #    único commit de la rama; con más de uno hay que darlo. Lo valida commitlint, igual que el CI.
-# 3. Empuja la rama (nunca fuerza), abre el PR (o le actualiza el título) y le enciende el auto-merge con squash.
+# 3. Empuja la rama (nunca fuerza), abre el PR (o le actualiza el título) y le enciende el auto-merge con squash. Si main exige la cola
+#    de integración (cola_activa), con «Listo · todo en verde» el PR entra a ella, que lo prueba combinado con main y los PR de delante
+#    y lo integra: nadie trae main a la rama y el orden de migraciones lo valida el CI del grupo.
 #    Si esta misma punta ya se integró en un PR (se vuelve a correr tras un corte), no abre otro: lo dice y sale con 0.
-# 4. Espera (hasta ESPERA_MAX s, 5400) al check «Listo · todo en verde»: integrado → vuelve a main al día (en un worktree, a
-#    origin/main suelto: main es de la principal) y borra las ramas ya integradas; atrasada respecto de main (otro PR se integró
-#    antes) → `PUT …/pulls/<n>/update-branch` y el CI vuelve a correr, con el orden de migraciones contra el main nuevo;
-#    rojo → dice qué job cayó y sale con 1 (se arregla, se commitea y se vuelve a correr). `--sin-esperar` sale tras el 3.
-# Sale con 64 si no hay qué publicar o falta algo; con 1 si el CI cayó; con 75 si se agotó la espera (el PR sigue su curso solo).
+# 4. Espera (hasta ESPERA_MAX s, 5400) a verlo integrado: integrado → vuelve a main al día (en un worktree, a origin/main suelto: main
+#    es de la principal) y borra las ramas ya integradas; rojo → dice qué job cayó y sale con 1 (se arregla, se commitea y se vuelve a
+#    correr). Sin la cola, atrasada respecto de main (otro PR se integró antes) → `PUT …/pulls/<n>/update-branch` y el CI vuelve a
+#    correr, con el orden de migraciones contra el main nuevo. Con la cola, en verde → dice su puesto cuando cambia; la cola lo sacó
+#    después de empezar esta corrida → el motivo, los jobs caídos del grupo y qué hacer, y sale con 1. `--sin-esperar` sale tras el 3.
+# Sale con 64 si no hay qué publicar o falta algo; con 1 si el CI cayó o la cola lo sacó; con 75 si se agotó la espera (el PR sigue su
+# curso solo).
 # Se ubica por la carpeta del propio guion, no por la de quien lo corre: corrido desde `proyectos/` publica igual su repo.
 set -euo pipefail
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+# shellcheck source=scripts/flujo/cola-de-integracion.sh
+source scripts/flujo/cola-de-integracion.sh
 falta() { echo "✗ $1" >&2; exit 64; }
 
 TITULO=""
@@ -77,6 +83,7 @@ if [ -n "$YA" ]; then
   exit 0
 fi
 
+INICIO=$(date -u +%FT%TZ) # una salida de la cola de antes de esta corrida no cuenta
 git push --quiet -u origin "$RAMA"
 PR=$(gh pr view "$RAMA" --json number,state --jq 'select(.state == "OPEN") | .number' 2>/dev/null || true)
 if [ -z "$PR" ]; then
@@ -93,11 +100,17 @@ else
 fi
 gh pr merge "$PR" --auto --squash >/dev/null ||
   falta "no se pudo encender el auto-merge del PR #$PR (¿«Allow auto-merge» y la protección de main? docs/FLUJO.md › «GitHub»)."
-echo "✓ auto-merge encendido: GitHub lo integra con «Listo · todo en verde»."
+COLA=$(cola_activa)
+if [ "$COLA" = true ]; then
+  echo "✓ auto-merge encendido: en verde entra a la cola de integración, que lo prueba combinado con main y lo integra."
+else
+  echo "✓ auto-merge encendido: GitHub lo integra con «Listo · todo en verde»."
+fi
 [ "$ESPERAR" = 1 ] || exit 0
 
 LIMITE=$(($(date +%s) + ${ESPERA_MAX:-5400}))
 PUESTA=0
+PUESTO=""
 while :; do
   ESTADO=$(gh pr view "$PR" --json state,mergeable,mergeStateStatus,statusCheckRollup)
   case "$(jq -r .state <<<"$ESTADO")" in
@@ -109,7 +122,8 @@ while :; do
     exit 1
   fi
   # main exige la rama al día (otro PR se integró antes): GitHub la pone al día con un merge, nunca fuerza; como mucho cada 10 min.
-  if [ "$(jq -r '.mergeStateStatus // ""' <<<"$ESTADO")" = BEHIND ] && [ "$(date +%s)" -ge "$PUESTA" ]; then
+  # Con la cola de integración nadie trae main a la rama: el grupo la prueba combinada.
+  if [ "$COLA" != true ] && [ "$(jq -r '.mergeStateStatus // ""' <<<"$ESTADO")" = BEHIND ] && [ "$(date +%s)" -ge "$PUESTA" ]; then
     # Por la API y no `gh pr update-branch`: ese subcomando no existe en el gh de algunas máquinas (2.46) y el fallo se tragaba en silencio.
     if gh api -X PUT "repos/{owner}/{repo}/pulls/$PR/update-branch" >/dev/null 2>&1; then
       echo "· main avanzó: rama puesta al día con un merge; el CI vuelve a correr."
@@ -125,8 +139,27 @@ while :; do
     echo "  El detalle: gh run view <id> --log-failed. Arréglalo, commitea y vuelve a correr este guion." >&2
     exit 1
   fi
+  # En verde, con la cola: en ella (dice el puesto cuando cambia) o sacado después de empezar esta corrida. Sin respuesta, la vuelta siguiente.
+  if [ "$COLA" = true ] && [ "$LISTO" = SUCCESS ] && EN_COLA=$(estado_en_la_cola "$PR"); then
+    if [ "$(jq -r .enCola <<<"$EN_COLA")" = true ]; then
+      P=$(jq -r '.puesto // "?"' <<<"$EN_COLA")
+      [ "$P" = "$PUESTO" ] || echo "· en la cola de integración (puesto $P)"
+      PUESTO=$P
+    elif SALIDA=$(jq -re --arg desde "$INICIO" '.entrada as $e | .salida | select(. != null and .cuando > $desde and ($e == null or .cuando >= $e)) | .motivo' <<<"$EN_COLA"); then
+      echo "✗ la cola de integración sacó el PR #$PR: ${SALIDA:-sin motivo de GitHub}" >&2
+      CORRIDA=$(corrida_del_grupo "$PR" || true)
+      if [ -n "$CORRIDA" ]; then
+        { caidos_del_grupo "$CORRIDA" || true; } | while IFS=$'\t' read -r NOMBRE JOB _; do
+          echo "  · $NOMBRE  gh run view --job $JOB --log-failed" >&2
+        done
+      fi
+      echo "  Si es el orden de migraciones: créala de nuevo con \`pnpm exec supabase migration new\` y borra la vieja. Si no: git merge" >&2
+      echo "  origin/main, reproduce, arregla, commitea y vuelve a correr este guion." >&2
+      exit 1
+    fi
+  fi
   if [ "$(date +%s)" -ge "$LIMITE" ]; then
-    echo "· el PR #$PR sigue esperando al CI: se integra solo cuando termine en verde (gh pr view $PR)." >&2
+    echo "· el PR #$PR sigue esperando: se integra solo cuando termine en verde (gh pr view $PR)." >&2
     exit 75
   fi
   sleep "${ESPERA_PASO:-30}"
