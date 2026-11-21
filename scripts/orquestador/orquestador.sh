@@ -9,7 +9,8 @@
 #   1. crea su worktree desde origin/main (en .orquestador/worktrees/) y lo vuelve un carril (scripts/worktree/preparar.sh);
 #   2. si la spec lo pide, una sesión de `claude -p` en modo plan escribe el plan (el nivel capaz);
 #   3. una sesión nueva de `claude -p` implementa, verifica y publica el PR con auto-merge (`publicar.sh --sin-esperar`);
-#   4. suelta el carril y vigila el PR: integrado → borra el worktree y sigue la cola; CI rojo o choque → sesión de arreglo.
+#   4. suelta el carril y vigila el PR: integrado → borra el worktree y sigue la cola; CI rojo o choque → sesión de arreglo; en la cola de
+#      integración, su puesto y, si lo saca, a encolar de nuevo o a arreglo (integracion.sh).
 # Cada sesión arranca desde cero (nada de contexto heredado). Si se corta (límite del plan, reinicio, tiempo), se retoma desde lo
 # commiteado en la rama. El estado vive en .orquestador/estado/<ID>/ como archivos de texto: sobrevive a reinicios. Lo que la spec
 # pide hacer al integrarse (`al_integrar: etiquetar <nombre>`) lo hace al integrar y, si GitHub falla, lo reintenta el espejo (al-integrar.sh).
@@ -99,6 +100,9 @@ source "$ORQ/kit.sh"
 # Cambiar de máquina: una tarea que otra máquina ya publicó se adopta en vez de lanzarla otra vez.
 # shellcheck source=otra-maquina.sh
 source "$ORQ/otra-maquina.sh"
+# La cola de integración de GitHub, si main la exige: el puesto del PR, su auto-merge y qué hacer si la cola lo saca.
+# shellcheck source=integracion.sh
+source "$ORQ/integracion.sh"
 
 # ------------------------------------------------------------------------------------------------------------------ utilidades
 
@@ -364,6 +368,7 @@ cola_terminada() {
 
 vigilar_prs() {
   local id pr j state mergeable merge_state listo
+  COLA_ACTIVA="" # si main exige la cola de integración: se pregunta otra vez en cada vuelta (integracion.sh)
   for id in $(ids); do
     [ "$(estado_de "$id")" = esperando_ci ] || continue
     pr=$(est_get "$id" pr)
@@ -383,8 +388,12 @@ vigilar_prs() {
       a_arreglar "$id" "El PR #$pr choca con main (conflicto de merge). Lo integrado mientras tanto en main tocó lo mismo."
     elif [ "$listo" = FAILURE ] || [ "$listo" = CANCELLED ]; then
       a_arreglar "$id" "$(motivo_ci "$pr" "$j")"
-    elif [ "$merge_state" = BEHIND ]; then
-      # main exige la rama al día: GitHub la pone al día con un merge (nunca fuerza). Una vez cada 15 min como mucho.
+    elif [ "$listo" = SUCCESS ] && con_cola_de_integracion; then
+      # En verde: la cola de integración lo prueba combinado con main y lo integra (integracion.sh).
+      atender_la_cola_de_integracion "$id" "$pr" "$j"
+    elif [ "$merge_state" = BEHIND ] && ! con_cola_de_integracion; then
+      # main exige la rama al día: GitHub la pone al día con un merge (nunca fuerza). Una vez cada 15 min como mucho. Con la cola de
+      # integración nadie trae main a la rama: el grupo lo prueba combinado.
       local ult
       ult=$(est_get "$id" puesta_al_dia)
       if [ "$(date +%s)" -gt $((${ult:-0} + 900)) ]; then
@@ -976,6 +985,9 @@ cmd_verificar() {
   token_gh
   if ghr api user --jq .login >/dev/null 2>&1; then echo "✓ gh con la cuenta $(ghr api user --jq .login)"; else echo "✗ gh sin sesión para $(dueno_del_repo) (gh auth login)"; ok=0; fi
   if [ "$(ghr api 'repos/{owner}/{repo}' --jq .allow_auto_merge 2>/dev/null)" = true ]; then echo "✓ auto-merge permitido en el repo"; else echo "✗ el repo no permite auto-merge"; ok=0; fi
+  # No frena: la cola es opcional (docs/FLUJO.md › «GitHub»); sin ella, el auto-merge integra y la rama atrasada se pone al día.
+  if [ "$(cd "$REPO" && cola_activa)" = true ]; then echo "✓ main exige la cola de integración"
+  else echo "· main no exige la cola de integración: la rama atrasada se pone al día por la API (docs/FLUJO.md › «GitHub»)"; fi
   echo "== Cola en los issues"
   if [ "${ORQ_SOLO_LOCAL:-0}" = 1 ]; then
     echo "· ORQ_SOLO_LOCAL=1: la cola es sólo local (.orquestador/cola/)"
@@ -1154,7 +1166,7 @@ principal() {
     vigilar) token_gh && vigilar_prs && echo "Vigilancia hecha (lo que pasó: .orquestador/estado/orquestador.log)." ;;
     instalar) cmd_instalar ;;
     desinstalar) cmd_desinstalar ;;
-    *) sed -n '2,32p' "$0"; exit 64 ;;
+    *) sed -n '2,33p' "$0"; exit 64 ;;
   esac
 }
 

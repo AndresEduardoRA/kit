@@ -118,6 +118,8 @@ type Gh = {
   // Los issues que la lista de abiertos todavía no trae (gh-falso.mjs).
   listaAtrasada?: number[]
   issueEditFalla?: boolean
+  // main exige la cola de integración (un ruleset `merge_queue`: lo lee `cola_activa`, scripts/flujo/cola-de-integracion.sh).
+  colaActiva?: boolean
   // Los repos nombrados explícitamente (el kit), que atiende gh-falso-git.mjs.
   git?: Record<
     string,
@@ -151,6 +153,11 @@ function prepararRepo(local: string, conOrigen: boolean, conKit?: ConKit) {
   ])
   mkdirSync(join(repo, 'scripts/proyecto'), { recursive: true })
   cpSync(resolve('scripts/orquestador'), join(repo, 'scripts/orquestador'), { recursive: true })
+  // Lo que el orquestador carga de scripts/flujo/ (integracion.sh): la consulta de la cola de integración.
+  cpSync(
+    resolve('scripts/flujo/cola-de-integracion.sh'),
+    join(repo, 'scripts/flujo/cola-de-integracion.sh'),
+  )
   cpSync(resolve('scripts/proyecto/manifiesto.mjs'), join(repo, 'scripts/proyecto/manifiesto.mjs'))
   symlinkSync(resolve('node_modules'), join(repo, 'node_modules'))
   mkdirSync(join(repo, '.proyecto'))

@@ -1,7 +1,8 @@
 # shellcheck shell=bash
 # Lo que una tarea pide hacer cuando se integra (`al_integrar:` en su spec; scripts/orquestador/README.md › «Al integrar»). Hoy hay una
 # sola acción: `etiquetar <nombre>`, que crea la etiqueta sobre el último commit de main antes del PR de la tarea (el padre de su
-# squash: el PR del cierre de la construcción saca docs/semilla/, y la etiqueta tiene que conservarla).
+# squash: el PR del cierre de la construcción saca docs/semilla/, y la etiqueta tiene que conservarla). Con la cola de integración ese
+# padre puede ser el squash de otro PR del mismo grupo: sigue siendo el último commit de main antes del de la tarea.
 #
 # `integrada` (orquestador.sh) la marca pendiente antes de dejar la tarea integrada y la intenta al final; si GitHub falla, el espejo
 # (cola-github.sh) la reintenta, una vez cada AL_INTEGRAR_ESPERA segundos como mucho, hasta AL_INTEGRAR_MAX_FALLOS. Sin cola en los
