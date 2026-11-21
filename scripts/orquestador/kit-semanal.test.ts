@@ -21,7 +21,7 @@ function conKit(cual: 'A' | 'B', local = '') {
   }
 }
 const alKit = (t: ReturnType<typeof escenario>) =>
-  t.llamadas().filter((l) => l.args.some((a) => a.startsWith('repos/AndresEduardoRA/kit/')))
+  t.llamadas().filter((l) => l.args.some((a) => a.startsWith('repos/imandresalpiri/kit/')))
 
 it(
   'atrás › crea la tarea con cola y kit una sola vez, aunque se pierda la marca de la semana mientras siga abierta',
@@ -98,14 +98,14 @@ it(
   () => {
     const { t } = conKit('A')
     t.cambiarGh((g) => {
-      g.git!['AndresEduardoRA/kit']!.sinAcceso = true
+      g.git!['imandresalpiri/kit']!.sinAcceso = true
     })
     t.issue(7, cuerpo('feat/otra'))
     expect(t.orq('espejo').estado).toBe(0)
     expect(Object.keys(t.gh().issues)).toEqual(['7'])
     expect(t.cola()).toEqual(['T7-otra.md'])
     expect(t.log()).toMatch(
-      /✗ no pude mirar el kit: actualizar: sin acceso al kit por GitHub \(AndresEduardoRA\/kit\): HTTP 404.*\(se vuelve a mirar en 6 h\)/,
+      /✗ no pude mirar el kit: actualizar: sin acceso al kit por GitHub \(imandresalpiri\/kit\): HTTP 404.*\(se vuelve a mirar en 6 h\)/,
     )
     expect(t.log()).not.toContain('GitHub no responde')
     const antes = alKit(t).length

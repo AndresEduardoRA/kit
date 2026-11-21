@@ -199,7 +199,7 @@ cerrar_issue_de() { # ID
 # el que da el manifiesto (.proyecto/proyecto.yaml). Nada si no se sabe.
 repo_de_nombre() {
   local n=$1 g
-  if [ "$n" = kit ]; then echo "${KIT_GITHUB:-AndresEduardoRA/kit}"; return 0; fi
+  if [ "$n" = kit ]; then echo "${KIT_GITHUB:-imandresalpiri/kit}"; return 0; fi
   if [ -n "$REPO_GH" ] && { [ "$n" = "$PROYECTO" ] || [ "$n" = "${REPO_GH#*/}" ]; }; then echo "$REPO_GH"; return 0; fi
   [ -f "$REPO/.proyecto/proyecto.yaml" ] && g=$(node "$MANIFIESTO" github "$n" "$REPO" 2>/dev/null) && [ -n "$g" ] && echo "$g"
   return 0

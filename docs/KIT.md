@@ -221,7 +221,7 @@ Las mejoras del flujo viajan solas en los dos sentidos como tareas de la cola, p
 `src/`, `supabase/` ni nada del producto.
 
 ```
-                  kit (AndresEduardoRA/kit · main)
+                  kit (imandresalpiri/kit · main)
          tarea semanal │                    ▲ issue «traer de <repo> el PR #n» (cola)
     actualizar.mjs     │                    │ skill traer-de-proyecto
     (mezcla de 3 vías) ▼                    │ (al integrar un PR que toca flujo)

@@ -18,7 +18,7 @@ import { afterAll } from 'vitest'
 // un repo temporal con su manifiesto, y un `gh` y un `claude` falsos primeros en el PATH (gh-falso.mjs guarda un «GitHub» en un JSON y
 // anota cada llamada con su token; claude-falso.sh). Nada sale a la red. Con `conOrigen`, el repo tiene un commit y su origin/main
 // (para la copia de main que lee la redacción de un pedido). Con `conKit`, el repo trae el flujo del kit (scripts/kit/*.mjs, el
-// flujo.txt de ese kit y `.kit/version`) y el gh falso sirve ese kit de juguete como AndresEduardoRA/kit (kit-semanal.test.ts). Cada
+// flujo.txt de ese kit y `.kit/version`) y el gh falso sirve ese kit de juguete como imandresalpiri/kit (kit-semanal.test.ts). Cada
 // llamada al guion ronda un segundo (lanza node varias veces): las pruebas llevan TIEMPO.
 const raices: string[] = []
 afterAll(() => {
@@ -239,7 +239,7 @@ export function escenario(
     prs: {},
     cuentas: ['Cuenta'],
     issueEditFalla: true,
-    ...(conKit ? { git: { 'AndresEduardoRA/kit': { dir: conKit.dir } } } : {}),
+    ...(conKit ? { git: { 'imandresalpiri/kit': { dir: conKit.dir } } } : {}),
   }
   writeFileSync(ruta, JSON.stringify(inicial))
 

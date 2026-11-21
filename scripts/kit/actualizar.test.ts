@@ -102,7 +102,7 @@ it(
     const r = t.correr()
     expect(r.estado).toBe(1)
     expect(r.salida).toMatch(
-      /^actualizar: sin acceso al kit por GitHub \(AndresEduardoRA\/kit\): HTTP 404/m,
+      /^actualizar: sin acceso al kit por GitHub \(imandresalpiri\/kit\): HTTP 404/m,
     )
     expect(git(t.proyecto, 'status', '--porcelain')).toBe('')
     expect(t.leer('.kit/version')).toBe(`${t.A}\n`)

@@ -76,7 +76,7 @@ kit_no_responde() { # salida de actualizar.mjs --revisar
 # `aviso_kit_issue` (la URL del issue del kit), `aviso_kit.md` (lo último que pasó), `al-kit.md` (la spec), y `al-kit-titulo` y
 # `al-kit-cuerpo.md` (el issue). Una tarea de traer el flujo del kit (rama chore/flujo-del-kit-*) no avisa: lo que trae ya es del kit.
 kit_avisa() { [ "${KIT_AVISAR:-si}" = si ] && ! es_el_kit && [ -f "$REPO/scripts/kit/flujo.mjs" ] && [ -n "$REPO_GH" ]; }
-kit_del_kit() { echo "${KIT_GITHUB:-AndresEduardoRA/kit}"; }
+kit_del_kit() { echo "${KIT_GITHUB:-imandresalpiri/kit}"; }
 # `gh` con el token del dueño del kit sólo en esta llamada (KIT_TOK, local de quien llama): la cuenta activa no cambia.
 ghk() { local -x GH_TOKEN="$KIT_TOK"; ghc "$@"; }
 
