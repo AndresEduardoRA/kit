@@ -39,6 +39,10 @@ scripts/nivel.mjs
 scripts/nivel.test.ts
 scripts/e2e-dirigidos.mjs
 scripts/e2e-dirigidos.test.ts
+scripts/e2e-afectados.mjs
+scripts/e2e-afectados.test.ts
+scripts/e2e-afectados-piezas.test.ts
+scripts/e2e-afectados/*
 scripts/e2e-fallos.ts
 scripts/e2e-fallos.test.ts
 scripts/salida-de-test.ts
