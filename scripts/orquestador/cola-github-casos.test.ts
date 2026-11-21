@@ -23,6 +23,17 @@ it(
       'T9  espera dependencias: kit:feat/cola-en-issues (sin PR integrado de feat/cola-en-issues en Cuenta/kit)',
     )
     expect(plan).toContain('no sé qué repo es «nadie»')
+    // Sin sesión de esa cuenta (una organización), vale el token de la máquina.
+    const antes = t.llamadas().length
+    expect(t.orqCon({ GH_TOKEN: 'tok-Maquina' }, 'plan').salida).toContain(
+      'T8  espera dependencias: tienda-web:feat/agenda (sin PR integrado de feat/agenda en Otra/tienda-web)',
+    )
+    const conLaDeLaMaquina = t
+      .llamadas()
+      .slice(antes)
+      .filter((l) => l.args.includes('Otra/tienda-web'))
+    expect(conLaDeLaMaquina.length).toBeGreaterThan(0)
+    expect(conLaDeLaMaquina.every((l) => l.token === 'tok-Maquina')).toBe(true)
 
     t.cambiarGh((g) => {
       g.cuentas.push('Otra')
@@ -39,7 +50,10 @@ it(
       g.prs['Otra/tienda-web']![0]!.estado = 'MERGED'
     })
     expect(t.orq('plan').salida).toContain('T8  LISTA para lanzar')
-    const deOtra = t.llamadas().filter((l) => l.args.includes('Otra/tienda-web'))
+    const deOtra = t
+      .llamadas()
+      .slice(antes)
+      .filter((l) => l.args.includes('Otra/tienda-web') && l.token !== 'tok-Maquina')
     expect(deOtra.length).toBeGreaterThan(0)
     expect(deOtra.every((l) => l.token === 'tok-Otra')).toBe(true)
   },

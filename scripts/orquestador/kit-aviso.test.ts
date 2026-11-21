@@ -134,13 +134,26 @@ it(
 )
 
 it(
-  'sin sesión del dueño del kit › queda pendiente y se reintenta; a los 5 fallos, fallido con aviso y el comando a mano',
+  'sin sesión de la cuenta del kit (una organización) › crea el issue con el GH_TOKEN de la máquina',
   () => {
     const t = conIntegradas([{ filename: 'scripts/flujo/publicar.sh' }], { cuentas: ['Cuenta'] })
     t.orq('espejo')
+    expect(t.est('T12', 'aviso_kit')).toBe('hecho')
+    const post = t.llamadas().filter((l) => l.args.includes(`repos/${KIT}/issues`))
+    expect(post.map((l) => l.token)).toEqual(['tok-Cuenta'])
+    expect(issuesDelKit(t)).toHaveLength(1)
+  },
+  TIEMPO,
+)
+
+it(
+  'sin sesión del dueño del kit ni token de la máquina › queda pendiente y se reintenta; a los 5 fallos, fallido con aviso y el comando a mano',
+  () => {
+    const t = conIntegradas([{ filename: 'scripts/flujo/publicar.sh' }], { cuentas: [] })
+    t.orq('espejo')
     expect(t.est('T12', 'aviso_kit')).toBe('pendiente')
     expect(t.log()).toContain(
-      'T12: no pude llevar al kit el PR (intento 1 de 5): sin sesión de gh de AndresEduardoRA (gh auth login)',
+      'T12: no pude llevar al kit el PR (intento 1 de 5): sin sesión de gh de imandresalpiri (gh auth login)',
     )
     expect(t.orq('plan').salida).toContain('T12  integrado · falta llevar al kit')
     // Antes de la espera no se reintenta.

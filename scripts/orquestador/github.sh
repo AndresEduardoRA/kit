@@ -262,7 +262,8 @@ dep_rama() {
   fi
   cuenta=${repo%%/*}
   tok=$(gh auth token --user "$cuenta" 2>/dev/null) || tok=""
-  [ -z "$tok" ] && [ "$repo" = "$REPO_GH" ] && tok=${GH_TOKEN:-}
+  # Un repo de una organización no tiene sesión de gh (docs/LECCIONES.md): vale el token de la máquina.
+  [ -z "$tok" ] && tok=${GH_TOKEN:-}
   if [ -z "$tok" ]; then
     DEP_MOTIVO="$nombre:$rama (sin token de la cuenta $cuenta: gh auth login)"
   else
