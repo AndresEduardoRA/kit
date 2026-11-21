@@ -4,7 +4,8 @@ import { jobsDe } from './workflows'
 
 // Lo que los contratos entre repos (.claude/rules/contratos.md) necesitan del CI: `cambios` dice si toca el proveedor o el consumidor;
 // `contrato` levanta la pila y prueba las versiones sólo si el repo provee algo; `contrato-uso` revisa `infra/` contra las copias y
-// exige los tipos sin diff; el Nivel 1 de un PR compara las versiones publicadas contra el main recién bajado. Los dos jobs se saltan
+// exige los tipos sin diff; el Nivel 1 de un PR compara las versiones publicadas contra el main recién bajado (en la cola de
+// integración, contra HEAD^1: lo prueba workflows-flujo.test.ts). Los dos jobs se saltan
 // en la plantilla del kit. Aparte de workflows.test.ts para no inflarlo; cada regla tiene su mutación abajo.
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8')
 
@@ -15,7 +16,8 @@ const SI_USO =
   "if: needs.cambios.outputs.contrato_uso == 'true' && needs.cambios.outputs.plantilla != 'true'"
 const ROL = 'pnpm exec tsx scripts/contratos/contrato.ts rol >> "$GITHUB_OUTPUT"'
 const GUARDA =
-  'CONTRATOS_BASE=FETCH_HEAD pnpm exec vitest run scripts/guardas/contratos-publicados.test.ts'
+  'CONTRATOS_BASE=$base pnpm exec vitest run scripts/guardas/contratos-publicados.test.ts'
+const BASE_DEL_PR = 'base=FETCH_HEAD'
 const SIN_DIFF = 'test -z "$(git status --porcelain -- src/shared/types/contratos/)"'
 
 // Los pasos de un job, en orden: el texto de cada `- …` de su `steps:`.
@@ -64,7 +66,8 @@ function problemasDeLosContratos(texto: string): string[] {
       p.push(`cambios: no expone la salida ${salida}`)
   const nivel1 = job('nivel-1')
   const fetch = nivel1.indexOf('git fetch --no-tags --depth=1 origin "$BASE_REF"')
-  if (fetch < 0 || nivel1.indexOf(GUARDA) < fetch)
+  const base = nivel1.indexOf(BASE_DEL_PR, fetch)
+  if (fetch < 0 || base < 0 || nivel1.indexOf(GUARDA) < base)
     p.push('nivel-1: no compara las versiones publicadas contra el main recién bajado')
   return [
     ...p,
@@ -146,6 +149,12 @@ describe('ci.yml › los contratos: las mutaciones caen', () => {
       'el Nivel 1 sin la guarda de versiones publicadas',
       `          ${GUARDA}\n`,
       '',
+      /nivel-1: no compara las versiones publicadas/,
+    ],
+    [
+      'el Nivel 1 del PR contra otra base que el main recién bajado',
+      `            ${BASE_DEL_PR}\n`,
+      '            base=HEAD\n',
       /nivel-1: no compara las versiones publicadas/,
     ],
   ]

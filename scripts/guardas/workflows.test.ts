@@ -121,8 +121,9 @@ describe('ci.yml por niveles', () => {
 
   it('el PR elige sus e2e con scripts/e2e-dirigidos.mjs, y la matriz y los specs salen de esa elección', () => {
     expect(job('cambios')).toContain(
-      'node scripts/e2e-dirigidos.mjs --rango "$BASE_PR...HEAD" --github',
+      'node scripts/e2e-dirigidos.mjs --rango "$desde...HEAD" --github',
     )
+    expect(job('cambios')).toContain('desde=$BASE_PR')
     expect(job('e2e')).toContain('fromJSON(needs.cambios.outputs.e2e_bloques')
     expect(job('e2e')).toContain('"${especs[@]}"')
     for (const nombre of ['e2e', 'e2e-build']) {
