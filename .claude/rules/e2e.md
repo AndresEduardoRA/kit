@@ -27,10 +27,11 @@ paths:
 
 ## Niveles de verificación
 
-- Nivel 1, toda actualización: los e2e dirigidos a lo tocado, en `escritorio` y, si es interfaz (regla de
-  abajo), también en `movil`; las pruebas de lo tocado (`pnpm exec vitest related --run <archivos>`) y
-  `scripts/guardas`. `lint` y `typecheck` los corre el hook del commit (lefthook); la suite entera, la skill
-  `entregar` antes de publicar. El CI del PR vuelve a correr todo y es la autoridad (`docs/FLUJO.md`).
+- Nivel 1, toda actualización: los e2e afectados (`node scripts/e2e-afectados.mjs --correr`: los dirigidos a lo
+  tocado, los que nombran un texto visible que cambió o que un texto nuevo vuelve ambiguo, y los de las pantallas
+  de un compartido; tope de 40), en `escritorio` y, si es interfaz (regla de abajo), también en `movil`; las
+  pruebas de lo tocado (`pnpm exec vitest related --run <archivos>`) y `scripts/guardas`. `lint` y `typecheck`
+  los corre el hook del commit (lefthook); la suite entera, la skill `entregar` antes de publicar. El CI del PR vuelve a correr todo y es la autoridad (`docs/FLUJO.md`).
 - Nivel 2, sólo si la actualización toca uno de estos seis disparadores y ningún otro: (1) lo compartido,
   `src/shared`; (2) el proxy, `src/proxy.ts`; (3) auth: `src/modules/<módulo>/features/auth`, `src/app/auth` y
   `src/app/(acceso)`; (4) RLS: una migración que crea, cambia o borra una policy, o enciende RLS en una
@@ -39,7 +40,7 @@ paths:
   índice. Además de lo dirigido, el e2e completo de escritorio: lo corre el CI del PR en sus cuatro bloques
   (`scripts/e2e-dirigidos.mjs` pasa a modo completo cuando el PR toca un disparador o algo que mueve a todos los
   specs: dependencias, `playwright.config.ts`, `supabase/config.toml`, las migraciones), no la sesión. En local,
-  sólo lo dirigido. Lo decide `node scripts/nivel.mjs <archivos>`, no el ojo.
+  sólo los afectados. Lo decide `node scripts/nivel.mjs <archivos>`, no el ojo.
 - Nivel 3, antes de desplegar: el completo con los dos proyectos (Actions › ci › Run workflow,
   `proyectos: ambos`, que dispara la persona; o `pnpm test:e2e:completo` en local). Cada noche el CI corre el
   completo de escritorio sobre `main` si hubo commits. Un nivel no corrido se dice en el PR.
@@ -90,8 +91,10 @@ inalcanzable, un monto mal dibujado, un dato que no se ve o un permiso que no se
   el producto, cae la de abajo, se revierte y recién entonces se borra el e2e. Lo que exige dos
   conexiones va a las carreras.
 - Lo que suma un pedido al marco de toda pantalla (un bloque, una suscripción) mueve las pruebas que cuentan
-  pedidos: antes de publicar, grep en `e2e/` del texto o del pedido tocado y correr esos specs. Más trampas
-  de e2e, por tema, en `docs/LECCIONES.md` › «e2e (Playwright)».
+  pedidos: antes de publicar, grep en `e2e/` del pedido tocado y correr esos specs (los textos los busca
+  `scripts/e2e-afectados.mjs`). Los specs del marco se llaman `shell-…` o `marco-…`, y los que miden presupuestos,
+  `presupuesto-…`: así los encuentra cuando el cambio llega a toda pantalla. Más trampas de e2e, por tema, en
+  `docs/LECCIONES.md` › «e2e (Playwright)».
 - Cero pruebas saltadas nuevas (`.skip`, `.fixme`, `test.only`) sin motivo escrito al lado.
 
 ## Celular

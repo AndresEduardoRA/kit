@@ -32,9 +32,12 @@ En una sesión larga el contexto se compacta y se pierde el texto literal de est
   repitas los comandos sueltos ni lo corras tras cada commit. Con `supabase/` tocado: migración nueva (`pnpm exec supabase migration new`), `pnpm db:reset`,
   `pnpm db:types`, `pnpm db:probar:rapido`, `pnpm db:lint`; con dinero, RLS o permisos de por medio, también `pnpm db:carreras` (si el
   proyecto lo tiene).
-- Los e2e de lo tocado, nombrados: los nuevos de esta tarea y los existentes del módulo (`pnpm test:e2e <specs> --project escritorio`;
-  y `--project movil` si tocaste interfaz). No corras `test:e2e:completo` salvo que la spec lo pida (el cierre de la construcción corre el Nivel 3): si la tarea
-  dispara el Nivel 2, lo corre el CI.
+- Los e2e afectados, sin elegirlos a mano: `node scripts/e2e-afectados.mjs --correr` (los dirigidos, que ya incluyen los nuevos de esta
+  tarea; los que nombran un texto visible que la rama agrega, quita o cambia, o que un texto nuevo vuelve ambiguo; los de las pantallas de
+  un compartido tocado y, si tocaste el marco, los que lo prueban y los que miden presupuestos), en `escritorio` y, si tocaste interfaz,
+  también en `movil`, en una sola corrida. Pasados 40 corre los más ligados y dice cuáles quedaron fuera: si uno de esos es claramente de
+  lo tuyo, córrelo también. No corras `test:e2e:completo` salvo que la spec lo pida (el cierre de la construcción corre el Nivel 3): si
+  la tarea dispara el Nivel 2, lo corre el CI.
 - Nadie prueba a mano. Lo que sería «pruébalo tú» es un e2e. En las pantallas nuevas o rehechas, además, haz tú el recorrido
   (levanta la app del carril, entra con una cuenta creada como en los e2e, toma capturas en escritorio y celular y míralas) y di en el PR qué viste.
 - Datos y dinero (migración, RLS, permisos, `security definer`, fórmula, dinero): antes de publicar, una segunda lectura con el
