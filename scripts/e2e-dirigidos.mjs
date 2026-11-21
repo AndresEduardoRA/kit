@@ -7,7 +7,7 @@
 // Un spec es dirigido si: cambió él; importa un `e2e/soporte/<x>` o un `e2e/fixtures/<x>` que cambió; o nombra lo tocado: el módulo
 // `src/modules/<m>/` (su nombre al empezar el del spec, `modules/<m>/` o la ruta `/<m>` en su texto), la ruta `src/app/(app)/<r>/`
 // (`/<r>`) o la función edge `supabase/functions/<f>/` (su nombre). Un archivo de `src/` que no lleva a ningún spec pide el completo:
-// mejor sobrar que faltar. Se prueba en `e2e-dirigidos.test.ts`.
+// mejor sobrar que faltar. Se prueba en `e2e-dirigidos.test.ts`. La sesión, en local, corre más: `e2e-afectados.mjs` (reusa `dirigidosDe`).
 import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
 import { basename } from 'node:path'
@@ -16,7 +16,7 @@ import { pathToFileURL } from 'node:url'
 import { nivelDe } from './nivel.mjs'
 
 // Lo que mueve a todos los specs a la vez: la configuración del runner, las dependencias y la base (migraciones y semillas).
-const MUEVE_TODO = [
+export const MUEVE_TODO = [
   /^playwright\.config\.ts$/,
   /^e2e\/global-setup\.ts$/,
   /^package\.json$/,
@@ -26,11 +26,11 @@ const MUEVE_TODO = [
   /^supabase\/(seed\.sql|config\.toml)$/,
 ]
 
-const esSpec = (a) => /^e2e\/[^/]+\.spec\.ts$/.test(a)
+export const esSpec = (a) => /^e2e\/[^/]+\.spec\.ts$/.test(a)
 const escapar = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // Lo que nombra a un ayudante de `e2e/soporte/` (`soporte/<nombre>`) o a un archivo de `e2e/fixtures/` (`fixtures/<carpeta>`).
-const patronDeSoporte = (archivo) => {
+export const patronDeSoporte = (archivo) => {
   const [, carpeta, resto] =
     /^e2e\/(soporte|fixtures)\/(.+?)(?:\.[cm]?[jt]sx?)?$/.exec(archivo) ?? []
   if (!carpeta || !resto) return null
@@ -40,7 +40,7 @@ const patronDeSoporte = (archivo) => {
 
 // Los ayudantes de `e2e/soporte/` que cambiaron y los que los importan, hasta cerrar: un spec que usa `pasos.ts`, que usa `base.ts`,
 // depende de `base.ts`.
-function soporteAfectado(archivos, leer, todosLosSoportes) {
+export function soporteAfectado(archivos, leer, todosLosSoportes) {
   const afectados = new Set(archivos.filter((a) => /^e2e\/(soporte|fixtures)\//.test(a)))
   for (let cambio = true; cambio;) {
     cambio = false
@@ -65,7 +65,7 @@ const patronLocal = (archivo) => {
 }
 
 /** Lo que un archivo tocado busca en los specs, o null si no lleva a ninguno por sí mismo (docs, scripts, pruebas de Vitest…). */
-function claveDe(archivo) {
+export function claveDe(archivo) {
   if (/^e2e\/(soporte|fixtures)\//.test(archivo)) return null
   const modulo = /^src\/modules\/([^/]+)\//.exec(archivo)?.[1]
   if (modulo) {
@@ -82,6 +82,36 @@ function claveDe(archivo) {
   if (funcion)
     return { tipo: 'nombra', prefijo: funcion, patron: new RegExp(`\\b${escapar(funcion)}\\b`) }
   return null
+}
+
+/** Los specs que nombran lo tocado y los archivos de `src/` que no llevan a ninguno. Puro; lo usa también `e2e-afectados.mjs`. */
+export function dirigidosDe(archivos, specs, leer, soportes = []) {
+  const elegidos = new Set(archivos.filter((a) => esSpec(a) && specs.includes(a)))
+  for (const ayudante of soporteAfectado(archivos, leer, soportes)) {
+    const patron = patronDeSoporte(ayudante)
+    for (const spec of specs) if (patron?.test(leer(spec) ?? '')) elegidos.add(spec)
+  }
+  const huerfanos = []
+  for (const archivo of archivos) {
+    // Un spec ya está elegido; una prueba de Vitest la cubre `pnpm test`.
+    if (esSpec(archivo) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(archivo)) continue
+    const clave = claveDe(archivo)
+    if (!clave) {
+      if (archivo.startsWith('src/')) huerfanos.push(archivo)
+      continue
+    }
+    const llega = specsQueNombran(clave, specs, leer)
+    if (llega.length === 0 && archivo.startsWith('src/')) huerfanos.push(archivo)
+    for (const spec of llega) elegidos.add(spec)
+  }
+  return { elegidos, huerfanos }
+}
+
+/** Los specs que nombran una clave de `claveDe`: su nombre empieza con el prefijo o su texto la nombra. */
+export function specsQueNombran(clave, specs, leer) {
+  return specs.filter(
+    (spec) => basename(spec).startsWith(clave.prefijo) || clave.patron.test(leer(spec) ?? ''),
+  )
 }
 
 /**
@@ -107,27 +137,7 @@ export function e2eDelCambio(archivos, specs, leer, soportes = []) {
       interfaz: nivel.toca_interfaz,
     }
 
-  const elegidos = new Set(archivos.filter((a) => esSpec(a) && specs.includes(a)))
-  for (const ayudante of soporteAfectado(archivos, leer, soportes)) {
-    const patron = patronDeSoporte(ayudante)
-    for (const spec of specs) if (patron?.test(leer(spec) ?? '')) elegidos.add(spec)
-  }
-  const huerfanos = []
-  for (const archivo of archivos) {
-    // Un spec ya está elegido; una prueba de Vitest la cubre `pnpm test`.
-    if (esSpec(archivo) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(archivo)) continue
-    const clave = claveDe(archivo)
-    if (!clave) {
-      if (archivo.startsWith('src/')) huerfanos.push(archivo)
-      continue
-    }
-    const llega = specs.filter((spec) => {
-      if (clave.tipo === 'nombra' && basename(spec).startsWith(clave.prefijo)) return true
-      return clave.patron.test(leer(spec) ?? '')
-    })
-    if (llega.length === 0 && archivo.startsWith('src/')) huerfanos.push(archivo)
-    for (const spec of llega) elegidos.add(spec)
-  }
+  const { elegidos, huerfanos } = dirigidosDe(archivos, specs, leer, soportes)
   if (huerfanos.length > 0) {
     return {
       modo: 'completo',
