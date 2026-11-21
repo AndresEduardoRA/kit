@@ -33,6 +33,7 @@ Nunca toca el árbol de trabajo de la principal: crea sus worktrees en `.orquest
 | `scripts/orquestador/al-integrar.sh`     | Lo que una tarea pide hacer al integrarse (`al_integrar: etiquetar <nombre>`): crear la etiqueta, sin pisar una que ya exista, y reintentar si GitHub falla                                                                                                                                                                                                               |
 | `scripts/orquestador/ajeno-de-main.sh`   | Un e2e que cae también en main: lo que hace con el `RESULTADO: AJENO` de una sesión de arreglo (su tarea urgente, la espera de quien lo encontró y ponerla al día cuando se integra)                                                                                                                                                                                      |
 | `scripts/orquestador/otra-maquina.sh`    | Cambiar de máquina: adoptar el PR que otra máquina ya abrió para una tarea que aquí no tiene estado, en vez de lanzarla otra vez                                                                                                                                                                                                                                          |
+| `scripts/orquestador/integracion.sh`     | La cola de integración de GitHub, si main la exige: anota el puesto del PR, le enciende el auto-merge si le falta y, si la cola lo saca, lo vuelve a encolar o lo manda a arreglo                                                                                                                                                                                         |
 | `scripts/orquestador/kit.sh`             | El flujo entre el kit y este proyecto: la tarea semanal de traer el flujo del kit y, al integrar un PR que toca flujo, su tarea en el kit                                                                                                                                                                                                                                 |
 | `scripts/orquestador/cola-entrada.sh`    | La entrada (`.orquestador/entrada/`), la tarea mensual de dependencias y la adopción de las tareas locales de antes                                                                                                                                                                                                                                                       |
 | `scripts/orquestador/pedidos.sh`         | Un pedido en texto libre (`pedido`): lanzar su redacción y la sesión en modo plan; lo que hace con su `SPEC:` o sus `PREGUNTAS:`, en `pedidos-salida.sh`                                                                                                                                                                                                                  |
@@ -315,9 +316,15 @@ Si el servicio no encuentra `claude`, `pnpm` o `node`, agrega sus rutas a `PATH_
   vuelta y lo dice una vez en el log. Mientras siga así, el espejo no le borra al issue una etiqueta de estado más avanzada.
   `verificar` avisa (sin fallar) de los issues con `cola:corriendo` o `cola:esperando-ci` cuya tarea no tiene estado aquí: si el
   orquestador corre en otra máquina, se para allí antes de encenderlo aquí.
-- **Publica** con `publicar.sh --sin-esperar`: el PR queda con auto-merge y el carril se suelta mientras corre el CI.
+- **Publica** con `publicar.sh --sin-esperar`: el PR queda con auto-merge (con la cola de integración, en verde entra a ella) y el
+  carril se suelta mientras corre el CI.
 - **Vigila** el PR cada minuto: integrado → borra worktree y rama. CI rojo o choque con main → una sesión de arreglo con el log del job
-  caído (desde el 3.er intento, con el nivel `NIVEL_ARREGLAR_DIFICIL`). Rama atrasada → la pone al día (merge, nunca fuerza).
+  caído (desde el 3.er intento, con el nivel `NIVEL_ARREGLAR_DIFICIL`). Sin la cola de integración, rama atrasada → la pone al día
+  (merge, nunca fuerza). Si main exige la cola (`cola_activa`, una vez por vuelta), nadie trae main a la rama: en verde, la cola lo
+  prueba combinado con main y los PR de delante y lo integra (`integracion.sh`). En la cola anota el puesto; fuera de ella y sin
+  auto-merge (GitHub lo apaga al sacarlo, o lo empujó un arreglo) lo enciende una vez por punta. Si la cola lo saca sin una corrida del
+  grupo en rojo (otro motivo de GitHub) lo vuelve a encolar una vez por punta; si no, una sesión de arreglo con «La cola de integración
+  sacó el PR #N…» y el final del log de cada job caído del grupo. `verificar` dice si main exige la cola.
 - **Un e2e roto en main** (`ajeno-de-main.sh`): si la sesión de arreglo termina en `RESULTADO: AJENO — <spec>:<línea> [<proyecto>] — <evidencia>`,
   el orquestador encola la urgente que arregla ese spec, deja esperando a la tarea (`plan` dice a quién) y, integrada la urgente, la
   pone al día con main y vuelve a esperar al CI, sin otra sesión (arriba, «Un e2e roto en main»).

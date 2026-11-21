@@ -20,8 +20,9 @@ Una actualización está terminada cuando su PR quedó integrado en `main` (`doc
 4. **Commits.** `git status` en este turno y Conventional Commits (scopes en `AGENTS.md` y `commitlint.config.mjs`); un commit, un
    cambio. Nunca `--no-verify`.
 5. **Publicar.** `bash scripts/flujo/publicar.sh` (con `--titulo '<tipo(scope): descripción>'` si la rama lleva más de un commit, y
-   `--cuerpo <archivo.md>` con qué cambió, por qué y cómo se verificó). Empuja, abre el PR con auto-merge y espera al CI:
+   `--cuerpo <archivo.md>` con qué cambió, por qué y cómo se verificó). Empuja, abre el PR con auto-merge (si `main` exige la cola de
+   integración, en verde entra a ella) y espera a verlo integrado:
    - integrado → ya estás en `main` al día, con las ramas integradas borradas;
-   - rojo → lee el job que cayó (`gh run view <id> --log-failed`), arregla en la misma rama, commitea y vuelve a correr el guion;
+   - rojo, o sacado de la cola (dice el motivo y los jobs caídos del grupo) → lee el job que cayó (`gh run view <id> --log-failed`), arregla en la misma rama, commitea y vuelve a correr el guion;
    - choca con `main` → `git merge origin/main`, resuelve, commitea y vuelve a correrlo.
 6. **Reportar** en tres líneas: qué quedó en `main` (el PR), qué se anotó en `docs/PENDIENTES.md` y qué decisión espera a la persona.

@@ -49,6 +49,10 @@ beforeEach(() => {
   mkdirSync(join(repo, 'scripts/flujo'), { recursive: true })
   writeFileSync(join(repo, 'scripts/flujo/limpiar-ramas.mjs'), 'console.log("limpiar")\n')
   copyFileSync(GUION_DEL_KIT, join(repo, 'scripts/flujo/publicar.sh'))
+  copyFileSync(
+    resolve('scripts/flujo/cola-de-integracion.sh'),
+    join(repo, 'scripts/flujo/cola-de-integracion.sh'),
+  )
   git('add', '.')
   git('commit', '-q', '-m', 'chore: inicio')
   git('push', '-q', '-u', 'origin', 'main')

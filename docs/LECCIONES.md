@@ -303,3 +303,7 @@ semilla, en `(semilla)`: al integrarse, el orquestador las sube solas al kit (`d
 - Para que el orquestador tome un cambio suyo no reinicies el servicio: al integrarse en `main` se relanza solo con `exec` y las
   sesiones en curso siguen. `systemctl --user restart` corta esas sesiones (`KillMode=control-group`) y cada una se retoma con otra
   sesión que reconstruye lo hecho. Para frenar lanzamientos va `orquestador.sh pausar`. (calesa-app, PR #441)
+- Un repo de una organización no tiene sesión de `gh`: `gh auth token --user <org>` falla; el token es el de la máquina (`GH_TOKEN` o
+  `gh auth token`). (calesa-app, PR #485)
+- En `merge_group` no hay `pull_request.base.sha`: lo que trae el PR es `HEAD^1...HEAD` (la cola integra con squash), y la base para
+  comparar migraciones y contratos es `HEAD^1`, con `fetch-depth: 2` (sin el padre, `git ls-tree` falla y la guarda no compara nada). (calesa-app, PR #485)

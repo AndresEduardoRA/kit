@@ -2,7 +2,8 @@
 # Decide qué jobs pesados de CI corren (`.github/workflows/ci.yml`, job `cambios`). Imprime cuatro líneas para $GITHUB_OUTPUT:
 #
 #   pesado=true|false        la base (`base`): el cambio toca código, base, e2e, scripts o la configuración que los mueve
-#   e2e=true|false           el e2e en bloques: pesado y, además, el evento lo pide (pull_request, schedule y workflow_dispatch; no push)
+#   e2e=true|false           el e2e en bloques: pesado y, además, el evento lo pide (pull_request, merge_group, schedule y
+#                            workflow_dispatch; no push)
 #   contrato=true|false      el proveedor (`contrato`): toca la base, sus contratos, el manifiesto o lo que el job corre (los scripts
 #                            de contratos, el lector del manifiesto, la pila y el candado, el CI y las dependencias)
 #   contrato_uso=true|false  el consumidor (`contrato-uso`): toca las copias fijadas, el manifiesto, algún `infra/`, los tipos de los
@@ -11,8 +12,11 @@
 #
 # `schedule` (el completo de cada noche sobre main) corre sólo si main tuvo commits en las últimas 25 horas.
 #
-# Entradas (variables): EVENTO (push | pull_request | workflow_dispatch), ANTES (`github.event.before`), BASE_PR
+# Entradas (variables): EVENTO (push | pull_request | merge_group | workflow_dispatch), ANTES (`github.event.before`), BASE_PR
 # (`github.event.pull_request.base.sha`) y DESPUES (por defecto HEAD). La razón va a stderr, para el log del job.
+#
+# `merge_group` (la cola de integración) no trae la base del PR: el grupo integra con squash, así que lo que trae el PR es
+# DESPUES^1...DESPUES y se decide lo mismo que pidió el PR.
 #
 # Ante la duda corre todo: sin commit de comparación (push de una rama nueva, `before` en ceros), con un commit que el clon no
 # tiene (un clon superficial: el job pide `fetch-depth: 0`; un push forzado) o si `git diff` falla. En esos caminos (y en la noche)
@@ -52,6 +56,7 @@ case "$EVENTO" in
     ;;
   push) desde="${ANTES:-}" ;;
   pull_request) desde="${BASE_PR:-}" ;;
+  merge_group) desde=$(git rev-parse -q --verify "${DESPUES:-HEAD}^1" 2>/dev/null) ;;
   *) salir true "evento «${EVENTO:-ninguno}»: corre todo" ;;
 esac
 hasta="${DESPUES:-HEAD}"

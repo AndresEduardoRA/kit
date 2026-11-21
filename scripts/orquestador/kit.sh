@@ -76,7 +76,7 @@ kit_no_responde() { # salida de actualizar.mjs --revisar
 # `aviso_kit_issue` (la URL del issue del kit), `aviso_kit.md` (lo último que pasó), `al-kit.md` (la spec), y `al-kit-titulo` y
 # `al-kit-cuerpo.md` (el issue). Una tarea de traer el flujo del kit (rama chore/flujo-del-kit-*) no avisa: lo que trae ya es del kit.
 kit_avisa() { [ "${KIT_AVISAR:-si}" = si ] && ! es_el_kit && [ -f "$REPO/scripts/kit/flujo.mjs" ] && [ -n "$REPO_GH" ]; }
-kit_del_kit() { echo "${KIT_GITHUB:-AndresEduardoRA/kit}"; }
+kit_del_kit() { echo "${KIT_GITHUB:-imandresalpiri/kit}"; }
 # `gh` con el token del dueño del kit sólo en esta llamada (KIT_TOK, local de quien llama): la cuenta activa no cambia.
 ghk() { local -x GH_TOKEN="$KIT_TOK"; ghc "$@"; }
 
@@ -122,7 +122,9 @@ avisar_al_kit() { # ID
   titulo=$(jq -r .titulo <<<"$j")
   printf '%s\n' "$titulo" >"$EST/$id/al-kit-titulo"
   jq -r .cuerpo <<<"$j" >"$EST/$id/al-kit-cuerpo.md"
+  # El token del dueño del kit; un kit de una organización no tiene sesión de gh (docs/LECCIONES.md): vale el de la máquina.
   KIT_TOK=$(gh auth token --user "${kit%%/*}" 2>/dev/null) || KIT_TOK=""
+  [ -n "$KIT_TOK" ] || KIT_TOK=${GH_TOKEN:-$(gh auth token 2>/dev/null)}
   [ -n "$KIT_TOK" ] || { aviso_kit_fallo "$id" "sin sesión de gh de ${kit%%/*} (gh auth login)"; return 0; }
   url=$(ghk api -X POST "repos/$kit/issues" -f title="$titulo" -F body=@"$EST/$id/al-kit-cuerpo.md" -f 'labels[]=cola' --jq .html_url)
   rc=$?

@@ -7,13 +7,13 @@ import { cuerpo, escenario, TIEMPO } from './prueba/escenario'
 // kit de juguete), el orquestador crea en el kit un issue `cola` «traer de <repo> el PR #<n>» con el token del dueño del kit, y lo
 // reintenta en el espejo si falla. Con el gh falso (prueba/escenario.ts), que guarda los issues del kit en `git[<kit>].issues`.
 
-const KIT = 'AndresEduardoRA/kit'
+const KIT = 'imandresalpiri/kit'
 type Archivo = { filename: string; previous_filename?: string; patch?: string }
 
 /** T12 integra el PR #40 con `archivos`; T11, el #39 con producto y una lección propia. Listas para que el espejo las integre. */
 function conIntegradas(
   archivos: Archivo[],
-  { rama = 'feat/doce', cuentas = ['Cuenta', 'AndresEduardoRA'] } = {},
+  { rama = 'feat/doce', cuentas = ['Cuenta', 'imandresalpiri'] } = {},
 ) {
   const k = juguete()
   const t = escenario('KIT_AVISAR="si"\n', { conKit: { dir: k.kit, version: k.A } })
@@ -70,7 +70,7 @@ it(
     expect(i.labels).toEqual(['cola'])
     expect(i.title).toBe('traer de tienda-app el PR #40')
     const post = t.llamadas().filter((l) => l.args.includes(`repos/${KIT}/issues`))
-    expect(post.map((l) => l.token)).toEqual(['tok-AndresEduardoRA'])
+    expect(post.map((l) => l.token)).toEqual(['tok-imandresalpiri'])
     const spec = comoSpec(i)
     expect(spec).toMatch(/^titulo: traer de tienda-app el PR #40$/m)
     for (const linea of [
@@ -134,13 +134,26 @@ it(
 )
 
 it(
-  'sin sesión del dueño del kit › queda pendiente y se reintenta; a los 5 fallos, fallido con aviso y el comando a mano',
+  'sin sesión de la cuenta del kit (una organización) › crea el issue con el GH_TOKEN de la máquina',
   () => {
     const t = conIntegradas([{ filename: 'scripts/flujo/publicar.sh' }], { cuentas: ['Cuenta'] })
     t.orq('espejo')
+    expect(t.est('T12', 'aviso_kit')).toBe('hecho')
+    const post = t.llamadas().filter((l) => l.args.includes(`repos/${KIT}/issues`))
+    expect(post.map((l) => l.token)).toEqual(['tok-Cuenta'])
+    expect(issuesDelKit(t)).toHaveLength(1)
+  },
+  TIEMPO,
+)
+
+it(
+  'sin sesión del dueño del kit ni token de la máquina › queda pendiente y se reintenta; a los 5 fallos, fallido con aviso y el comando a mano',
+  () => {
+    const t = conIntegradas([{ filename: 'scripts/flujo/publicar.sh' }], { cuentas: [] })
+    t.orq('espejo')
     expect(t.est('T12', 'aviso_kit')).toBe('pendiente')
     expect(t.log()).toContain(
-      'T12: no pude llevar al kit el PR (intento 1 de 5): sin sesión de gh de AndresEduardoRA (gh auth login)',
+      'T12: no pude llevar al kit el PR (intento 1 de 5): sin sesión de gh de imandresalpiri (gh auth login)',
     )
     expect(t.orq('plan').salida).toContain('T12  integrado · falta llevar al kit')
     // Antes de la espera no se reintenta.

@@ -18,7 +18,7 @@ import { afterAll } from 'vitest'
 // un repo temporal con su manifiesto, y un `gh` y un `claude` falsos primeros en el PATH (gh-falso.mjs guarda un «GitHub» en un JSON y
 // anota cada llamada con su token; claude-falso.sh). Nada sale a la red. Con `conOrigen`, el repo tiene un commit y su origin/main
 // (para la copia de main que lee la redacción de un pedido). Con `conKit`, el repo trae el flujo del kit (scripts/kit/*.mjs, el
-// flujo.txt de ese kit y `.kit/version`) y el gh falso sirve ese kit de juguete como AndresEduardoRA/kit (kit-semanal.test.ts). Cada
+// flujo.txt de ese kit y `.kit/version`) y el gh falso sirve ese kit de juguete como imandresalpiri/kit (kit-semanal.test.ts). Cada
 // llamada al guion ronda un segundo (lanza node varias veces): las pruebas llevan TIEMPO.
 const raices: string[] = []
 afterAll(() => {
@@ -118,6 +118,8 @@ type Gh = {
   // Los issues que la lista de abiertos todavía no trae (gh-falso.mjs).
   listaAtrasada?: number[]
   issueEditFalla?: boolean
+  // main exige la cola de integración (un ruleset `merge_queue`: lo lee `cola_activa`, scripts/flujo/cola-de-integracion.sh).
+  colaActiva?: boolean
   // Los repos nombrados explícitamente (el kit), que atiende gh-falso-git.mjs.
   git?: Record<
     string,
@@ -151,6 +153,11 @@ function prepararRepo(local: string, conOrigen: boolean, conKit?: ConKit) {
   ])
   mkdirSync(join(repo, 'scripts/proyecto'), { recursive: true })
   cpSync(resolve('scripts/orquestador'), join(repo, 'scripts/orquestador'), { recursive: true })
+  // Lo que el orquestador carga de scripts/flujo/ (integracion.sh): la consulta de la cola de integración.
+  cpSync(
+    resolve('scripts/flujo/cola-de-integracion.sh'),
+    join(repo, 'scripts/flujo/cola-de-integracion.sh'),
+  )
   cpSync(resolve('scripts/proyecto/manifiesto.mjs'), join(repo, 'scripts/proyecto/manifiesto.mjs'))
   symlinkSync(resolve('node_modules'), join(repo, 'node_modules'))
   mkdirSync(join(repo, '.proyecto'))
@@ -232,7 +239,7 @@ export function escenario(
     prs: {},
     cuentas: ['Cuenta'],
     issueEditFalla: true,
-    ...(conKit ? { git: { 'AndresEduardoRA/kit': { dir: conKit.dir } } } : {}),
+    ...(conKit ? { git: { 'imandresalpiri/kit': { dir: conKit.dir } } } : {}),
   }
   writeFileSync(ruta, JSON.stringify(inicial))
 

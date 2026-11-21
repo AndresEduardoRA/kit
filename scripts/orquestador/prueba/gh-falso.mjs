@@ -142,6 +142,9 @@ if (args[0] === 'api') {
       guardar()
       imprimir(c)
     } else imprimir(i.comentarios)
+  } else if (resto === 'rules/branches/main' && metodo === 'GET') {
+    // Las reglas de main: con la cola de integración, un ruleset `merge_queue`.
+    imprimir(e.colaActiva ? [{ type: 'merge_queue' }] : [])
   } else if ((m = /^pulls\/(\d+)\/files$/.exec(resto)) && metodo === 'GET') {
     const p =
       prDe(e.repo, (x) => String(x.number) === m?.[1]) ??

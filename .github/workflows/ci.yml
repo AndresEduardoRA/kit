@@ -6,12 +6,17 @@ name: ci
 # scripts/e2e-dirigidos.mjs); cada noche, el completo de escritorio sobre main si hubo commits (y el aviso de la noche abre el issue
 # `noche-roja`, que a la segunda noche seguida entra a la cola: scripts/flujo/noche.mjs); antes de desplegar, el completo con los
 # dos proyectos a mano (workflow_dispatch, `proyectos: ambos`). El job `listo` resume a todos: es el único check que main exige, y con
-# él en verde GitHub integra el PR solo (auto-merge). En la plantilla del kit (.kit/plantilla, la salida «plantilla» de `cambios`) los
+# él en verde GitHub integra el PR solo (auto-merge) o, si main exige la cola de integración, el PR entra a ella, que corre esto otra
+# vez sobre el commit combinado con main y los PR de delante (`merge_group`: lo mismo que pidió el PR, con `HEAD^1` como base) y lo
+# integra. En la plantilla del kit (.kit/plantilla, la salida «plantilla» de `cambios`) los
 # jobs de proyecto se saltan y corre en su lugar «kit · proyecto de ejemplo».
 on:
   push:
     branches: [main]
   pull_request:
+  # La cola de integración (docs/FLUJO.md › «GitHub»): el grupo es main, los PR de delante y este, cada uno en un commit (squash).
+  merge_group:
+    types: [checks_requested]
   schedule:
     - cron: '0 7 * * *' # 03:00 en La Paz
   workflow_dispatch:
@@ -32,7 +37,7 @@ permissions:
 # Un push nuevo a la misma rama (o al mismo PR) cancela la corrida anterior. Un dispatch (un e2e largo) tiene su propio grupo, con
 # run_id, y nunca se cancela: ni un push lo corta ni otro dispatch lo deja en espera. La corrida de cada noche, igual: en el grupo de
 # los push a main, la integración siguiente la cancelaba (en calesa-app, a los 12 min), y de ella depende saber si una prueba cae dos
-# noches seguidas.
+# noches seguidas. Un grupo de la cola de integración tiene su propia ref (`gh-readonly-queue/main/pr-<n>-<sha>`): su grupo es único.
 concurrency:
   group: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && format('ci-manual-{0}-{1}', github.ref, github.run_id) || format('ci-{0}', github.head_ref || github.ref) }}
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.event_name != 'schedule' }}
@@ -60,6 +65,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # En la cola de integración, la base del PR es el padre del commit del grupo (HEAD^1).
+          fetch-depth: 2
       - uses: ./.github/acciones/preparar
       # El PR se integra con squash: su título es el mensaje del commit que queda en main (docs/FLUJO.md).
       - name: el título del PR es un commit convencional
@@ -70,15 +78,22 @@ jobs:
           printf '%s\n' "$TITULO" | pnpm exec commitlint
       # Una migración nueva va después de la última de main: un reset aplica por el orden del nombre (.claude/rules/migraciones.md).
       # Y una versión publicada de un contrato (o una copia fijada) no cambia nunca: contra el main recién bajado
-      # (.claude/rules/contratos.md).
+      # (.claude/rules/contratos.md). En la cola de integración, contra HEAD^1: main y los PR de delante en el grupo, así que dos PR de
+      # la misma cola con migraciones cruzadas también caen.
       - name: las migraciones del PR van después de las de main y sus contratos publicados no cambian
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         env:
+          EVENTO: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --no-tags --depth=1 origin "$BASE_REF"
-          MIGRACIONES_BASE=FETCH_HEAD pnpm exec vitest run scripts/guardas/orden-de-migraciones.test.ts
-          CONTRATOS_BASE=FETCH_HEAD pnpm exec vitest run scripts/guardas/contratos-publicados.test.ts
+          if [ "$EVENTO" = merge_group ]; then
+            base=HEAD^1
+          else
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            base=FETCH_HEAD
+          fi
+          MIGRACIONES_BASE=$base pnpm exec vitest run scripts/guardas/orden-de-migraciones.test.ts
+          CONTRATOS_BASE=$base pnpm exec vitest run scripts/guardas/contratos-publicados.test.ts
       - run: pnpm lint
       - run: pnpm typecheck # corre `next typegen` antes de tsc
       # Las pruebas de `node --test` (`pnpm test` las corre después de vitest; vitest va en «pruebas», en 3 partes).
@@ -144,8 +159,15 @@ jobs:
           EVENTO: ${{ github.event_name }}
           BASE_PR: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$EVENTO" = pull_request ]; then
-            node scripts/e2e-dirigidos.mjs --rango "$BASE_PR...HEAD" --github >> "$GITHUB_OUTPUT"
+          if [ "$EVENTO" = pull_request ] || [ "$EVENTO" = merge_group ]; then
+            # En la cola de integración, lo que trae el PR es HEAD^1...HEAD (el grupo integra con squash): lo mismo que pidió el PR.
+            desde=$BASE_PR
+            if [ "$EVENTO" = merge_group ] && ! desde=$(git rev-parse -q --verify 'HEAD^1'); then
+              echo "::error::el commit del grupo no tiene padre: ¿la cola integra con squash? (docs/FLUJO.md › «GitHub»)"
+              git log --oneline -3
+              exit 1
+            fi
+            node scripts/e2e-dirigidos.mjs --rango "$desde...HEAD" --github >> "$GITHUB_OUTPUT"
           else
             # Fuera de un PR (la noche o a mano): el completo de escritorio, en 8 bloques como el de un PR.
             printf '%s\n' e2e_modo=completo e2e_specs= 'e2e_bloques=[1,2,3,4,5,6,7,8]' e2e_de=8 e2e_proyectos=escritorio >> "$GITHUB_OUTPUT"

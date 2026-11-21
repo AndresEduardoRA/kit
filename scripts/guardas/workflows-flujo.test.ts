@@ -30,9 +30,35 @@ describe('ci.yml › lo que pide el flujo de un PR', () => {
     expect(nivel1).toContain('printf \'%s\\n\' "$TITULO" | pnpm exec commitlint')
     expect(nivel1).toContain('TITULO: ${{ github.event.pull_request.title }}')
     expect(nivel1).toContain(
-      'MIGRACIONES_BASE=FETCH_HEAD pnpm exec vitest run scripts/guardas/orden-de-migraciones.test.ts',
+      'MIGRACIONES_BASE=$base pnpm exec vitest run scripts/guardas/orden-de-migraciones.test.ts',
     )
-    expect(nivel1.match(/if: github\.event_name == 'pull_request'/g)).toHaveLength(2)
+    expect(nivel1).toContain('base=FETCH_HEAD')
+    // El título, sólo en el PR (el grupo no tiene título); las migraciones y los contratos, también en la cola de integración.
+    expect(nivel1.match(/if: github\.event_name == 'pull_request'$/gm)).toHaveLength(1)
+    expect(nivel1).toContain(
+      "if: github.event_name == 'pull_request' || github.event_name == 'merge_group'",
+    )
+  })
+
+  it('la cola de integración corre el CI sobre el commit del grupo (merge_group) y `listo` es su check', () => {
+    expect(ci).toMatch(/^ {2}merge_group:\n {4}types: \[checks_requested\]$/m)
+    expect(job('listo')).toMatch(/^ {4}if: always\(\)$/m)
+    expect(readFileSync('scripts/ci-cambios.sh', 'utf8')).toMatch(/merge_group\) desde=/)
+  })
+
+  it('en la cola de integración lo que trae el PR es HEAD^1...HEAD: migraciones, contratos y e2e dirigidos contra HEAD^1', () => {
+    const nivel1 = job('nivel-1')
+    expect(nivel1).toMatch(/if \[ "\$EVENTO" = merge_group \]; then\n\s+base=HEAD\^1\n/)
+    expect(nivel1).toContain('CONTRATOS_BASE=$base pnpm exec vitest run')
+    // HEAD^1 tiene que estar en el clon: sin él, `git ls-tree` falla y la guarda de migraciones no compara nada.
+    expect(nivel1).toMatch(
+      /actions\/checkout@[0-9a-f]{40}[^\n]*\n\s+with:\n(?:\s*#.*\n)*\s+fetch-depth: 2\n/,
+    )
+    const cambios = job('cambios')
+    expect(cambios).toContain(
+      '[ "$EVENTO" = merge_group ] && ! desde=$(git rev-parse -q --verify \'HEAD^1\')',
+    )
+    expect(cambios).toContain('::error::el commit del grupo no tiene padre')
   })
 
   it('el Nivel 1 corre shellcheck sobre todo guion de bash, con el del apt del runner y sin acciones de terceros', () => {

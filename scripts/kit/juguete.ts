@@ -6,7 +6,7 @@ import { afterAll } from 'vitest'
 import { MARCADORES } from './personalizar.mjs'
 
 // Un kit de juguete (un repo de git con dos commits, A y B) y el proyecto «tienda-app» que salió de A, con cambios propios; y un `gh`
-// falso (scripts/orquestador/prueba/gh-falso.mjs) que sirve el kit como `AndresEduardoRA/kit` desde ese repo local. Para las pruebas
+// falso (scripts/orquestador/prueba/gh-falso.mjs) que sirve el kit como `imandresalpiri/kit` desde ese repo local. Para las pruebas
 // de actualizar.mjs. Los marcadores salen de MARCADORES, nunca escritos a mano: lo que viaja se revisa por marcadores sueltos.
 const raices: string[] = []
 afterAll(() => {
@@ -15,7 +15,7 @@ afterAll(() => {
 })
 
 export const TIEMPO = 60_000
-export const KIT = 'AndresEduardoRA/kit'
+export const KIT = 'imandresalpiri/kit'
 // En el CI git no tiene autor: cada commit lleva el suyo.
 export const AUTOR = {
   GIT_AUTHOR_NAME: 'prueba',
@@ -123,7 +123,7 @@ export function juguete(cambio: (dir: string) => void = () => {}) {
       issues: {},
       etiquetas: [],
       prs: {},
-      cuentas: ['AndresEduardoRA'],
+      cuentas: ['imandresalpiri'],
       git: { [KIT]: { dir: kit } },
     }),
   )

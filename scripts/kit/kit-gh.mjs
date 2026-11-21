@@ -8,7 +8,7 @@ import { lstatSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 // El de KIT_GITHUB en scripts/orquestador/config.env (mezcla.test.ts los compara).
-export const KIT_POR_DEFECTO = 'AndresEduardoRA/kit'
+export const KIT_POR_DEFECTO = 'imandresalpiri/kit'
 
 /** El `cuenta/repo` del kit: KIT_GITHUB del entorno (el orquestador lo pasa desde su config.env) o el de siempre. */
 export const kitGithub = () => process.env['KIT_GITHUB'] || KIT_POR_DEFECTO

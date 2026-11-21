@@ -244,3 +244,22 @@ describe('ci-cambios.sh › los contratos', () => {
     })
   })
 })
+
+// La cola de integración (`merge_group`): el commit del grupo es el squash del PR encima de main y de los PR de delante, así que lo que
+// trae el PR es HEAD^1...HEAD, no la base de main.
+describe('ci-cambios.sh › la cola de integración', () => {
+  const grupo = (hasta: string) => correr(repo, { EVENTO: 'merge_group' }, commits[hasta] ?? hasta)
+
+  it('compara contra el padre del commit del grupo: sólo docs encima de src/ no es pesado; src/, sí y con e2e', () => {
+    commitear('grupo-codigo', ['src/app/grupo.tsx'])
+    commitear('grupo-docs', ['docs/GRUPO.md'])
+    expect(grupo('grupo-docs').salida).toEqual(NADA)
+    expect(grupo('grupo-codigo').salida).toEqual({ ...NADA, pesado: 'true', e2e: 'true' })
+  })
+
+  it('sin padre corre todo y dice por qué', () => {
+    const r = grupo('inicio')
+    expect(r.salida).toEqual(TODO)
+    expect(r.motivo).toContain('sin commit de comparación')
+  })
+})
