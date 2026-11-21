@@ -157,16 +157,25 @@ export function e2eDelCambio(archivos, specs, leer, soportes = []) {
   }
 }
 
-// Specs dirigidos por bloque: con más, se reparten en bloques paralelos (hasta 4, como el completo). Un bloque con 91 specs en los dos
-// proyectos pasaba los 45 min del job, se cancelaba y el PR nunca quedaba en verde (PR 69 y 78, 2026-11-08).
+// Specs dirigidos por bloque: con más, se reparten en bloques paralelos (hasta 4). Un bloque con 91 specs en los dos proyectos pasaba
+// los 45 min del job, se cancelaba y el PR nunca quedaba en verde (PR 69 y 78, 2026-11-08).
 export const SPECS_POR_BLOQUE = 20
+export const BLOQUES_DIRIGIDOS_MAX = 4
+// El completo de escritorio, en 8: cada bloque pierde ~2,5 min en preparar la pila y el resto es de los tests, así que con una suite
+// grande la vuelta baja casi a la mitad que en 4 (en un proyecto con ~1.700 tests, de ~22 a ~13 min). Playwright reparte por cantidad de
+// tests (±2 % por bloque): parejo sin repartir por duración, y un bloque que queda sin tests no falla. El tope de jobs a la vez en la
+// cuenta es 20, compartido entre los PR en paralelo y la noche: más de 8 no cabría.
+export const BLOQUES_DEL_COMPLETO = 8
 
-/** Las líneas de $GITHUB_OUTPUT: el modo, los specs, los bloques de la matriz (4 el completo; los dirigidos, uno cada 20 specs, hasta 4) y los proyectos. */
+/** Las líneas de $GITHUB_OUTPUT: el modo, los specs, los bloques de la matriz (8 el completo; los dirigidos, uno cada 20 specs, hasta 4) y los proyectos. */
 export function salidaDeGithub(eleccion) {
   const completo = eleccion.modo === 'completo'
   const bloques = completo
-    ? 4
-    : Math.min(4, Math.max(1, Math.ceil(eleccion.specs.length / SPECS_POR_BLOQUE)))
+    ? BLOQUES_DEL_COMPLETO
+    : Math.min(
+        BLOQUES_DIRIGIDOS_MAX,
+        Math.max(1, Math.ceil(eleccion.specs.length / SPECS_POR_BLOQUE)),
+      )
   return [
     `e2e_modo=${eleccion.modo}`,
     `e2e_specs=${eleccion.specs.join(' ')}`,

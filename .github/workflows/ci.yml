@@ -22,7 +22,7 @@ on:
         options: [escritorio, ambos]
         default: escritorio
       e2e:
-        description: 'Compilar la app y correr el e2e en sus 4 bloques'
+        description: 'Compilar la app y correr el e2e en sus bloques'
         type: boolean
         default: true
 
@@ -108,7 +108,7 @@ jobs:
       - run: pnpm exec vitest run --shard=${{ matrix.parte }}/3
 
   # Decide si corren los jobs pesados y los de contratos (scripts/ci-cambios.sh, probado en scripts/ci-cambios.test.ts) y qué e2e corre
-  # un PR: el completo en 4 bloques, los dirigidos en 1 a 4, o ninguno (scripts/e2e-dirigidos.mjs). Fuera de un PR, el completo. Y si
+  # un PR: el completo en 8 bloques, los dirigidos en 1 a 4, o ninguno (scripts/e2e-dirigidos.mjs). Fuera de un PR, el completo. Y si
   # este repo es la plantilla del kit.
   cambios:
     name: Cambios · ¿base y e2e?
@@ -147,7 +147,8 @@ jobs:
           if [ "$EVENTO" = pull_request ]; then
             node scripts/e2e-dirigidos.mjs --rango "$BASE_PR...HEAD" --github >> "$GITHUB_OUTPUT"
           else
-            printf '%s\n' e2e_modo=completo e2e_specs= 'e2e_bloques=[1,2,3,4]' e2e_de=4 e2e_proyectos=escritorio >> "$GITHUB_OUTPUT"
+            # Fuera de un PR (la noche o a mano): el completo de escritorio, en 8 bloques como el de un PR.
+            printf '%s\n' e2e_modo=completo e2e_specs= 'e2e_bloques=[1,2,3,4,5,6,7,8]' e2e_de=8 e2e_proyectos=escritorio >> "$GITHUB_OUTPUT"
           fi
 
   base:
@@ -257,8 +258,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 4 bloques para el completo; los dirigidos de un PR, uno cada 20 specs y hasta 4 (scripts/e2e-dirigidos.mjs).
-        bloque: ${{ fromJSON(needs.cambios.outputs.e2e_bloques || '[1,2,3,4]') }}
+        # 8 bloques para el completo; los dirigidos de un PR, uno cada 20 specs y hasta 4 (scripts/e2e-dirigidos.mjs).
+        bloque: ${{ fromJSON(needs.cambios.outputs.e2e_bloques || '[1,2,3,4,5,6,7,8]') }}
     env:
       # Escritorio por defecto; `proyectos: ambos` (workflow_dispatch) corre los dos, el Nivel 3. Los dirigidos de un PR que toca
       # interfaz, también los dos (el Nivel 1).
@@ -329,7 +330,7 @@ jobs:
         env:
           E2E_PROD: '1'
           E2E_COMPLETO: '1'
-          DE: ${{ needs.cambios.outputs.e2e_de || '4' }}
+          DE: ${{ needs.cambios.outputs.e2e_de || '8' }}
         run: |
           proyecto=(--project=escritorio)
           if [ "$PROYECTOS" = ambos ]; then proyecto=(); fi
